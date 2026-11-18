@@ -99,3 +99,74 @@ describe('headers', () => {
     expect(res.headers.get('cache-control')).toBe('no-store');
   });
 });
+
+describe('serving beyond this machine', () => {
+  test('a host named in allowedHosts is served, with or without a port, and others stay refused', async () => {
+    const a = app({ allowedHosts: ['adr.example.com'] });
+    expect((await a.request('/api/meta', { headers: { Host: 'adr.example.com' } })).status).toBe(200);
+    expect((await a.request('/api/meta', { headers: { Host: 'ADR.example.com:8443' } })).status).toBe(200);
+    expect((await a.request('/api/meta', { headers: { Host: 'adr.example.com.evil.example' } })).status).toBe(403);
+    expect((await a.request('/api/meta', { headers: { Host: 'other.example' } })).status).toBe(403);
+  });
+
+  test('the refusal tells how to allow a host', async () => {
+    const body = (await (await app().request('/api/meta', { headers: { Host: 'evil.example' } })).json()) as ApiError;
+    expect(body.error.message).toContain('--allowed-host');
+  });
+});
+
+describe('access token', () => {
+  const basic = (user: string, pass: string) => `Basic ${Buffer.from(`${user}:${pass}`).toString('base64')}`;
+
+  test('without a token configured, no credentials are asked for', async () => {
+    expect((await app().request('/api/meta')).status).toBe(200);
+  });
+
+  test('a request without credentials is refused with 401 and a Basic challenge', async () => {
+    const res = await app({ token: 's3cret' }).request('/api/meta');
+    expect(res.status).toBe(401);
+    expect(res.headers.get('www-authenticate')).toMatch(/^Basic realm="Adrien"/);
+    expect(((await res.json()) as ApiError).error.code).toBe('UNAUTHORIZED');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+  });
+
+  test.each([
+    ['a Bearer token', 'Bearer s3cret'],
+    ['Basic with the token as the password', basic('anyone', 's3cret')],
+    ['Basic with an empty user name', basic('', 's3cret')],
+  ])('%s is accepted', async (_name, authorization) => {
+    const res = await app({ token: 's3cret' }).request('/api/meta', { headers: { Authorization: authorization } });
+    expect(res.status).toBe(200);
+  });
+
+  test.each([
+    ['a wrong Bearer token', 'Bearer s3cre'],
+    ['a longer token', 'Bearer s3cret!'],
+    ['a wrong Basic password', basic('anyone', 'nope')],
+    ['the token as the user name only', basic('s3cret', '')],
+    ['an unknown scheme', 'Token s3cret'],
+    ['malformed Basic', 'Basic !!!'],
+    ['an empty header', ''],
+  ])('%s is refused', async (_name, authorization) => {
+    const res = await app({ token: 's3cret' }).request('/api/meta', { headers: { Authorization: authorization } });
+    expect(res.status).toBe(401);
+  });
+
+  test('the web files are behind the token too', async () => {
+    expect((await app({ token: 's3cret' }).request('/')).status).toBe(401);
+  });
+
+  test('the Host check comes before the token, so a rebinding page learns nothing', async () => {
+    const res = await app({ token: 's3cret' }).request('/api/meta', { headers: { Host: 'evil.example' } });
+    expect(res.status).toBe(403);
+  });
+
+  test('/healthz answers ok without credentials and reveals nothing', async () => {
+    const res = await app({ token: 's3cret' }).request('/healthz');
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe('ok\n');
+    expect((await app({ token: 's3cret' }).request('/healthz', { headers: { Host: 'evil.example' } })).status).toBe(
+      403,
+    );
+  });
+});

@@ -211,7 +211,8 @@ generated: regenerate it rather than editing it.
 
 `adrien serve [--port <n>] [--host <h>]` starts a read-only HTTP server on `127.0.0.1:4310` for the web visualizer,
 scripts and dashboards, and prints its URL. It runs until you stop it. The endpoints and the security rules are in
-[api.md](api.md).
+[api.md](api.md). To serve a team from a server, with a token and a Docker image, see
+[self-hosting.md](self-hosting.md).
 
 ## The MCP server
 
