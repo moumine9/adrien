@@ -1,6 +1,7 @@
 import { lazy } from 'react';
 import { Route, Routes } from 'react-router';
 import { Layout } from './components/layout.tsx';
+import { BoardView } from './views/board-view.tsx';
 import { DecisionsView } from './views/decisions-view.tsx';
 import { FilesView } from './views/files-view.tsx';
 import { HealthView } from './views/health-view.tsx';
@@ -15,6 +16,7 @@ export function AppRoutes() {
     <Routes>
       <Route element={<Layout />}>
         <Route index element={<DecisionsView />} />
+        <Route path="board" element={<BoardView />} />
         <Route path="adr/:id" element={<DecisionView />} />
         <Route path="graph" element={<GraphView />} />
         <Route path="files" element={<FilesView />} />

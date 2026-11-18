@@ -1,5 +1,15 @@
 import type { MetaResponse } from '@adrien/api/contract';
-import { FolderTree, GitBranch, HeartPulse, ListChecks, Moon, Sun, TriangleAlert, Waypoints } from 'lucide-react';
+import {
+  Columns3,
+  FolderTree,
+  GitBranch,
+  HeartPulse,
+  ListChecks,
+  Moon,
+  Sun,
+  TriangleAlert,
+  Waypoints,
+} from 'lucide-react';
 import { Suspense, useEffect, useRef } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { Button } from '@/components/ui/button.tsx';
@@ -12,6 +22,7 @@ import { LoadingBlocks } from './states.tsx';
 
 const NAV = [
   { to: '/', label: 'Decisions', icon: ListChecks, end: true },
+  { to: '/board', label: 'Board', icon: Columns3, end: false },
   { to: '/graph', label: 'Graph', icon: Waypoints, end: false },
   { to: '/files', label: 'Files', icon: FolderTree, end: false },
   { to: '/check', label: 'Health', icon: HeartPulse, end: false },
