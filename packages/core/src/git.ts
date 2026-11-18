@@ -8,7 +8,7 @@ const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 256 * 1024 * 1024;
 
 /** Runs git; resolves stdout, or null when git fails (not a repo, unknown ref, offline…). */
-async function git(cwd: string, args: string[]): Promise<string | null> {
+export async function git(cwd: string, args: string[]): Promise<string | null> {
   try {
     const { stdout } = await execFileAsync('git', args, { cwd, maxBuffer: MAX_BUFFER, encoding: 'utf8' });
     return stdout;
