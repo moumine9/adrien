@@ -35,15 +35,27 @@ importers:
       '@adrien/core':
         specifier: workspace:*
         version: link:../core
+      '@hono/node-server':
+        specifier: ^2.1.8
+        version: 2.1.8(hono@4.13.19)
+      hono:
+        specifier: ^4.13.19
+        version: 4.13.19
 
   packages/cli:
     dependencies:
+      '@hono/node-server':
+        specifier: ^2.1.8
+        version: 2.1.8(hono@4.13.19)
       '@modelcontextprotocol/sdk':
         specifier: ^1.32.2
         version: 1.32.2(zod@4.6.7)
       commander:
         specifier: ^15.1.0
         version: 15.1.0
+      hono:
+        specifier: ^4.13.19
+        version: 4.13.19
       markdownlint:
         specifier: ^0.42.1
         version: 0.42.1
@@ -57,6 +69,9 @@ importers:
         specifier: ^4.6.7
         version: 4.6.7
     devDependencies:
+      '@adrien/api':
+        specifier: workspace:*
+        version: link:../api
       '@adrien/core':
         specifier: workspace:*
         version: link:../core
