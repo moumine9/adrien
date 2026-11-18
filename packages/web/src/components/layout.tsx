@@ -8,6 +8,7 @@ import { useMeta } from '@/lib/queries.ts';
 import { useTheme } from '@/lib/theme.ts';
 import { cn } from '@/lib/utils.ts';
 import { BrandMark } from './brand-mark.tsx';
+import { DemoBanner } from './demo-banner.tsx';
 import { LoadingBlocks } from './states.tsx';
 
 const NAV = [
@@ -150,6 +151,7 @@ export function Layout() {
           </div>
         </div>
       </header>
+      {import.meta.env.MODE === 'demo' && <DemoBanner />}
       {meta.data && <UnverifiedBanner meta={meta.data} />}
       <main id="main" tabIndex={-1} className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 outline-none sm:px-6 sm:py-10">
         <Suspense fallback={<LoadingBlocks label="Loading" count={2} />}>
