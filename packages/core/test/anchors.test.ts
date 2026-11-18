@@ -24,6 +24,14 @@ test('excerpt prefers Rationale, then Decision, then the first paragraph', () =>
   expect(excerpt(withBody('\nJust a paragraph.\n\nAnother.\n'))).toBe('Just a paragraph.');
 });
 
+test('excerpt reads the MADR "Decision Outcome" section, not the problem statement', () => {
+  const madr =
+    '\n## Context and Problem Statement\n\nWe need a store.\n\n## Decision Outcome\n\nChosen option: "Postgres", because ACID.\n\n### Consequences\n\n* Good, because transactions.\n';
+  expect(excerpt(withBody(madr))).toBe(
+    'Chosen option: "Postgres", because ACID.\n\n### Consequences\n\n* Good, because transactions.',
+  );
+});
+
 test('excerpt truncates at 600 characters with an ellipsis', () => {
   const text = excerpt(withBody(`\n## Rationale\n\n${'x'.repeat(700)}\n`));
   expect(text).toHaveLength(600);

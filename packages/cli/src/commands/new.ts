@@ -1,4 +1,4 @@
-import { createAdr } from '@adrien/core';
+import { AdrienError, createAdr, TEMPLATE_NAMES, type TemplateName } from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, collect, csv, type GlobalOptions, open, printJson, today } from '../cli.ts';
 
@@ -8,6 +8,7 @@ interface NewOptions {
   code: string[];
   reviewRule?: string;
   subdir?: string;
+  template?: string;
   force?: boolean;
 }
 
@@ -21,9 +22,16 @@ export function registerNew(program: Command, cli: Cli): void {
     .option('--code <component:glob>', 'code it governs (repeatable)', collect, [])
     .option('--review-rule <text>', 'one checkable sentence for reviewers and agents')
     .option('--subdir <path>', 'folder inside the ADR dir')
+    .option('--template <name>', `body skeleton: ${TEMPLATE_NAMES.join(', ')} (default: the config's template)`)
     .option('--force', 'create even if a similar title exists')
     .action(async (title: string, opts: NewOptions, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
+      if (opts.template && !(TEMPLATE_NAMES as readonly string[]).includes(opts.template)) {
+        throw new AdrienError(
+          'INVALID_INPUT',
+          `Unknown template "${opts.template}". Use one of: ${TEMPLATE_NAMES.join(', ')}`,
+        );
+      }
       const { ctx, view } = await open(cli, globals);
       const result = createAdr(
         ctx,
@@ -35,6 +43,7 @@ export function registerNew(program: Command, cli: Cli): void {
           code: opts.code,
           review_rule: opts.reviewRule,
           subdir: opts.subdir,
+          template: opts.template as TemplateName | undefined,
         },
         { today: today(), force: opts.force },
       );

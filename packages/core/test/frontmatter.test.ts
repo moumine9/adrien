@@ -94,3 +94,36 @@ test('isAdrFile tells ADRs from generated index files', () => {
   expect(isAdrFile('---\nid: ADR-012\n---\n', 'ADR-012-x.md')).toBe(true);
   expect(isAdrFile('---\nid: ADR-0099\ntitle: X\n---\n', 'whatever.md')).toBe(true);
 });
+
+const madr4 = `---
+status: "accepted"
+date: 2026-03-04
+decision-makers: alice, bob
+consulted: carol
+informed: [dave, erin]
+---
+
+# Use PostgreSQL for persistence
+
+## Decision Outcome
+
+Chosen option: "PostgreSQL", because ACID.
+`;
+
+test('MADR 4 RACI keys are kept verbatim and in order through a write', () => {
+  const adr = parseAdr(madr4, 'docs/decisions/0003-use-postgres.md', opts);
+  expect(adr.meta.extra).toEqual({ 'decision-makers': 'alice, bob', consulted: 'carol', informed: ['dave', 'erin'] });
+  const written = serializeAdr({ ...adr, meta: { ...adr.meta, status: 'deprecated' } });
+  expect(written).toContain('decision-makers: alice, bob\n');
+  expect(written).toContain('consulted: carol\n');
+  expect(written).toContain('informed: [dave, erin]\n');
+  expect(written).not.toContain('deciders');
+});
+
+test('an unfilled MADR template status is a parse error that names the file', () => {
+  const text =
+    '---\nstatus: "{proposed | rejected | accepted | deprecated | … | superseded by ADR-0123}"\n---\n\n# T\n';
+  expect(() => parseAdr(text, 'docs/decisions/0001-t.md', opts)).toThrow(
+    expect.objectContaining({ code: 'PARSE_ERROR', message: expect.stringContaining('0001-t.md') }),
+  );
+});

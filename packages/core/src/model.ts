@@ -3,6 +3,10 @@ import { z } from 'zod';
 export const STATUSES = ['proposed', 'accepted', 'rejected', 'superseded', 'deprecated'] as const;
 export type Status = (typeof STATUSES)[number];
 
+/** Body skeletons `adrien new` can start from. `standard` is Adrien's own; `madr` follows MADR 4's section names. */
+export const TEMPLATE_NAMES = ['standard', 'minimal', 'madr'] as const;
+export type TemplateName = (typeof TEMPLATE_NAMES)[number];
+
 export const ORIGINS = ['manual', 'agent', 'mined'] as const;
 export type Origin = (typeof ORIGINS)[number];
 

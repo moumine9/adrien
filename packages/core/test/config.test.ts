@@ -10,6 +10,7 @@ test('loadLogConfig applies defaults', () => {
     product: 'acme',
     adr_dir: 'docs/adr',
     id_format: 'ADR-{n:4}',
+    template: 'standard',
     tags: [],
     components: {},
   });
@@ -29,7 +30,14 @@ test('missing config → CONFIG_NOT_FOUND', () => {
 
 test('writeLogConfig refuses to overwrite → CONFIG_EXISTS', () => {
   const root = tmpDir();
-  const config = { product: 'acme', adr_dir: 'docs/adr', id_format: 'ADR-{n:4}', tags: [], components: {} };
+  const config = {
+    product: 'acme',
+    adr_dir: 'docs/adr',
+    id_format: 'ADR-{n:4}',
+    template: 'standard' as const,
+    tags: [],
+    components: {},
+  };
   writeLogConfig(root, config);
   expect(loadLogConfig(root)).toEqual(config);
   expect(() => writeLogConfig(root, config)).toThrow(expect.objectContaining({ code: 'CONFIG_EXISTS' }));
@@ -42,4 +50,14 @@ test('findUp finds the config from a nested dir and returns null when absent', (
   mkdirSync(nested, { recursive: true });
   expect(findUp(nested, CONFIG_FILE)).toBe(root);
   expect(findUp(nested, 'no-such-file.yaml')).toBeNull();
+});
+
+test('template defaults to standard and rejects an unknown name', () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: 'product: acme\n' });
+  expect(loadLogConfig(root).template).toBe('standard');
+  writeFiles(root, { [CONFIG_FILE]: 'product: acme\ntemplate: madr\n' });
+  expect(loadLogConfig(root).template).toBe('madr');
+  writeFiles(root, { [CONFIG_FILE]: 'product: acme\ntemplate: fancy\n' });
+  expect(() => loadLogConfig(root)).toThrow(expect.objectContaining({ code: 'CONFIG_INVALID' }));
 });

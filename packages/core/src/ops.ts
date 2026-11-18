@@ -4,10 +4,10 @@ import { parseAnchor } from './anchors.ts';
 import type { Context } from './context.ts';
 import { type DuplicateHit, findDuplicates } from './duplicates.ts';
 import { AdrienError } from './errors.ts';
-import { BODY_TEMPLATE } from './frontmatter.ts';
+import { bodyTemplate } from './frontmatter.ts';
 import { formatId, nextIdNumber } from './ids.ts';
 import { adrFilePath, readWorkingLog, writeAdr } from './log.ts';
-import type { Adr, AdrMeta, Origin } from './model.ts';
+import type { Adr, AdrMeta, Origin, TemplateName } from './model.ts';
 import { slugify } from './slug.ts';
 import { type LogView, workingAdrs } from './view.ts';
 
@@ -20,6 +20,8 @@ export interface NewAdrInput {
   sources?: string[];
   related?: string[];
   body?: string;
+  /** The skeleton to start from when no `body` is given. Default: the config's `template`. */
+  template?: TemplateName;
   origin?: Origin;
   subdir?: string;
 }
@@ -104,7 +106,7 @@ export function createAdr(
   const id = formatId(nextIdNumber(allIds(live), ctx.config.id_format), ctx.config.id_format);
   const adr: Adr = {
     path: adrFilePath(ctx.config, id, input.title, input.subdir),
-    body: input.body ?? BODY_TEMPLATE,
+    body: input.body ?? bodyTemplate(input.template ?? ctx.config.template),
     meta: {
       id,
       title: input.title,

@@ -4,6 +4,7 @@ import YAML from 'yaml';
 import { z } from 'zod';
 import { AdrienError } from './errors.ts';
 import { parseIdFormat } from './ids.ts';
+import { TEMPLATE_NAMES, type TemplateName } from './model.ts';
 
 export const CONFIG_FILE = 'adrien.config.yaml';
 export const CODE_CONFIG_FILE = '.adrien.yaml';
@@ -17,6 +18,8 @@ export interface ComponentDef {
 
 export interface LogConfig {
   product: string;
+  /** Body skeleton for new ADRs. Default `standard`. */
+  template?: TemplateName;
   adr_dir: string;
   id_format: string;
   tags: string[];
@@ -40,6 +43,7 @@ const logConfigSchema = z.strictObject({
   product: z.string().min(1),
   adr_dir: z.string().min(1).default('docs/adr'),
   id_format: z.string().default('ADR-{n:4}'),
+  template: z.enum(TEMPLATE_NAMES).default('standard'),
   tags: z.array(z.string().regex(ID, idMessage)).default([]),
   components: z.record(z.string(), componentDef).default({}),
 });

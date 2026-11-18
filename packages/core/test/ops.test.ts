@@ -73,6 +73,18 @@ test('an unknown tag → INVALID_INPUT listing the allowed tags', async () => {
   );
 });
 
+test('createAdr writes the body template chosen by the call, else the config, else standard', async () => {
+  const root = makeLog();
+  const { ctx, view } = await load(root);
+  const minimal = createAdr(ctx, view, { title: 'Minimal one', template: 'minimal' }, { today: TODAY });
+  expect(minimal.written && minimal.adr.body).toBe('\n## Context\n\n## Decision\n\n## Consequences\n');
+  const madr = createAdr(ctx, view, { title: 'Madr one, other', template: 'madr' }, { today: TODAY });
+  expect(madr.written && madr.adr.body).toContain('## Decision Outcome\n\n### Consequences\n\n### Confirmation\n');
+  const configured = { ...ctx, config: { ...ctx.config, template: 'minimal' as const } };
+  const fromConfig = createAdr(configured, view, { title: 'From the config' }, { today: TODAY });
+  expect(fromConfig.written && fromConfig.adr.body).toBe('\n## Context\n\n## Decision\n\n## Consequences\n');
+});
+
 test('a --subdir that escapes the ADR dir → INVALID_INPUT and nothing written', async () => {
   const root = makeLog();
   const { ctx, view } = await load(root);

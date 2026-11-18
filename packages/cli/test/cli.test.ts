@@ -121,3 +121,14 @@ test('outside any config: exit 2 with the init hint and no stack trace', async (
   expect(result.stderr).toContain('adrien init');
   expect(result.stderr).not.toMatch(/\n\s+at /);
 });
+
+test('new --template picks the body skeleton; an unknown template exits 2', async () => {
+  const root = log();
+  await run(root, 'new', 'Small decision', '--template', 'minimal');
+  expect(readFileSync(join(root, 'docs/adr/ADR-0001-small-decision.md'), 'utf8')).toContain(
+    '\n## Context\n\n## Decision\n\n## Consequences\n',
+  );
+  const bad = await run(root, 'new', 'Other decision', '--template', 'fancy');
+  expect(bad.code).toBe(2);
+  expect(bad.stderr).toContain('standard, minimal, madr');
+});

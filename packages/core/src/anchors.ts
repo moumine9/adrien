@@ -40,8 +40,12 @@ function firstParagraph(body: string): string {
   );
 }
 
-/** Why an ADR exists, in a few lines: its Rationale, else its Decision, else its first paragraph. */
+/** Why an ADR exists, in a few lines: its Rationale, else its Decision (or MADR's Decision Outcome), else its first paragraph. */
 export function excerpt(adr: Pick<Adr, 'body'>, max = 600): string {
-  const text = section(adr.body, 'Rationale') ?? section(adr.body, 'Decision') ?? firstParagraph(adr.body);
+  const text =
+    section(adr.body, 'Rationale') ??
+    section(adr.body, 'Decision Outcome') ??
+    section(adr.body, 'Decision') ??
+    firstParagraph(adr.body);
   return text.length > max ? `${text.slice(0, max - 1)}…` : text;
 }

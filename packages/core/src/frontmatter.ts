@@ -2,10 +2,27 @@ import { basename } from 'node:path';
 import YAML, { visit } from 'yaml';
 import { AdrienError } from './errors.ts';
 import { formatId } from './ids.ts';
-import { type Adr, type AdrMeta, adrMetaSchema, META_KEYS, STATUSES, type Status } from './model.ts';
+import { type Adr, type AdrMeta, adrMetaSchema, META_KEYS, STATUSES, type Status, type TemplateName } from './model.ts';
 
-export const BODY_TEMPLATE =
-  '\n## Context\n\n## Considered options\n\n## Decision\n\n## Rationale\n\n## Consequences\n';
+const TEMPLATES: Record<TemplateName, string[][]> = {
+  standard: [['## Context'], ['## Considered options'], ['## Decision'], ['## Rationale'], ['## Consequences']],
+  minimal: [['## Context'], ['## Decision'], ['## Consequences']],
+  madr: [
+    ['## Context and Problem Statement'],
+    ['## Decision Drivers'],
+    ['## Considered Options'],
+    ['## Decision Outcome', '### Consequences', '### Confirmation'],
+    ['## Pros and Cons of the Options'],
+    ['## More Information'],
+  ],
+};
+
+/** An empty skeleton: the headings only, each followed by a blank line, so it lints clean until it is filled in. */
+export function bodyTemplate(name: TemplateName = 'standard'): string {
+  return `\n${TEMPLATES[name].map((headings) => headings.join('\n\n')).join('\n\n')}\n`;
+}
+
+export const BODY_TEMPLATE = bodyTemplate('standard');
 
 const FRONTMATTER = /^---\n([\s\S]*?\n)?---[ \t]*(?:\n|$)/;
 const FILE_NUMBER = /^(?:ADR-)?(\d+)-/i;
