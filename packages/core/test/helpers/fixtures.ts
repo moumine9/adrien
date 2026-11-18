@@ -9,7 +9,7 @@ import type { AdrMeta } from '../../src/model.ts';
 
 /** A fresh temp dir (real path, so it compares equal to what git reports), removed after the test. */
 export function tmpDir(): string {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'adrien-')));
+  const dir = realpathSync.native(mkdtempSync(join(tmpdir(), 'adrien-')));
   try {
     onTestFinished(() => rmSync(dir, { recursive: true, force: true }));
   } catch {

@@ -1,4 +1,4 @@
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CODE_CONFIG_FILE, CONFIG_FILE } from '../src/config.ts';
@@ -111,4 +111,16 @@ test('a component root with a leading dot keeps it', async () => {
   expect(componentRoot(ctx.config, 'ci')).toBe('.github');
   expect(componentRoot(ctx.config, 'dot')).toBe('');
   expect(componentForPath(ctx, '.github/workflows/ci.yml')).toEqual({ component: 'ci', relPath: 'workflows/ci.yml' });
+});
+
+// Git reports physical paths, so a symlinked checkout (or, on Windows, an 8.3 short temp path) must be resolved the
+// same way before node-side paths are compared with git's.
+test.skipIf(process.platform === 'win32')('a symlinked working directory resolves to its real path', async () => {
+  const root = monorepo();
+  const link = join(tmpDir(), 'link');
+  symlinkSync(root, link, 'dir');
+  const ctx = await resolveContext({ cwd: join(link, 'apps', 'web'), env: {} });
+  expect(ctx.cwd).toBe(join(root, 'apps', 'web'));
+  expect(ctx.logRoot).toBe(root);
+  expect(componentForPath(ctx, 'src/a.ts')).toEqual({ component: 'web', relPath: 'src/a.ts' });
 });

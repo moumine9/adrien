@@ -12,6 +12,7 @@ export * from './index-db.ts';
 export * from './log.ts';
 export * from './model.ts';
 export * from './ops.ts';
+export * from './paths.ts';
 export * from './repo-url.ts';
 export * from './slug.ts';
 export * from './sqlite.ts';

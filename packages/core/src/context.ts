@@ -6,6 +6,7 @@ import { CODE_CONFIG_FILE, CONFIG_FILE, findUp, type LogConfig, loadCodeRepoConf
 import { AdrienError } from './errors.ts';
 import { git, gitToplevel, remoteUrl, resolveBaseRef } from './git.ts';
 import { toPosix } from './log.ts';
+import { canonicalPath } from './paths.ts';
 import { isGitUrl, normalizeRepoUrl } from './repo-url.ts';
 
 export interface CodeRepoContext {
@@ -86,7 +87,7 @@ async function detectCodeRepo(cwd: string, logRoot: string, config: LogConfig): 
 
 export async function resolveContext(opts: ResolveOptions): Promise<Context> {
   const env = opts.env ?? process.env;
-  const cwd = resolve(opts.cwd);
+  const cwd = canonicalPath(resolve(opts.cwd));
   let located: { logRoot: string; readOnly: boolean; logSource: string };
   if (opts.log) {
     located = await locate(opts.log, cwd, env);
@@ -98,6 +99,7 @@ export async function resolveContext(opts: ResolveOptions): Promise<Context> {
     else if (codeConfig && codeConfigDir) located = await locate(codeConfig.log, codeConfigDir, env);
     else throw new AdrienError('CONFIG_NOT_FOUND', NOT_FOUND);
   }
+  located = { ...located, logRoot: canonicalPath(located.logRoot) };
   const config = loadLogConfig(located.logRoot);
   return { cwd, ...located, config, codeRepo: await detectCodeRepo(cwd, located.logRoot, config), env };
 }

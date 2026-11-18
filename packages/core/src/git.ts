@@ -3,6 +3,7 @@ import { existsSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { toPosix } from './log.ts';
+import { canonicalPath } from './paths.ts';
 
 const execFileAsync = promisify(execFile);
 const MAX_BUFFER = 256 * 1024 * 1024;
@@ -20,7 +21,7 @@ export async function git(cwd: string, args: string[]): Promise<string | null> {
 export async function gitToplevel(dir: string): Promise<string | null> {
   if (!existsSync(dir)) return null;
   const out = await git(dir, ['rev-parse', '--show-toplevel']);
-  return out ? resolve(out.trim()) : null;
+  return out ? canonicalPath(resolve(out.trim())) : null;
 }
 
 async function isCommit(repoDir: string, ref: string): Promise<boolean> {

@@ -1,3 +1,5 @@
+import { resolve } from 'node:path';
+import { toPosix } from '../src/log.ts';
 import { isGitUrl, normalizeRepoUrl } from '../src/repo-url.ts';
 
 test.each([
@@ -10,8 +12,10 @@ test.each([
 });
 
 test('a local path and its file:// URL normalize to the same absolute posix path', () => {
-  expect(normalizeRepoUrl('/srv/git/decisions.git')).toBe('/srv/git/decisions');
-  expect(normalizeRepoUrl('file:///srv/git/decisions.git')).toBe('/srv/git/decisions');
+  // On Windows an absolute path gains the current drive (`D:/srv/...`), so compare against the resolved form.
+  const expected = toPosix(resolve('/srv/git/decisions'));
+  expect(normalizeRepoUrl('/srv/git/decisions.git')).toBe(expected);
+  expect(normalizeRepoUrl('file:///srv/git/decisions.git')).toBe(expected);
 });
 
 test('isGitUrl tells URLs from paths', () => {
