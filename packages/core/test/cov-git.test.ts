@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitToplevel, listFiles, readTreeAtRef } from '../src/git.ts';
+import { changedFiles, gitToplevel, listFiles, readTreeAtRef } from '../src/git.ts';
 import { tmpDir, writeFiles } from './helpers/fixtures.ts';
-import { git, initRepo } from './helpers/git.ts';
+import { commitAll, git, initRepo } from './helpers/git.ts';
 
 test('missing directories and plain directories have distinct listing behavior', async () => {
   const root = tmpDir();
@@ -53,4 +53,17 @@ test('a tracked directory replaced by a file is listed without its old paths, an
   writeFiles(root, { src: 'now a file\n' });
   // `git ls-files` still reports src/old.ts: lstat on it fails with ENOTDIR, which means the path is gone.
   expect(await listFiles(root)).toEqual(['src']);
+});
+
+test('changedFiles lists what a range changes, relative to the repo top; null for a bad ref; [] when nothing changed', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'src/a.ts': 'a\n', 'src/gone.ts': 'g\n' });
+  initRepo(root);
+  git(root, 'checkout', '-q', '-b', 'feature');
+  writeFiles(root, { 'src/a.ts': 'changed\n', 'src/new.ts': 'n\n' });
+  rmSync(join(root, 'src/gone.ts'));
+  commitAll(root, 'change');
+  expect(await changedFiles(root, 'main', 'HEAD')).toEqual(['src/a.ts', 'src/gone.ts', 'src/new.ts']);
+  expect(await changedFiles(root, 'no-such-ref', 'HEAD')).toBeNull();
+  expect(await changedFiles(root, 'HEAD', 'HEAD')).toEqual([]);
 });

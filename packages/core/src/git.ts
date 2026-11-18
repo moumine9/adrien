@@ -88,6 +88,22 @@ export async function readTreeAtRef(
   );
 }
 
+/**
+ * The files a range changes (added, copied, deleted, modified or renamed), relative to the repo's top level. Null when
+ * git fails, for instance on an unknown ref or on two refs with no shared history; an empty list when nothing changed.
+ */
+export async function changedFiles(repoDir: string, base: string, head: string): Promise<string[] | null> {
+  const out = await git(repoDir, [
+    'diff',
+    '--name-only',
+    '--diff-filter=ACDMR',
+    '-z',
+    '--end-of-options',
+    `${base}...${head}`,
+  ]);
+  return out === null ? null : out.split('\0').filter(Boolean).map(toPosix);
+}
+
 /** The text of one file at `ref`, or null when the ref or the file does not exist. */
 export async function readFileAtRef(repoDir: string, ref: string, path: string): Promise<string | null> {
   return git(repoDir, ['show', `${ref}:${path}`]);

@@ -16,6 +16,7 @@ export * from './model.ts';
 export * from './ops.ts';
 export * from './paths.ts';
 export * from './repo-url.ts';
+export * from './review.ts';
 export * from './slug.ts';
 export * from './sqlite.ts';
 export * from './view.ts';
