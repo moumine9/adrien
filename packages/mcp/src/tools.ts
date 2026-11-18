@@ -10,6 +10,7 @@ import {
   loadLogView,
   resolveContext,
   STATUSES,
+  unverifiedBaseNote,
   updateAdr,
 } from '@adrien/core';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
@@ -74,10 +75,13 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
     {
       title: 'Decisions governing files',
       description:
-        'Call this BEFORE editing code. For each file, returns the architecture decisions that govern it, with the review_rule to follow. binding:true means an accepted decision on the default branch; binding:false is a pending proposal or a hint.',
+        'Call this BEFORE editing code. For each file, returns the architecture decisions that govern it, with the review_rule to follow. binding:true means an accepted decision on the default branch; binding:false is a pending proposal or a hint. If `notes` is present, read it: it says the default branch could not be found, so bindingness is unverified.',
       inputSchema: { paths: z.array(z.string().min(1)).min(1).max(50) },
     },
-    handler(opts, ({ paths }: { paths: string[] }, ctx, view) => ok({ files: adrsForFiles(ctx, view, paths) })),
+    handler(opts, ({ paths }: { paths: string[] }, ctx, view) => {
+      const note = unverifiedBaseNote(view);
+      return ok({ files: adrsForFiles(ctx, view, paths), ...(note ? { notes: [note] } : {}) });
+    }),
   );
 
   server.registerTool(

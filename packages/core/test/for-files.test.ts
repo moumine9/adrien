@@ -1,5 +1,5 @@
 import type { Context } from '../src/context.ts';
-import { adrsForFiles } from '../src/for-files.ts';
+import { adrsForFiles, unverifiedBaseNote } from '../src/for-files.ts';
 import type { Adr, AdrMeta } from '../src/model.ts';
 import type { LogView, PendingChange } from '../src/view.ts';
 
@@ -113,4 +113,11 @@ test('a file outside any component → component null, decisions []', () => {
   expect(adrsForFiles(ctx, view([anchored]), ['../elsewhere/x.ts'])).toEqual([
     { file: '../elsewhere/x.ts', component: null, decisions: [] },
   ]);
+});
+
+test('unverifiedBaseNote speaks only when no default branch could be found', () => {
+  expect(unverifiedBaseNote(view([]))).toBeNull();
+  const note = unverifiedBaseNote({ ...view([]), baseUnresolved: true });
+  expect(note).toContain('No default branch');
+  expect(note).toContain('read as written');
 });

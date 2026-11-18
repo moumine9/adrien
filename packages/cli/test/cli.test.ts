@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE } from '@adrien/core';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { git, initRepo } from '../../core/test/helpers/git.ts';
 import { runCli, VERSION } from '../src/program.ts';
 
 function run(cwd: string, ...argv: string[]) {
@@ -182,4 +183,23 @@ test('export prints the index, writes it with --out using links relative to the 
   expect(written.stdout).toBe('Wrote docs/index.md\n');
   expect(readFileSync(join(root, 'docs/index.md'), 'utf8')).toContain('[ADR-0001](adr/ADR-0001-a.md)');
   expect((await run(root, 'export', '--format', 'pdf')).code).toBe(2);
+});
+
+test('for says so when no default branch can be found, and still lists the decisions', async () => {
+  const root = log({
+    'apps/web/src/a.ts': 'export {};\n',
+    'docs/adr/ADR-0001-a.md': adrText({
+      id: 'ADR-0001',
+      title: 'Render dates in the user locale',
+      status: 'accepted',
+      code: ['web:src/**'],
+      review_rule: 'Use the helper.',
+    }),
+  });
+  initRepo(root);
+  git(root, 'branch', '-m', 'trunk');
+  const result = await run(root, 'for', 'apps/web/src/a.ts');
+  expect(result.stdout).toContain('ADR-0001 BINDING');
+  expect(result.stderr).toMatch(/^note: No default branch/);
+  expect((await run(log(), 'for', 'README.md')).stderr).toBe('');
 });

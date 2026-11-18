@@ -85,3 +85,12 @@ export function adrsForFiles(ctx: Context, view: LogView, paths: string[]): File
     return { file, component, decisions: decisions.sort(order) };
   });
 }
+
+/**
+ * A warning for callers that show decisions as binding: with no default branch to compare against, ADR statuses are
+ * read as written, so an ADR that says `accepted` may not have been merged.
+ */
+export function unverifiedBaseNote(view: LogView): string | null {
+  if (!view.baseUnresolved) return null;
+  return 'No default branch was found (looked for origin/HEAD, origin/main, origin/master, main, master), so ADR statuses are read as written and nothing is verified as merged. Fetch the default branch to be sure which decisions are binding.';
+}

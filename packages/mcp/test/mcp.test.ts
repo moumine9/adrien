@@ -5,7 +5,7 @@ import { CONFIG_FILE, lintAdrs, loadLogView, resolveContext } from '@adrien/core
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
-import { initRepo } from '../../core/test/helpers/git.ts';
+import { git, initRepo } from '../../core/test/helpers/git.ts';
 import { createAdrienServer, type ServerOptions } from '../src/server.ts';
 
 const rule = 'Format dates with the locale helper.';
@@ -103,6 +103,19 @@ test('adr_for_files returns the binding ADR with its review_rule', async () => {
     component: 'web',
     decisions: [{ id: 'ADR-0001', binding: true, layer: 'base', review_rule: rule }],
   });
+});
+
+test('adr_for_files carries a note when no default branch can be found, and none otherwise', async () => {
+  const plain = await call(await connect({ cwd: monorepo() }), 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
+  expect(plain.structured.notes).toBeUndefined();
+
+  const root = monorepo();
+  initRepo(root);
+  git(root, 'branch', '-m', 'trunk');
+  const unresolved = await call(await connect({ cwd: root }), 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
+  expect(unresolved.structured.notes).toHaveLength(1);
+  expect(unresolved.structured.notes[0]).toContain('No default branch');
+  expect(unresolved.structured.files[0].decisions[0]).toMatchObject({ id: 'ADR-0001', binding: true });
 });
 
 test('adr_search, adr_list and adr_get read the log', async () => {

@@ -93,7 +93,8 @@ An ADR that lists a component in `components` but has no anchor for it applies t
 
 **An ADR is binding only when it is `accepted` on the log repo's default branch.** Adrien resolves the default branch as
 `origin/HEAD`, then `origin/main`, `origin/master`, `main`, `master`. If the log is not in git, the repo has no commits, or
-none of those exist, ADR statuses are read as written and nothing is verified as merged. In CI, fetch the default branch
+none of those exist, ADR statuses are read as written and nothing is verified as merged; `adrien for` and the
+`adr_for_files` tool say so in a note. In CI, fetch the default branch
 first (`adrien check --mr` does).
 
 Everything that differs from it, in your working tree or on your branch, is **pending**: shown to you, labelled, and
