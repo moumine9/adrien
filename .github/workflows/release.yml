@@ -23,6 +23,8 @@ jobs:
         run: test "v$(node -p "require('./packages/cli/package.json').version")" = "$GITHUB_REF_NAME"
       - run: npm install -g "npm@>=11.5.1"
       - run: pnpm install --frozen-lockfile
+      - name: The changelog has an entry for this version
+        run: pnpm changelog:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
