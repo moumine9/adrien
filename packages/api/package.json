@@ -1,0 +1,13 @@
+{
+  "name": "@adrien/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./contract": "./src/contract.ts"
+  },
+  "dependencies": {
+    "@adrien/core": "workspace:*"
+  }
+}

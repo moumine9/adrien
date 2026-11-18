@@ -5,5 +5,11 @@ export default defineConfig({
     include: ['packages/*/test/**/*.test.ts'],
     globals: true,
     testTimeout: 20000,
+    coverage: {
+      provider: 'v8',
+      // The core is the product's logic and is held to 100%; the CLI, MCP server and API are thin layers over it.
+      include: ['packages/core/src/**/*.ts'],
+      reporter: ['text', 'json-summary'],
+    },
   },
 });
