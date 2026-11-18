@@ -28,7 +28,7 @@
     "cli"
   ],
   "scripts": {
-    "build": "tsdown",
+    "build": "tsdown && node scripts/copy-web.mjs",
     "prepack": "node -e \"const fs=require('fs');fs.copyFileSync('../../LICENSE','LICENSE');fs.copyFileSync('../../README.md','README.md')\""
   },
   "dependencies": {
