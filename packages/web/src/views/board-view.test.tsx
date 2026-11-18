@@ -8,6 +8,33 @@ const cardOf = (title: string) => screen.getByRole('link', { name: title }).clos
 
 const READ_ONLY = 'This board is read-only. A decision is approved by merging, never by moving a card.';
 
+/** The clipboard before any test ran. A test that replaces it gets this property back after it. */
+const originalClipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+
+/** One row of `/api/adrs`, with the fields a test does not care about filled in. */
+const row = (over: Partial<AdrRow>): AdrRow => ({
+  id: 'ADR-0001',
+  title: 'Base decision',
+  status: 'accepted',
+  tags: [],
+  components: [],
+  review_rule: null,
+  layer: 'base',
+  pending_kind: null,
+  path: 'docs/adr/ADR-0001-base.md',
+  ...over,
+});
+
+/** Answers `/api/adrs` with these rows, and everything else from the fixtures. */
+const withRows = (rows: AdrRow[]) =>
+  overrideFetch((url) => (url.pathname === '/api/adrs' ? jsonResponse({ results: rows }) : undefined));
+
+afterEach(() => {
+  if (originalClipboard) Object.defineProperty(navigator, 'clipboard', originalClipboard);
+  else delete (navigator as { clipboard?: unknown }).clipboard;
+  vi.restoreAllMocks();
+});
+
 describe('Board view', () => {
   it('shows skeletons while loading', () => {
     renderApp('/board', { fetch: hangingFetch });
@@ -25,6 +52,14 @@ describe('Board view', () => {
       'Deprecated (1)',
     ]);
     expect(screen.getByText(READ_ONLY)).toBeInTheDocument();
+  });
+
+  it('puts the read-only banner after the page heading', async () => {
+    renderApp('/board');
+    await screen.findAllByRole('article');
+    const heading = screen.getByRole('heading', { level: 1, name: 'Board' });
+    const banner = screen.getByText(READ_ONLY);
+    expect(heading.compareDocumentPosition(banner) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shows each decision once, and marks a decision that only exists in this checkout', async () => {
@@ -139,21 +174,6 @@ describe('Board view', () => {
 });
 
 describe('Board view, decisions that share an id', () => {
-  const row = (over: Partial<AdrRow>): AdrRow => ({
-    id: 'ADR-0001',
-    title: 'Base decision',
-    status: 'accepted',
-    tags: [],
-    components: [],
-    review_rule: null,
-    layer: 'base',
-    pending_kind: null,
-    path: 'docs/adr/ADR-0001-base.md',
-    ...over,
-  });
-  const withRows = (rows: AdrRow[]) =>
-    overrideFetch((url) => (url.pathname === '/api/adrs' ? jsonResponse({ results: rows }) : undefined));
-
   it('shows a pending proposal that reuses a base id, instead of hiding it', async () => {
     const clash = row({
       title: 'Clashing proposal',
@@ -205,5 +225,102 @@ describe('Board view, decisions that share an id', () => {
     await screen.findAllByRole('article');
     expect(screen.getByRole('link', { name: 'Orphan edit' })).toBeInTheDocument();
     expect(columnHeadings()).toContain('Proposed (1)');
+  });
+});
+
+describe('Board view, local edits to a decision', () => {
+  const base = row({ id: 'ADR-0003', title: 'Retry payment calls', path: 'docs/adr/ADR-0003-retry.md' });
+
+  it('marks the base card of a decision edited in this checkout, with an icon and a label', async () => {
+    const edit = row({
+      id: 'ADR-0003',
+      title: 'Retry payment calls, edited',
+      layer: 'pending',
+      pending_kind: 'modified',
+      path: 'docs/adr/ADR-0003-retry.md',
+    });
+    renderApp('/board', { fetch: withRows([base, edit]) });
+    await screen.findAllByRole('article');
+    const badge = within(cardOf('Retry payment calls')).getByText('Edited in this checkout');
+    expect(badge).toBeVisible();
+    expect(badge.querySelector('svg')).not.toBeNull();
+    expect(screen.queryByRole('link', { name: 'Retry payment calls, edited' })).toBeNull();
+  });
+
+  it('marks the base card of a decision deleted in this checkout', async () => {
+    const removal = row({
+      id: 'ADR-0003',
+      layer: 'pending',
+      pending_kind: 'deleted',
+      path: 'docs/adr/ADR-0003-retry.md',
+    });
+    renderApp('/board', { fetch: withRows([base, removal]) });
+    await screen.findAllByRole('article');
+    expect(within(cardOf('Retry payment calls')).getByText('Deleted in this checkout')).toBeVisible();
+  });
+
+  it('marks neither on a decision with no local change', async () => {
+    renderApp('/board', { fetch: withRows([base]) });
+    await screen.findAllByRole('article');
+    const card = cardOf('Retry payment calls');
+    expect(within(card).queryByText('Edited in this checkout')).toBeNull();
+    expect(within(card).queryByText('Deleted in this checkout')).toBeNull();
+  });
+});
+
+describe('Board view, long columns', () => {
+  const proposals = (count: number): AdrRow[] =>
+    Array.from({ length: count }, (_, i) => {
+      const id = `ADR-${String(i + 1).padStart(4, '0')}`;
+      return row({ id, title: `Proposal ${i + 1}`, status: 'proposed', path: `docs/adr/${id}-proposal.md` });
+    });
+
+  it('shows the first 15 cards of a column with more, and a button for the rest', async () => {
+    renderApp('/board', { fetch: withRows(proposals(20)) });
+    await screen.findAllByRole('article');
+    const column = screen.getByRole('region', { name: 'Proposed (20)' });
+    expect(within(column).getAllByRole('article')).toHaveLength(15);
+    expect(within(column).getByRole('button', { name: 'Show 5 more' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows every card when asked, then collapses again, and keeps the full count in the heading', async () => {
+    const { user } = renderApp('/board', { fetch: withRows(proposals(20)) });
+    await screen.findAllByRole('article');
+    const column = screen.getByRole('region', { name: 'Proposed (20)' });
+
+    await user.click(within(column).getByRole('button', { name: 'Show 5 more' }));
+    expect(within(column).getAllByRole('article')).toHaveLength(20);
+    expect(within(column).getByRole('button', { name: 'Show fewer' })).toHaveAttribute('aria-expanded', 'true');
+    expect(columnHeadings()).toContain('Proposed (20)');
+
+    await user.click(within(column).getByRole('button', { name: 'Show fewer' }));
+    expect(within(column).getAllByRole('article')).toHaveLength(15);
+    expect(within(column).getByRole('button', { name: 'Show 5 more' })).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('toggles from the keyboard, and keeps focus on the button', async () => {
+    const { user } = renderApp('/board', { fetch: withRows(proposals(20)) });
+    await screen.findAllByRole('article');
+    const column = screen.getByRole('region', { name: 'Proposed (20)' });
+    const toggle = within(column).getByRole('button', { name: 'Show 5 more' });
+
+    toggle.focus();
+    await user.keyboard('{Enter}');
+    expect(within(column).getAllByRole('article')).toHaveLength(20);
+    expect(toggle).toHaveTextContent('Show fewer');
+    expect(toggle).toHaveFocus();
+
+    await user.keyboard(' ');
+    expect(within(column).getAllByRole('article')).toHaveLength(15);
+    expect(toggle).toHaveTextContent('Show 5 more');
+    expect(toggle).toHaveFocus();
+  });
+
+  it('shows no button for a column of exactly 15 cards', async () => {
+    renderApp('/board', { fetch: withRows(proposals(15)) });
+    await screen.findAllByRole('article');
+    const column = screen.getByRole('region', { name: 'Proposed (15)' });
+    expect(within(column).getAllByRole('article')).toHaveLength(15);
+    expect(within(column).queryByRole('button', { name: /Show/ })).toBeNull();
   });
 });

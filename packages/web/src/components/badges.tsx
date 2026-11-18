@@ -107,6 +107,29 @@ export function PendingBadge({ kind, className }: { kind: 'added' | 'modified' |
   );
 }
 
+export type LocalEditKind = 'modified' | 'deleted';
+
+/** The local change to a decision whose base row is shown: it is the base row that stands on the board. */
+const LOCAL_EDIT: Record<LocalEditKind, { label: string; icon: LucideIcon; title: string }> = {
+  modified: { label: 'Edited in this checkout', icon: FilePen, title: PENDING.modified.title },
+  deleted: { label: 'Deleted in this checkout', icon: FileMinus, title: PENDING.deleted.title },
+};
+
+export function LocalEditBadge({ kind, className }: { kind: LocalEditKind; className?: string }) {
+  const edit = LOCAL_EDIT[kind];
+  const Icon = edit.icon;
+  return (
+    <Badge
+      data-local-edit={kind}
+      title={edit.title}
+      className={cn(base, 'hatch border-dashed bg-secondary-background text-foreground', className)}
+    >
+      <Icon aria-hidden strokeWidth={2.5} />
+      {edit.label}
+    </Badge>
+  );
+}
+
 /** A decision that exists only in this checkout: it binds nothing until it is merged. */
 export function InCheckoutBadge({ className }: { className?: string }) {
   return (
