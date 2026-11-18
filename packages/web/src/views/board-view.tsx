@@ -14,17 +14,11 @@ import { cn } from '@/lib/utils.ts';
 const COLUMNS: readonly Status[] = ['proposed', 'accepted', 'rejected', 'superseded', 'deprecated'];
 
 /**
- * One card per decision. A decision with a change in this checkout has two rows; the base row is the one that binds,
- * so it is the one shown. A change that only exists in this checkout has no base row, so it is shown on its own.
+ * The rows of the board: every default-branch row, plus decisions that only exist in this checkout. A pending edit or
+ * deletion always has a base row of its own, so it is not shown twice. Rows are not merged by id: two files can share an id
+ * (two branches picked the same number), and `adrien check` reports that, so the board must show both.
  */
-function oneRowPerDecision(rows: AdrRow[]): AdrRow[] {
-  const byId = new Map<string, AdrRow>();
-  for (const row of rows) {
-    const kept = byId.get(row.id);
-    if (!kept || (kept.layer === 'pending' && row.layer === 'base')) byId.set(row.id, row);
-  }
-  return [...byId.values()];
-}
+const boardRows = (rows: AdrRow[]): AdrRow[] => rows.filter((r) => r.layer === 'base' || r.pending_kind === 'added');
 
 /** Shows the command that approves a proposal. Approval is a merge, so the board never changes a status itself. */
 function ApproveDisclosure({ id }: { id: string }) {
@@ -130,7 +124,7 @@ function Column({ status, rows }: { status: Status; rows: AdrRow[] }) {
       ) : (
         <ul className="space-y-4">
           {rows.map((row) => (
-            <li key={row.id}>
+            <li key={`${row.layer}:${row.path}`}>
               <BoardCard row={row} />
             </li>
           ))}
@@ -142,7 +136,7 @@ function Column({ status, rows }: { status: Status; rows: AdrRow[] }) {
 
 export function BoardView() {
   const adrs = useAdrs(EMPTY_FILTERS);
-  const rows = oneRowPerDecision(adrs.data?.results ?? []);
+  const rows = boardRows(adrs.data?.results ?? []);
 
   return (
     <div className="space-y-8">

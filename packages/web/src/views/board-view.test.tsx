@@ -137,3 +137,58 @@ describe('Board view', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Board' })).toBeInTheDocument();
   });
 });
+
+describe('Board view, decisions that share an id', () => {
+  const row = (over: Partial<AdrRow>): AdrRow => ({
+    id: 'ADR-0001',
+    title: 'Base decision',
+    status: 'accepted',
+    tags: [],
+    components: [],
+    review_rule: null,
+    layer: 'base',
+    pending_kind: null,
+    path: 'docs/adr/ADR-0001-base.md',
+    ...over,
+  });
+  const withRows = (rows: AdrRow[]) =>
+    overrideFetch((url) => (url.pathname === '/api/adrs' ? jsonResponse({ results: rows }) : undefined));
+
+  it('shows a pending proposal that reuses a base id, instead of hiding it', async () => {
+    const clash = row({
+      title: 'Clashing proposal',
+      status: 'proposed',
+      layer: 'pending',
+      pending_kind: 'added',
+      path: 'docs/adr/ADR-0001-clash.md',
+    });
+    renderApp('/board', { fetch: withRows([row({}), clash]) });
+    await screen.findAllByRole('article');
+    expect(columnHeadings()).toEqual([
+      'Proposed (1)',
+      'Accepted (1)',
+      'Rejected (0)',
+      'Superseded (0)',
+      'Deprecated (0)',
+    ]);
+    expect(screen.getByRole('link', { name: 'Clashing proposal' })).toBeInTheDocument();
+  });
+
+  it('shows both files when two base files share an id', async () => {
+    const twin = row({ title: 'Twin decision', path: 'docs/adr/ADR-0001-twin.md' });
+    renderApp('/board', { fetch: withRows([row({}), twin]) });
+    await screen.findAllByRole('article');
+    expect(columnHeadings()).toContain('Accepted (2)');
+    expect(screen.getByRole('link', { name: 'Twin decision' })).toBeInTheDocument();
+  });
+
+  it('does not repeat a decision that has a pending edit or deletion beside its base row', async () => {
+    const edit = row({ layer: 'pending', pending_kind: 'modified', title: 'Edited title' });
+    const removal = row({ id: 'ADR-0002', layer: 'pending', pending_kind: 'deleted', path: 'docs/adr/ADR-0002-x.md' });
+    const base2 = row({ id: 'ADR-0002', title: 'Second', path: 'docs/adr/ADR-0002-x.md' });
+    renderApp('/board', { fetch: withRows([row({}), edit, base2, removal]) });
+    await screen.findAllByRole('article');
+    expect(columnHeadings()).toContain('Accepted (2)');
+    expect(screen.queryByRole('link', { name: 'Edited title' })).not.toBeInTheDocument();
+  });
+});
