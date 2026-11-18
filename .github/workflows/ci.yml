@@ -20,6 +20,8 @@ jobs:
           node-version: ${{ matrix.node }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      # A version bump needs a CHANGELOG.md entry (scripts/check-changelog.mjs). Required status checks make this block the merge.
+      - run: pnpm changelog:check
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
