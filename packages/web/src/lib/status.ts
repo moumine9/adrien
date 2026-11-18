@@ -54,6 +54,16 @@ export function bindingOf(adr: { status: Status; layer: 'base' | 'pending' }, ve
   return verification === 'verified' ? 'binding' : 'unverified';
 }
 
+/**
+ * For `/api/for`, the server already decides `binding`; it adds `notes` when it could not verify against a default
+ * branch, which turns a binding row into an unverified one.
+ */
+export function fileBindingOf(d: { binding: boolean; layer: 'base' | 'pending' }, hasNotes: boolean): Binding {
+  if (d.layer === 'pending') return 'pending';
+  if (!d.binding) return 'not-binding';
+  return hasNotes ? 'unverified' : 'binding';
+}
+
 /** `YYYY-MM-DD` for the local calendar day (a `Date` parsed from that string would be UTC midnight). */
 export function localToday(now: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');

@@ -2,6 +2,7 @@ import type { MetaResponse, Status } from '@adrien/api/contract';
 import {
   bindingOf,
   contrastRatio,
+  fileBindingOf,
   INK,
   isRetired,
   isReviewDue,
@@ -66,6 +67,20 @@ describe('bindingOf', () => {
 
   it('marks an accepted base decision as unverified when no default branch backs it', () => {
     expect(bindingOf({ status: 'accepted', layer: 'base' }, 'unverified')).toBe('unverified');
+  });
+});
+
+describe('fileBindingOf', () => {
+  const d = { binding: true, layer: 'base' as const };
+
+  it('trusts the server on binding, and qualifies it when the server added notes', () => {
+    expect(fileBindingOf(d, false)).toBe('binding');
+    expect(fileBindingOf(d, true)).toBe('unverified');
+  });
+
+  it('labels pending rows as pending and the rest as hints', () => {
+    expect(fileBindingOf({ binding: false, layer: 'pending' }, false)).toBe('pending');
+    expect(fileBindingOf({ binding: false, layer: 'base' }, false)).toBe('not-binding');
   });
 });
 
