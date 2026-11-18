@@ -1,0 +1,2 @@
+# Check out with LF everywhere, so Biome and the tests see the same bytes on Windows as on Linux.
+* text=auto eol=lf
