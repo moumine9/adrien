@@ -1,6 +1,6 @@
 import { join, relative } from 'node:path';
 import type { LogConfig } from './config.ts';
-import { gitToplevel, readTreeAtRef, resolveBaseRef } from './git.ts';
+import { git, gitToplevel, readTreeAtRef, resolveBaseRef } from './git.ts';
 import { type LoadProblem, parseLogFiles, readWorkingLog, toPosix } from './log.ts';
 import type { Adr } from './model.ts';
 
@@ -74,19 +74,38 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
 
   const logFromTop = toPosix(relative(top, logRoot));
   const prefix = logFromTop ? `${logFromTop}/` : '';
-  const files = await readTreeAtRef(top, baseRef, toPosix(relative(top, join(logRoot, config.adr_dir))));
-  const baseLog = parseLogFiles(
-    files.filter((f) => f.path.endsWith('.md')).map((f) => ({ path: f.path.slice(prefix.length), text: f.text })),
-    config,
-  );
+  const adrDir = toPosix(relative(top, join(logRoot, config.adr_dir)));
+  const logAt = async (ref: string) => {
+    const files = await readTreeAtRef(top, ref, adrDir);
+    return parseLogFiles(
+      files.filter((f) => f.path.endsWith('.md')).map((f) => ({ path: f.path.slice(prefix.length), text: f.text })),
+      config,
+    ).adrs;
+  };
+  const base = await logAt(baseRef);
+  // Pending = what this checkout changed since it forked from the default branch, so ADRs merged upstream since
+  // then stay plain base instead of looking deleted.
+  const forkPoint = (await git(top, ['merge-base', 'HEAD', baseRef]))?.trim();
+  const baseSha = (await git(top, ['rev-parse', baseRef]))?.trim();
+  const fork = forkPoint && forkPoint !== baseSha ? await logAt(forkPoint) : base;
   return {
     mode: 'git',
     baseRef,
-    base: baseLog.adrs,
-    pending: diff(baseLog.adrs, working.adrs),
+    base,
+    pending: diff(fork, working.adrs).map((change) => ({ ...change, base: latest(change.base, base) })),
     working: working.adrs,
     problems: working.problems,
   };
+}
+
+/** The default-branch version of an ADR seen at the fork point (by path, then by id), so callers compare to base. */
+function latest(atFork: Adr | undefined, base: Adr[]): Adr | undefined {
+  if (!atFork) return undefined;
+  return (
+    base.find((a) => a.path === atFork.path && a.meta.id === atFork.meta.id) ??
+    base.find((a) => a.meta.id === atFork.meta.id) ??
+    atFork
+  );
 }
 
 /** What the default branch would hold after merging: base with every pending change applied. */

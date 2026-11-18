@@ -104,3 +104,18 @@ test('workingAdrs is what the default branch would hold after merging, duplicate
   ]);
   expect(view.pending.map((p) => p.kind).sort()).toEqual(['added', 'modified']);
 });
+
+test('ADRs merged upstream after branching are base, never "pending deleted"', async () => {
+  const root = logWith({ 'docs/adr/ADR-0001-a.md': accepted });
+  const { origin } = initRepo(root, { origin: true });
+  const other = tmpDir();
+  git(other, 'clone', '-q', origin ?? '', '.');
+  writeFiles(other, { 'docs/adr/ADR-0002-b.md': adrText({ id: 'ADR-0002', title: 'B' }) });
+  commitAll(other, 'add ADR-0002 upstream');
+  git(other, 'push', '-q', 'origin', 'main');
+  git(root, 'fetch', '-q', 'origin');
+
+  const view = await loadLogView(root, config);
+  expect(view.base.map((a) => a.meta.id)).toEqual(['ADR-0001', 'ADR-0002']);
+  expect(view.pending).toEqual([]);
+});
