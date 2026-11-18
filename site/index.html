@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <meta
+      name="description"
+      content="Adrien keeps your architecture decisions as plain markdown in your git repositories, and tells developers and their AI agents which decisions govern the code they are about to change."
+    />
+    <title>Adrien: architecture decisions for developers and their AI agents</title>
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <header class="site-header">
+      <div class="wrap bar">
+        <a class="brand" href="./">
+          <img src="icon.svg" alt="" width="40" height="40" />
+          Adrien
+        </a>
+        <nav aria-label="Site">
+          <ul class="top-links">
+            <li><a href="docs/index.html">Docs</a></li>
+            <li><a href="demo/index.html">Live demo</a></li>
+            <li><a href="https://github.com/moumine9/adrien">GitHub</a></li>
+            <li><a href="https://www.npmjs.com/package/adrien">npm</a></li>
+          </ul>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" tabindex="-1">
+      <section class="hero wrap" aria-labelledby="hero-title">
+        <div>
+          <p class="mono-label">adrien: architecture decision records</p>
+          <h1 id="hero-title">Architecture decisions for developers and their AI agents.</h1>
+          <p class="lede">
+            Adrien keeps your ADRs as plain markdown in your own git repos, and answers one question for people and agents
+            alike: which decisions govern the code I am about to change, and why?
+          </p>
+          <div class="actions">
+            <a class="btn btn-yellow" href="docs/index.html">Read the docs</a>
+            <a class="btn btn-green" href="demo/index.html">Open the live demo</a>
+          </div>
+        </div>
+
+        <section class="install" aria-labelledby="install-title">
+          <h2 id="install-title">Install</h2>
+          <pre class="terminal"><code><span class="line">npx adrien</span></code></pre>
+          <p>
+            Needs Node 22.13 or later. Prefer a global install? <code>npm install -g adrien</code> does the same.
+          </p>
+        </section>
+      </section>
+
+      <section class="band wrap" aria-labelledby="surfaces-title">
+        <h2 id="surfaces-title">Four surfaces, one log</h2>
+        <p class="intro">
+          Every surface reads the same ADR files from your repositories, so a decision you read in the web view is the one
+          your agent is given.
+        </p>
+
+        <ul class="cards">
+          <li>
+            <article class="card" aria-labelledby="card-mcp">
+              <p class="chip chip-pink">mcp</p>
+              <h3 id="card-mcp">MCP server</h3>
+              <p>
+                Hands an agent the decisions that govern a file before it edits, each with its one-line review rule. The
+                agent can propose a decision. It can never accept one.
+              </p>
+              <pre class="terminal"><code><span class="line">claude mcp add adrien -- npx -y adrien mcp</span></code></pre>
+            </article>
+          </li>
+
+          <li>
+            <article class="card" aria-labelledby="card-cli">
+              <p class="chip chip-yellow">cli</p>
+              <h3 id="card-cli">CLI</h3>
+              <p>
+                Create the log, record a decision, and ask what governs a file. Add <code>--json</code> for scripts.
+              </p>
+              <pre class="terminal"><code><span class="line">npx adrien init</span><span class="line">adrien for src/billing/invoice.ts</span></code></pre>
+            </article>
+          </li>
+
+          <li>
+            <article class="card" aria-labelledby="card-api">
+              <p class="chip chip-green">http</p>
+              <h3 id="card-api">HTTP API</h3>
+              <p>
+                A small read-only JSON API on <code>127.0.0.1:4310</code>, for scripts and dashboards. It refuses every
+                write.
+              </p>
+              <pre class="terminal"><code><span class="line">adrien serve</span><span class="line">curl http://127.0.0.1:4310/api/meta</span></code></pre>
+            </article>
+          </li>
+
+          <li>
+            <article class="card" aria-labelledby="card-web">
+              <p class="chip">web</p>
+              <h3 id="card-web">Web visualizer</h3>
+              <p>
+                The decisions, their graph, the files they govern and the health check, on one page. The same
+                <code>adrien serve</code> command serves it, and the demo shows it with sample data.
+              </p>
+              <pre class="terminal"><code><span class="line">adrien serve</span></code></pre>
+              <p>Then open <code>http://127.0.0.1:4310</code>.</p>
+            </article>
+          </li>
+        </ul>
+      </section>
+
+      <section class="band wrap" aria-labelledby="links-title">
+        <h2 id="links-title">Links</h2>
+        <ul class="link-grid">
+          <li>
+            <a href="https://github.com/moumine9/adrien">
+              GitHub
+              <span>moumine9/adrien: source, issues, releases</span>
+            </a>
+          </li>
+          <li>
+            <a href="https://www.npmjs.com/package/adrien">
+              npm
+              <span>adrien: the CLI and MCP server</span>
+            </a>
+          </li>
+          <li>
+            <a href="docs/index.html">
+              Docs
+              <span>ADR format, HTTP API, self-hosting, releasing</span>
+            </a>
+          </li>
+          <li>
+            <a href="demo/index.html">
+              Live demo
+              <span>the web visualizer, with sample data</span>
+            </a>
+          </li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="wrap">
+        Adrien is <a href="https://github.com/moumine9/adrien/blob/main/LICENSE">AGPL-3.0</a> licensed. Its decisions are
+        plain Markdown in your own repositories.
+      </div>
+    </footer>
+  </body>
+</html>
