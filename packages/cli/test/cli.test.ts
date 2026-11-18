@@ -168,3 +168,18 @@ test('new --review-on records the date, and check flags it once it has passed', 
   expect((await run(root, 'check')).stdout).toContain('warning  review-due  ADR-0001');
   expect((await run(root, 'new', 'Bad date', '--review-on', 'soon')).code).toBe(2);
 });
+
+test('export prints the index, writes it with --out using links relative to the file, and rejects a bad format', async () => {
+  const root = log({
+    'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A', status: 'accepted', review_rule: 'Rule.' }),
+  });
+  expect((await run(root, 'export')).stdout).toContain('| [ADR-0001](docs/adr/ADR-0001-a.md) | A | accepted |');
+  expect((await run(root, 'export', '--format', 'llms')).stdout).toContain(
+    '- [ADR-0001: A](docs/adr/ADR-0001-a.md): Rule.',
+  );
+
+  const written = await run(root, 'export', '--out', 'docs/index.md');
+  expect(written.stdout).toBe('Wrote docs/index.md\n');
+  expect(readFileSync(join(root, 'docs/index.md'), 'utf8')).toContain('[ADR-0001](adr/ADR-0001-a.md)');
+  expect((await run(root, 'export', '--format', 'pdf')).code).toBe(2);
+});

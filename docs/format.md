@@ -30,6 +30,7 @@ id: ADR-0007
 title: Store invoices in Postgres, not in the document store
 status: accepted
 date: 2026-03-04
+review_on: 2027-03-04
 tags: [backend, database]
 components: [billing-service]
 code: ["billing-service:src/Invoices/**"]
@@ -196,6 +197,13 @@ configuration error, `3` an unexpected error (set `ADRIEN_DEBUG=1` for the stack
 ADRs (as MADR does: no line-length limit, repeated headings allowed, no required H1 because the title lives in the
 frontmatter), plus three Adrien rules: a template placeholder left in the text, an accepted ADR whose Decision section is
 empty, and numbered headings. Fenced code and inline code are ignored.
+
+## `adrien export`
+
+`adrien export` prints an overview of the ADRs in your checkout: a markdown table of every ADR by default, or with
+`--format llms` an [llms.txt](https://llmstxt.org) that lists the accepted decisions with their `review_rule`, so a model
+can read them from one file. `--out <file>` writes it instead, with links relative to that file. The output is
+generated: regenerate it rather than editing it.
 
 ## The MCP server
 

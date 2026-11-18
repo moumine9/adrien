@@ -4,6 +4,7 @@ export * from './config.ts';
 export * from './context.ts';
 export * from './duplicates.ts';
 export * from './errors.ts';
+export * from './export.ts';
 export * from './for-files.ts';
 export * from './frontmatter.ts';
 export * from './git.ts';

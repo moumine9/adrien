@@ -4,6 +4,7 @@ import { Command, CommanderError } from 'commander';
 import type { Cli } from './cli.ts';
 import { registerAccept } from './commands/accept.ts';
 import { registerCheck } from './commands/check.ts';
+import { registerExport } from './commands/export.ts';
 import { registerFor } from './commands/for.ts';
 import { registerInit } from './commands/init.ts';
 import { registerLint } from './commands/lint.ts';
@@ -54,6 +55,7 @@ export function buildProgram(cli: Cli): Command {
     registerSupersede,
     registerRenumber,
     registerSync,
+    registerExport,
     registerMcp,
   ]) {
     register(program, cli);
