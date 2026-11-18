@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -40,8 +41,19 @@ export function adrienHome(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 export async function ensureCachedClone(url: string, home: string): Promise<string> {
-  const dir = join(home, 'cache', normalizeRepoUrl(url).replace(/[\\/:]+/g, '__'));
-  if (existsSync(join(dir, '.git'))) return dir;
+  const identity = normalizeRepoUrl(url);
+  const prefix = identity.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(-40);
+  const hash = createHash('sha256').update(identity).digest('hex').slice(0, 24);
+  const dir = join(home, 'cache', `${prefix}-${hash}`);
+  if (existsSync(join(dir, '.git'))) {
+    const origin = await remoteUrl(dir);
+    try {
+      if (origin && normalizeRepoUrl(origin) === identity) return dir;
+    } catch {
+      // A malformed origin cannot identify the requested log either.
+    }
+    throw new AdrienError('CONFIG_INVALID', `Expected cached ADR log origin ${url}, found ${origin ?? 'no origin'}`);
+  }
   mkdirSync(dirname(dir), { recursive: true });
   if ((await git(home, ['clone', '--quiet', url, dir])) === null) {
     throw new AdrienError('CONFIG_INVALID', `Could not clone the ADR log from ${url}`);

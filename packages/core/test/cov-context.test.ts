@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -13,6 +14,41 @@ import {
 } from '../src/context.ts';
 import * as gitModule from '../src/git.ts';
 import { configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
+import { git, initRepo } from './helpers/git.ts';
+
+test('distinct log URLs that flatten to the same name keep separate clones', async () => {
+  const root = tmpDir();
+  const home = tmpDir();
+  for (const name of ['a/b', 'a__b']) {
+    const repo = join(root, name);
+    writeFiles(repo, { decision: name });
+    initRepo(repo);
+    const clone = await ensureCachedClone(pathToFileURL(repo).href, home);
+    expect(readFileSync(join(clone, 'decision'), 'utf8')).toBe(name);
+    git(clone, 'remote', 'set-url', 'origin', repo);
+    expect(await ensureCachedClone(pathToFileURL(repo).href, home)).toBe(clone);
+  }
+});
+
+test.each(['changed', 'missing', 'malformed'])(
+  'rejects a cached clone with a %s origin and preserves its files',
+  async (state) => {
+    const repo = tmpDir();
+    initRepo(repo);
+    const url = pathToFileURL(repo).href;
+    const home = tmpDir();
+    const clone = await ensureCachedClone(url, home);
+    const other = state === 'malformed' ? 'https://[' : pathToFileURL(tmpDir()).href;
+    git(clone, 'remote', ...(state === 'missing' ? ['remove', 'origin'] : ['set-url', 'origin', other]));
+    writeFiles(clone, { notes: 'local edit' });
+    await expect(ensureCachedClone(url, home)).rejects.toMatchObject({
+      code: 'CONFIG_INVALID',
+      message: expect.stringContaining(url),
+    });
+    await expect(ensureCachedClone(url, home)).rejects.toThrow(state === 'missing' ? 'no origin' : other);
+    expect(readFileSync(join(clone, 'notes'), 'utf8')).toBe('local edit');
+  },
+);
 
 test('an explicit log outside a checkout has no component for local paths', async () => {
   const log = tmpDir();
