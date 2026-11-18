@@ -78,6 +78,9 @@ importers:
       '@adrien/mcp':
         specifier: workspace:*
         version: link:../mcp
+      '@adrien/web':
+        specifier: workspace:*
+        version: link:../web
       tsdown:
         specifier: ^0.23.7
         version: 0.23.7(typescript@7.0.2)

@@ -45,6 +45,7 @@
     "@adrien/api": "workspace:*",
     "@adrien/core": "workspace:*",
     "@adrien/mcp": "workspace:*",
+    "@adrien/web": "workspace:*",
     "tsdown": "^0.23.7"
   }
 }

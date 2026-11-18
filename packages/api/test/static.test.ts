@@ -43,6 +43,8 @@ describe('serving the web app', () => {
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toBe(type);
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    // The bundles have fixed names, so the browser must revalidate them after an upgrade.
+    expect(res.headers.get('cache-control')).toBe('no-cache');
     expect(await res.text()).toBe(text);
   });
 

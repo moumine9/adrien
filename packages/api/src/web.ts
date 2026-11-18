@@ -54,6 +54,7 @@ async function send(c: Context, file: string): Promise<Response> {
   return c.body(body, 200, {
     'Content-Type': getMimeType(file) ?? 'application/octet-stream',
     'X-Content-Type-Options': 'nosniff',
+    'Cache-Control': 'no-cache',
   });
 }
 
