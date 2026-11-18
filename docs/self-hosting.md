@@ -12,6 +12,10 @@ requests and approved by merging, and the server only shows what is in git.
 
 ## With Docker
 
+From the first release that includes the Docker workflow, a prebuilt image is published to GitHub Container Registry as
+`ghcr.io/moumine9/adrien:<version>`, and `:latest` points at the newest release. Use it in place of `adrien` in the
+commands below, or build it yourself from the Dockerfile as shown here.
+
 ```sh
 docker build -t adrien --build-arg ADRIEN_PACKAGE=adrien@latest https://github.com/moumine9/adrien.git
 ```

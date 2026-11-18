@@ -1,0 +1,121 @@
+name: Docker
+
+on:
+  pull_request:
+    paths:
+      - Dockerfile
+      - .dockerignore
+      - .github/workflows/docker.yml
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+
+jobs:
+  build:
+    if: github.event_name != 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # The image installs the published adrien package from npm, not this checkout. So this proves that the Dockerfile
+      # builds and that the released server starts and enforces its token. Changes under packages/ reach the image only
+      # once they are released.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: adrien:test
+          build-args: ADRIEN_PACKAGE=adrien@latest
+      # The container runs as the image's node user, but the checkout belongs to the runner. Run as the runner's own uid
+      # and gid, so the search index can be written to .adrien/ in the mounted log, and point HOME at a writable place.
+      - name: Smoke test the container
+        run: |
+          set -euo pipefail
+          docker run -d --name adrien-test -p 4310:4310 \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/log" \
+            -e ADRIEN_TOKEN=smoke-test-token -e ADRIEN_ALLOWED_HOSTS=localhost \
+            adrien:test
+
+          ready=""
+          for _ in $(seq 60); do
+            if [ "$(curl -fsS http://127.0.0.1:4310/healthz 2>/dev/null)" = "ok" ]; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          [ -n "$ready" ] || { echo "healthz did not answer ok within 60 s" >&2; exit 1; }
+
+          code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:4310/api/meta)
+          [ "$code" = "401" ] || { echo "expected 401 without a token, got $code" >&2; exit 1; }
+
+          body=$(mktemp)
+          code=$(curl -s -o "$body" -w '%{http_code}' \
+            -H 'Authorization: Bearer smoke-test-token' http://127.0.0.1:4310/api/meta)
+          if [ "$code" != "200" ] || ! grep -q '"product":"adrien"' "$body"; then
+            echo "expected 200 with the token and a body naming adrien, got $code:" >&2
+            cat "$body" >&2
+            exit 1
+          fi
+
+          # Listing the decisions makes the server build its search index, which proves the mounted log is writable
+          # for the container user (a read-only or foreign-owned mount would fail here, not in front of a user).
+          code=$(curl -s -o /dev/null -w '%{http_code}' \
+            -H 'Authorization: Bearer smoke-test-token' http://127.0.0.1:4310/api/adrs)
+          [ "$code" = "200" ] || { echo "expected 200 from /api/adrs, got $code" >&2; exit 1; }
+          [ -f .adrien/index.db ] || { echo "the search index was not written to the mounted log" >&2; exit 1; }
+      - name: Print the container logs on failure
+        if: failure()
+        run: docker logs adrien-test || true
+      - name: Remove the container
+        if: always()
+        run: docker rm -f adrien-test || true
+
+  publish:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - id: names
+        run: |
+          echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      # release.yml publishes the npm package for this tag at the same time. The image installs it, so wait for it.
+      - name: Wait for the npm package
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          deadline=$((SECONDS + 1200))
+          until [ -n "$(npm view --prefer-online "adrien@${VERSION}" version 2>/dev/null)" ]; do
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "adrien@${VERSION} is still not on npm after 20 minutes" >&2
+              exit 1
+            fi
+            sleep 20
+          done
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ steps.names.outputs.image }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=raw,value=latest
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ADRIEN_PACKAGE=adrien@${{ steps.names.outputs.version }}
