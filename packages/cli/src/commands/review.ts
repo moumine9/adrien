@@ -46,8 +46,8 @@ export function registerReview(program: Command, cli: Cli): void {
       const { ctx, view } = await open(cli, globals);
       const paths = opts.files ?? (await changedPaths(ctx.cwd, opts));
       const decisions = adrsForFiles(ctx, view, paths);
-      const review = buildReview(decisions);
       const note = unverifiedBaseNote(view);
+      const review = buildReview(decisions, { note });
       if (note) cli.err(`note: ${note}\n`);
       if (globals.json) {
         return printJson(cli, {

@@ -16,9 +16,30 @@ export interface Review {
 const FOOTER = 'Adrien informs, it never blocks. Only accepted decisions on the default branch are binding.';
 const NONE = 'No recorded decision governs the files in this change.';
 
-/** Escapes user text: no HTML from a title, and no mention, since a zero-width space follows each `@`. */
-const escapeText = (text: string): string =>
-  text.replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('@', '@\u200B');
+const MAX_TEXT = 200;
+
+/** The text with every control character (a newline, a tab, a bell, DEL) replaced by a space. */
+const spaceControls = (text: string): string =>
+  Array.from(text, (ch) => {
+    const code = ch.charCodeAt(0);
+    return code < 32 || code === 127 ? ' ' : ch;
+  }).join('');
+
+/**
+ * Makes user text safe to put in a comment. It is ONE line (so an ADR author cannot start a line of the comment, such as
+ * a `/merge` quick action), cut to `max` characters, with no HTML, no markdown syntax, and a zero-width space after each
+ * `@` so nobody is mentioned. The text is cut before it is escaped, so an entity is never split.
+ */
+function escapeText(text: string, max = MAX_TEXT): string {
+  const flat = spaceControls(text).replace(/\s+/g, ' ').trim();
+  const cut = flat.length > max ? `${flat.slice(0, max - 1)}\u2026` : flat;
+  return cut
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replace(/[\\`*_[\]]/g, '\\$&')
+    .replaceAll('@', '@\u200B');
+}
 
 /** A code span for a file name: a fence one backtick longer than any run inside, padded when an edge is a backtick. */
 function codeSpan(text: string): string {
@@ -67,7 +88,8 @@ const byIdThenLayer = (a: Group, b: Group): number => a.id.localeCompare(b.id) |
 function governs(files: string[], max: number): string {
   const shown = files
     .slice(0, max)
-    .map((file) => codeSpan(escapeText(file)))
+    // Inside a code span nothing is interpreted, so a file name needs no escaping, only no control characters.
+    .map((file) => codeSpan(spaceControls(file)))
     .join(', ');
   const rest = files.length - max;
   return rest > 0 ? `${shown} and ${rest} more` : shown;
@@ -76,7 +98,7 @@ function governs(files: string[], max: number): string {
 /** The lines of one decision: its heading (with `label` after the title), its rule when it has one, and its files. */
 function describe(group: Group, label: string, maxFiles: number): string {
   return [
-    `**${group.id}** ${escapeText(group.title)}${label}`,
+    `**${escapeText(group.id)}** ${escapeText(group.title)}${label}`,
     ...(group.review_rule === null ? [] : [`Rule: ${escapeText(group.review_rule)}`]),
     `Governs: ${governs(group.files, maxFiles)}`,
   ].join('\n');
@@ -95,14 +117,16 @@ function listed(groups: Group[], label: (g: Group) => string, max: number, maxFi
  */
 export function buildReview(
   files: FileDecisions[],
-  opts: { maxDecisions?: number; maxFilesPerDecision?: number } = {},
+  opts: { maxDecisions?: number; maxFilesPerDecision?: number; note?: string | null } = {},
 ): Review {
-  const { maxDecisions = 20, maxFilesPerDecision = 5 } = opts;
+  const { maxDecisions = 20, maxFilesPerDecision = 5, note = null } = opts;
   const groups = groupDecisions(files);
   const binding = groups.filter((g) => g.binding).sort(byIdThenLayer);
   const hints = groups.filter((g) => !g.binding).sort(byIdThenLayer);
 
   const sections: string[] = [REVIEW_MARKER];
+  // Said in the comment itself: the CLI's stderr is read by nobody in a CI job.
+  if (note !== null) sections.push(`> Note: ${escapeText(note, 400)}`);
   if (groups.length === 0) {
     sections.push(NONE);
   } else {

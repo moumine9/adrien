@@ -179,19 +179,64 @@ test('a decision with a binding base entry and a pending entry is one binding an
   );
 });
 
-test('user text is escaped: angle brackets, and an @ that would mention someone', () => {
+test('user text is escaped: ampersands, angle brackets, markdown syntax, and an @ that would mention someone', () => {
   const review = buildReview([
     file(
-      'src/<a>@x.ts',
-      dec('ADR-0007', { title: '<script>alert(1)</script> for @alice', review_rule: 'Use <T> and @bob > 1' }),
+      'src/a.ts',
+      dec('ADR-0007', {
+        title: '<script>alert(1)</script> for @alice & `x` *bold* _it_ [l](u) \\',
+        review_rule: 'Use <T> and @bob > 1',
+      }),
     ),
   ]);
-  expect(review.markdown).toContain('**ADR-0007** &lt;script&gt;alert(1)&lt;/script&gt; for @\u200Balice\n');
+  expect(review.markdown).toContain(
+    '**ADR-0007** &lt;script&gt;alert(1)&lt;/script&gt; for @\u200Balice &amp; \\`x\\` \\*bold\\* \\_it\\_ \\[l\\](u) \\\\\n',
+  );
   expect(review.markdown).toContain('Rule: Use &lt;T&gt; and @\u200Bbob &gt; 1\n');
-  expect(review.markdown).toContain('Governs: `src/&lt;a&gt;@\u200Bx.ts`\n');
   expect(review.markdown).not.toContain('<script>');
   expect(review.markdown).not.toContain('@alice');
   expect(review.markdown).not.toContain('@bob');
+});
+
+test('an id is escaped like any other text, so it cannot close the details block', () => {
+  const review = buildReview([file('src/a.ts', dec('ADR-9</details>', { binding: false, status: 'proposed' }))]);
+  expect(review.markdown).toContain('**ADR-9&lt;/details&gt;**');
+  expect(review.markdown.match(/<\/details>/g)).toHaveLength(1);
+});
+
+test('newlines in a title or rule collapse to one line, so no line of a comment is chosen by an ADR author', () => {
+  const evil = 'Nice\n\n/approve\n/merge\r\n# Heading\t\u0007x';
+  const review = buildReview([file('src/a.ts', dec('ADR-0007', { title: evil, review_rule: evil }))]);
+  expect(review.markdown).toContain('**ADR-0007** Nice /approve /merge # Heading x\n');
+  expect(review.markdown).toContain('Rule: Nice /approve /merge # Heading x\n');
+  expect(review.markdown.split('\n').some((line) => /^\s*\/(approve|merge)/.test(line))).toBe(false);
+});
+
+test('a long title or rule is cut, ending in an ellipsis', () => {
+  const long = 'w'.repeat(500);
+  const review = buildReview([file('src/a.ts', dec('ADR-0007', { title: long, review_rule: long }))]);
+  const title = review.markdown.split('\n').find((l) => l.startsWith('**ADR-0007**')) ?? '';
+  expect(title.length).toBeLessThan(230);
+  expect(title.endsWith('\u2026')).toBe(true);
+});
+
+test('file names go into code spans as they are: angle brackets and @ stay readable, control characters become spaces', () => {
+  const review = buildReview([
+    file('packages/@scope/<x>.ts', dec('ADR-0007')),
+    file('a\nb\u0001c.ts', dec('ADR-0007')),
+  ]);
+  expect(review.markdown).toContain('Governs: `packages/@scope/<x>.ts`, `a b c.ts`\n');
+  expect(review.markdown).not.toContain('\u200B');
+  expect(review.markdown).not.toContain('&lt;x');
+});
+
+test('a note about an unverified base is shown, right after the marker', () => {
+  const review = buildReview([file('src/a.ts', dec('ADR-0007'))], { note: 'No default branch was found.' });
+  expect(review.markdown.split('\n').slice(0, 3)).toEqual([REVIEW_MARKER, '', '> Note: No default branch was found.']);
+  expect(buildReview([], { note: 'Careful.' }).markdown).toBe(
+    `${REVIEW_MARKER}\n\n> Note: Careful.\n\nNo recorded decision governs the files in this change.\n\n${FOOTER}\n`,
+  );
+  expect(buildReview([], { note: null })).toEqual(buildReview([]));
 });
 
 test('a file name with backticks keeps a longer code span around it', () => {

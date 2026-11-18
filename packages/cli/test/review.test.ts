@@ -141,3 +141,16 @@ test('--json prints the counts, the markdown and the decisions per file', async 
   });
   expect(data.markdown).toContain('**ADR-0001** Invoices in decimal\n');
 });
+
+test('an unverified base is said in the comment itself, where a CI reader will see it', async () => {
+  const { root, run } = repo(false);
+  git(root, 'branch', '-m', 'trunk'); // no origin and no main or master: the default branch cannot be found
+  const result = await run('review', '--files', GOVERNED);
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain('> Note: No default branch was found');
+});
+
+test('a verified base adds no note to the comment', async () => {
+  const { run } = repo(true);
+  expect((await run('review', '--files', GOVERNED)).stdout).not.toContain('> Note:');
+});

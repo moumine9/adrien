@@ -24,6 +24,8 @@ listed under "Not binding" so a reviewer sees it without it counting as a decisi
 
 ## Before you start
 
+- **A release that has the command.** `adrien review` exists from the first release after 0.4.0. Pin that version in
+  the job (`npx --yes adrien@<version> review ...`) so the comment does not change under you.
 - **Full history.** The review compares the branch with the target branch, which needs their shared history. Fetch the
   whole history (`fetch-depth: 0` on GitHub, `GIT_DEPTH: "0"` on GitLab). A shallow clone fails with exit code `2` and
   says which refs it could not compare.
@@ -50,6 +52,11 @@ name: adrien-review
 on:
   pull_request:
 
+# Two quick pushes must not post two comments.
+concurrency:
+  group: adrien-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   review:
     runs-on: ubuntu-latest
@@ -61,20 +68,28 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
       - name: Write the review
         env:
           BASE: ${{ github.base_ref }}
-        run: npx adrien review --base "origin/$BASE" > review.md
+          DEFAULT: ${{ github.event.repository.default_branch }}
+        run: |
+          # A CI checkout has no origin/HEAD. Without it Adrien cannot tell which decisions are merged, and says so in the
+          # comment; naming the default branch lets it verify them.
+          git remote set-head origin "$DEFAULT"
+          npx --yes adrien review --base "origin/$BASE" > review.md
       - name: Create or update the comment
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
         run: |
+          # Only a comment that this workflow's bot wrote counts: anyone can post text that starts with the marker.
           ID=$(gh api --paginate "repos/$GITHUB_REPOSITORY/issues/$PR/comments" \
-            --jq '.[] | select(.body | startswith("<!-- adrien-review -->")) | .id' | tail -n 1)
+            --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- adrien-review -->"))) | .id' |
+            tail -n 1)
           if [ -n "$ID" ]; then
             gh api --method PATCH "repos/$GITHUB_REPOSITORY/issues/comments/$ID" -F body=@review.md > /dev/null
           else
@@ -101,14 +116,22 @@ adrien-review:
   variables:
     GIT_DEPTH: "0"
   script:
-    - git fetch origin "$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
-    - npx adrien review --base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" > review.md
+    # A CI checkout has no origin/HEAD. Without it Adrien cannot tell which decisions are merged, and says so in the
+    # comment; fetching the default branch and naming it lets it verify them.
+    - git fetch origin "+refs/heads/$CI_DEFAULT_BRANCH:refs/remotes/origin/$CI_DEFAULT_BRANCH"
+    - git fetch origin "+refs/heads/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME:refs/remotes/origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME"
+    - git remote set-head origin "$CI_DEFAULT_BRANCH"
+    - npx --yes adrien review --base "origin/$CI_MERGE_REQUEST_TARGET_BRANCH_NAME" > review.md
     - |
       API="$CI_API_V4_URL/projects/$CI_PROJECT_ID/merge_requests/$CI_MERGE_REQUEST_IID/notes"
-      NOTE_ID=$(curl --silent --fail --header "PRIVATE-TOKEN: $ADRIEN_REVIEW_TOKEN" "$API?per_page=100" |
-        node -e 'let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
-          const ids = JSON.parse(s).filter((n) => n.body.startsWith("<!-- adrien-review -->")).map((n) => n.id);
-          process.stdout.write(String(ids.pop() ?? ""));
+      # Only a note written by the token's own user counts: anyone can post text that starts with the marker, and
+      # updating someone else's note is refused.
+      BOT=$(curl --silent --fail --header "PRIVATE-TOKEN: $ADRIEN_REVIEW_TOKEN" "$CI_API_V4_URL/user" |
+        node -e 'let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => process.stdout.write(String(JSON.parse(s).id)));')
+      NOTE_ID=$(curl --silent --fail --header "PRIVATE-TOKEN: $ADRIEN_REVIEW_TOKEN" "$API?per_page=100&order_by=updated_at&sort=desc" |
+        BOT="$BOT" node -e 'let s = ""; process.stdin.on("data", (d) => (s += d)).on("end", () => {
+          const mine = JSON.parse(s).filter((n) => String(n.author.id) === process.env.BOT && n.body.startsWith("<!-- adrien-review -->"));
+          process.stdout.write(String(mine[0]?.id ?? ""));
         });')
       if [ -n "$NOTE_ID" ]; then
         curl --silent --fail --request PUT --header "PRIVATE-TOKEN: $ADRIEN_REVIEW_TOKEN" \
@@ -118,6 +141,14 @@ adrien-review:
           --data-urlencode "body@review.md" "$API" > /dev/null
       fi
 ```
+
+## What goes into the comment
+
+Decision titles and rules are written by whoever wrote the ADR, and a merge request can add ADRs. Adrien puts each on one
+line, cuts it, and escapes HTML, markdown syntax and `@` mentions, so a title cannot start a line of the comment (such as a
+`/merge` quick action), close a block or mention someone. File names are shown in code spans. If the default branch could
+not be found, the comment starts with a note saying that decision statuses are read as written, because a decision the
+merge request itself marks `accepted` would otherwise look binding. Give the token the lowest role that can comment.
 
 ## Keep it informational
 

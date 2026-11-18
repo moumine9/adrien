@@ -67,3 +67,13 @@ test('changedFiles lists what a range changes, relative to the repo top; null fo
   expect(await changedFiles(root, 'no-such-ref', 'HEAD')).toBeNull();
   expect(await changedFiles(root, 'HEAD', 'HEAD')).toEqual([]);
 });
+
+test('changedFiles lists both sides of a rename, so moving a file out of a governed place is still seen', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'billing/src/store.ts': 'export const store = 1;\n' });
+  initRepo(root);
+  git(root, 'checkout', '-q', '-b', 'feature');
+  git(root, 'mv', 'billing/src/store.ts', 'misc.ts');
+  commitAll(root, 'move');
+  expect(await changedFiles(root, 'main', 'HEAD')).toEqual(['billing/src/store.ts', 'misc.ts']);
+});

@@ -96,6 +96,8 @@ export async function changedFiles(repoDir: string, base: string, head: string):
   const out = await git(repoDir, [
     'diff',
     '--name-only',
+    // Without renames a moved file shows only its new path, and moving a file out of a governed place goes unseen.
+    '--no-renames',
     '--diff-filter=ACDMR',
     '-z',
     '--end-of-options',
