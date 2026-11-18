@@ -222,6 +222,9 @@ const CHANGED_FIELDS: Array<[keyof AdrMeta, string]> = [
   ['components', 'Components'],
   ['code', 'Code anchors'],
   ['contested', 'Contested'],
+  ['supersedes', 'Supersedes'],
+  ['superseded_by', 'Superseded by'],
+  ['related', 'Related'],
 ];
 
 function show(v: unknown): string {

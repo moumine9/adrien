@@ -102,12 +102,14 @@ export function Layout() {
   useRouteFocus();
   return (
     <div className="flex min-h-dvh flex-col">
-      <a
-        href="#main"
+      {/* A button, not an anchor: the router owns the hash, so `#main` would replace the current route with `/main`. */}
+      <button
+        type="button"
+        onClick={() => document.getElementById('main')?.focus()}
         className="sr-only z-50 rounded-base border-2 border-border bg-secondary-background px-4 py-2 font-heading focus:not-sr-only focus:absolute focus:top-3 focus:left-3"
       >
         Skip to content
-      </a>
+      </button>
       <header className="border-b-4 border-border bg-secondary-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
           <Link

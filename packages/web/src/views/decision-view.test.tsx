@@ -1,5 +1,7 @@
+import type { AdrResponse } from '@adrien/api/contract';
 import { screen, waitFor, within } from '@testing-library/react';
-import { failingFetch, hangingFetch, overrideFetch, renderApp } from '@/test/render.tsx';
+import { failingFetch, hangingFetch, jsonResponse, overrideFetch, renderApp } from '@/test/render.tsx';
+import { createMockFetch } from '../../mock/handler.ts';
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] });
@@ -126,5 +128,25 @@ describe('Decision view', () => {
   it('keeps working when every other request fails', async () => {
     renderApp('/adr/ADR-0002', { fetch: failingFetch(500, 'INTERNAL', 'down') });
     expect(await screen.findByText('Could not load this decision')).toBeInTheDocument();
+  });
+});
+
+describe('Pending relationship changes', () => {
+  it('shows a pending edit that changes only the related decisions', async () => {
+    const mock = createMockFetch();
+    const base = (await (await mock('/api/adrs/ADR-0002')).json()) as AdrResponse;
+    const edited = {
+      ...base,
+      pending: { kind: 'modified', ...base.base, meta: { ...base.base?.meta, related: ['ADR-0004'] } },
+    };
+    renderApp('/adr/ADR-0002', {
+      fetch: overrideFetch((url) => (url.pathname === '/api/adrs/ADR-0002' ? jsonResponse(edited) : undefined)),
+    });
+    const pending = (await heading('Pending in this checkout, not binding until merged')).closest(
+      'section',
+    ) as HTMLElement;
+    expect(within(pending).getByText('Related')).toBeInTheDocument();
+    expect(within(pending).getByText('ADR-0004')).toBeInTheDocument();
+    expect(within(pending).queryByText(/The frontmatter is unchanged/)).not.toBeInTheDocument();
   });
 });
