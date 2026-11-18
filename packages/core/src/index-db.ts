@@ -188,7 +188,7 @@ export class AdrIndex {
         insertFts.run(doc.layer, path, meta.title, meta.review_rule ?? '', body);
       }
       for (const key of existing.keys()) {
-        const [layer = '', path = ''] = key.split('\0');
+        const [layer, path] = key.split('\0') as [string, string];
         remove(layer, path);
         stats.deleted++;
       }
