@@ -102,7 +102,8 @@ function snapshotOf(number, repo, me) {
     '--json',
     'state,headRefOid,mergeStateStatus,statusCheckRollup,commits',
   );
-  const api = (path) => ghJson('api', '--paginate', `repos/${repo}/${path}`);
+  // --slurp: without it, `gh` prints each page as its own JSON array, which is not one valid document past 30 items.
+  const api = (path) => ghJson('api', '--paginate', '--slurp', `repos/${repo}/${path}`).flat();
   return {
     number,
     state: pr.state,
