@@ -192,3 +192,25 @@ test('sync on a local log fetches origin and reports the base ref', async () => 
   expect(result.code).toBe(0);
   expect(result.stdout).toBe(`Log ${root} at origin/main\n`);
 });
+
+test('sync on a local log with a broken origin exits 2', async () => {
+  const { root, run } = log();
+  initRepo(root, { origin: true });
+  git(root, 'remote', 'set-url', 'origin', join(root, 'missing'));
+  const result = await run('sync');
+  expect(result).toMatchObject({ code: 2, stdout: '', stderr: expect.stringContaining('Could not fetch') });
+});
+
+test('check --mr diagnoses a failed fetch despite a cached base', async () => {
+  const { root, run } = log();
+  initRepo(root, { origin: true });
+  git(root, 'remote', 'set-url', 'origin', join(root, 'missing'));
+  writeFiles(root, { 'docs/adr/ADR-0001-a.md': ready('ADR-0001', 'A') });
+  for (const strict of [false, true]) {
+    const result = await run('check', '--mr', '--json', ...(strict ? ['--strict'] : []));
+    expect(JSON.parse(result.stdout).diagnostics).toMatchObject([
+      { code: 'base-unresolved', severity: strict ? 'error' : 'warning', message: expect.stringMatching(/fetch/i) },
+    ]);
+    expect(result.code).toBe(strict ? 1 : 0);
+  }
+});

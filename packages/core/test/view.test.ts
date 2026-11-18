@@ -224,3 +224,17 @@ test('a shallow checkout with no merge base is flagged forkUnresolved', async ()
   expect((await loadLogView(root, loadLogConfig(root))).forkUnresolved).toBe(true);
   expect((await loadLogView(seed, loadLogConfig(seed))).forkUnresolved).toBeFalsy();
 });
+
+test('loading the ADR tree never reads a large non-Markdown blob', async () => {
+  const root = logWith({ 'docs/adr/ADR-0001-a.md': accepted, 'docs/adr/large.bin': 'x'.repeat(4 * 1024 * 1024) });
+  initRepo(root);
+  const blob = git(root, 'rev-parse', 'HEAD:docs/adr/large.bin');
+  // A replacement cycle makes any cat-file request for this blob fail.
+  git(root, 'update-ref', `refs/replace/${blob}`, blob);
+  expect(() => git(root, 'cat-file', '-p', blob)).toThrow();
+  const view = await loadLogView(root, config);
+  expect(view.base.map((adr) => adr.meta.id)).toEqual(['ADR-0001']);
+  git(root, 'rm', 'docs/adr/ADR-0001-a.md');
+  commitAll(root, 'leave only the binary attachment');
+  expect((await loadLogView(root, config)).base).toEqual([]);
+});

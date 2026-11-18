@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { existsSync, readdirSync } from 'node:fs';
+import { existsSync, lstatSync, readdirSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { promisify } from 'node:util';
 import { toPosix } from './log.ts';
@@ -54,26 +54,31 @@ function parseBatch(out: Buffer, paths: string[]): Array<{ path: string; text: s
 
 function catFileBatch(repoDir: string, specs: string[]): Promise<Buffer> {
   return new Promise((done, fail) => {
-    const child = spawn('git', ['cat-file', '--batch'], { cwd: repoDir });
+    const child = spawn('git', ['cat-file', '--batch', '-z'], { cwd: repoDir });
     const chunks: Buffer[] = [];
     child.stdout.on('data', (c: Buffer) => chunks.push(c));
     child.on('error', fail);
     child.on('close', (code) =>
       code === 0 ? done(Buffer.concat(chunks)) : fail(new Error(`git cat-file exited ${code}`)),
     );
-    child.stdin.end(specs.map((s) => `${s}\n`).join(''));
+    child.stdin.end(specs.map((s) => `${s}\0`).join(''));
   });
 }
 
-/** All files under `subdir` at `ref`, with paths relative to `repoDir` (the repo's top level). */
+/** Files ending in `suffix` under `subdir` at `ref`, with paths relative to `repoDir` (the repo's top level). */
 export async function readTreeAtRef(
   repoDir: string,
   ref: string,
   subdir: string,
+  suffix = '',
 ): Promise<Array<{ path: string; text: string }>> {
   const listing = await git(repoDir, ['ls-tree', '-r', '-z', '--name-only', ref, '--', subdir || '.']);
   if (!listing) return [];
-  const paths = listing.split('\0').filter(Boolean);
+  const paths = listing
+    .slice(0, -1)
+    .split('\0')
+    .filter((path) => path.endsWith(suffix));
+  if (!paths.length) return [];
   return parseBatch(
     await catFileBatch(
       repoDir,
@@ -107,11 +112,25 @@ function walk(dir: string, rel = ''): string[] {
   return out;
 }
 
+/** Whether the path is there (a symlink counts, even a dangling one). Any failure to look, such as ENOENT or ENOTDIR, means it is not. */
+function present(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Tracked and untracked (non-ignored) files under `subdir`, relative to `subdir`. */
 export async function listFiles(repoDir: string, subdir = ''): Promise<string[]> {
   const root = join(repoDir, subdir);
   if (!existsSync(root)) return [];
   const out = await git(root, ['ls-files', '-z', '-co', '--exclude-standard', '--', '.']);
-  if (out !== null) return out.split('\0').filter(Boolean).map(toPosix);
+  if (out !== null)
+    return out
+      .split('\0')
+      .filter((path) => path && present(join(root, path)))
+      .map(toPosix);
   return walk(root);
 }

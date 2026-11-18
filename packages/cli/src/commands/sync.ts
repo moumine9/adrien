@@ -1,4 +1,4 @@
-import { fetchOrigin, gitToplevel, loadLogView, syncCachedClone } from '@adrien/core';
+import { AdrienError, fetchOrigin, gitToplevel, loadLogView, syncCachedClone } from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, contextOf, type GlobalOptions, printJson } from '../cli.ts';
 
@@ -12,7 +12,9 @@ export function registerSync(program: Command, cli: Cli): void {
       if (ctx.readOnly) await syncCachedClone(ctx.logRoot);
       else {
         const top = await gitToplevel(ctx.logRoot);
-        if (top) await fetchOrigin(top);
+        if (top && !(await fetchOrigin(top))) {
+          throw new AdrienError('CONFIG_INVALID', 'Could not fetch the ADR log from its origin.');
+        }
       }
       const { baseRef } = await loadLogView(ctx.logRoot, ctx.config);
       if (globals.json) return printJson(cli, { log: ctx.logSource, baseRef });

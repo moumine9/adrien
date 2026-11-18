@@ -41,6 +41,7 @@ export interface CheckOptions {
   here?: boolean;
   /** Merge-request mode: warn about pending ADRs that would merge as mere hints. */
   mr?: boolean;
+  strict?: boolean;
   /** Also report style warnings (markdownlint and Adrien's own rules), as `adrien lint` does. */
   lint?: boolean;
   /** `YYYY-MM-DD`, for `review_on`. Default: today. */
@@ -186,11 +187,13 @@ async function checkAnchors(ctx: Context, adrs: Adr[], here: boolean, out: Diagn
       }
     }
   }
-  if (unverified.length && !here) {
+  if (unverified.length && (!here || !roots.size)) {
     out.push({
       severity: 'info',
       code: 'anchors-not-verified',
-      message: `Anchors not verified for ${unverified.join(', ')}: no local checkout (set ADRIEN_REPOS, or run \`adrien check --here\` in each code repo's CI)`,
+      message: here
+        ? `Anchors not verified for ${unverified.join(', ')}: this checkout matches no configured component.`
+        : `Anchors not verified for ${unverified.join(', ')}: no local checkout (set ADRIEN_REPOS, or run \`adrien check --here\` in each code repo's CI)`,
     });
   }
 }
@@ -202,12 +205,13 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
     path: p.path,
     message: p.message,
   }));
-  if (opts.mr && view.baseUnresolved) {
+  if (opts.mr && !view.baseRef) {
     out.push({
-      severity: 'error',
+      severity: opts.strict ? 'error' : 'warning',
       code: 'base-unresolved',
-      message:
-        'No default branch found (looked for origin/HEAD, origin/main, origin/master, main, master), so pending ADRs cannot be told from merged ones. Fetch it first, e.g. `git fetch origin <default-branch>`.',
+      message: view.baseFetchFailed
+        ? 'Could not fetch the default branch from origin. Pending ADRs could not be verified.'
+        : 'No default branch found (looked for origin/HEAD, origin/main, origin/master, main, master), so pending ADRs cannot be told from merged ones. Fetch it first, e.g. `git fetch origin <default-branch>`.',
     });
   }
   if (opts.mr && view.forkUnresolved) {

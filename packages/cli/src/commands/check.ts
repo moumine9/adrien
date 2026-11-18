@@ -21,12 +21,13 @@ export function registerCheck(program: Command, cli: Cli): void {
     .action(async (opts: CheckOptions, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
       const ctx = await contextOf(cli, globals);
+      let fetched: boolean | undefined;
       if (opts.mr) {
         const top = await gitToplevel(ctx.logRoot);
-        if (top) await fetchOrigin(top);
+        if (top) fetched = await fetchOrigin(top);
       }
-      const view = await loadLogView(ctx.logRoot, ctx.config);
-      const diags = await runCheck(ctx, view, { here: opts.here, mr: opts.mr, lint: opts.lint });
+      const view = await loadLogView(ctx.logRoot, ctx.config, fetched);
+      const diags = await runCheck(ctx, view, { here: opts.here, mr: opts.mr, strict: opts.strict, lint: opts.lint });
       const errors = diags.filter((d) => d.severity === 'error').length;
       const warnings = diags.filter((d) => d.severity === 'warning').length;
       cli.setCode(exitCodeFor(diags, opts.strict));

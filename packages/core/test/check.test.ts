@@ -1,3 +1,5 @@
+import { rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { type CheckOptions, type Diagnostic, exitCodeFor, runCheck } from '../src/check.ts';
 import { CONFIG_FILE } from '../src/config.ts';
 import { resolveContext } from '../src/context.ts';
@@ -158,12 +160,12 @@ test('an ADR id added both upstream and on this branch is a duplicate-id after m
   expect(codes(diags).filter(([, code]) => code === 'duplicate-id')).toEqual([['error', 'duplicate-id', 'ADR-0002']]);
 });
 
-test('--mr without a resolvable default branch is an error, plain check is not', async () => {
+test('--mr without a resolvable default branch warns, plain check is clean', async () => {
   const root = tmpDir();
   writeFiles(root, { [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': ok('ADR-0001') });
   initRepo(root);
   git(root, 'branch', '-m', 'trunk');
-  expect(codes(await checkAt(root, { mr: true }))).toEqual([['error', 'base-unresolved', undefined]]);
+  expect(codes(await checkAt(root, { mr: true }))).toEqual([['warning', 'base-unresolved', undefined]]);
   expect(await checkAt(root)).toEqual([]);
 });
 
@@ -203,4 +205,16 @@ test('--mr in a shallow checkout with no merge base is an error, so a collision 
     ['error', 'fork-unresolved', undefined],
   ]);
   expect((await checkAt(root)).filter((d) => d.code === 'fork-unresolved')).toEqual([]);
+});
+
+test('--here reports a deleted tracked anchor target as stale', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml(),
+    'apps/web/src/a.ts': '',
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { code: ['web:src/**'] }),
+  });
+  initRepo(root);
+  rmSync(join(root, 'apps/web/src/a.ts'));
+  expect(codes(await checkAt(root, { here: true }))).toEqual([['warning', 'stale-anchor', 'ADR-0001']]);
 });

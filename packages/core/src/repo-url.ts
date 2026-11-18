@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { toPosix } from './log.ts';
+import { canonicalPath } from './paths.ts';
 
 const SCP_LIKE = /^(?:[\w.-]+@)?([\w.-]+):(?!\/\/)(.+)$/;
 const WINDOWS_DRIVE = /^[A-Za-z]:[\\/]/;
@@ -32,7 +33,7 @@ export function normalizeRepoUrl(url: string): string {
 }
 
 function trimRepoLocal(p: string): string {
-  return toPosix(resolve(p))
+  return toPosix(canonicalPath(resolve(p)))
     .replace(/\/+$/, '')
     .replace(/\.git$/, '');
 }
