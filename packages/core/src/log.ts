@@ -58,8 +58,16 @@ export function adrFilePath(config: LogConfig, id: string, title: string, subdir
   return posix.join(dir, `${id}-${slugify(title)}.md`);
 }
 
-export function writeAdr(logRoot: string, adr: Adr): void {
+/** `exclusive` refuses to replace an existing file, so creating an ADR can never overwrite another one. */
+export function writeAdr(logRoot: string, adr: Adr, opts: { exclusive?: boolean } = {}): void {
   const file = join(logRoot, ...adr.path.split('/'));
   mkdirSync(dirname(file), { recursive: true });
-  writeFileSync(file, serializeAdr(adr));
+  try {
+    writeFileSync(file, serializeAdr(adr), { flag: opts.exclusive ? 'wx' : 'w' });
+  } catch (e) {
+    if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new AdrienError('INVALID_INPUT', `${adr.path} already exists; refusing to overwrite it.`);
+    }
+    throw e;
+  }
 }

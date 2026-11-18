@@ -6,7 +6,7 @@ import { type DuplicateHit, findDuplicates } from './duplicates.ts';
 import { AdrienError } from './errors.ts';
 import { BODY_TEMPLATE } from './frontmatter.ts';
 import { formatId, nextIdNumber } from './ids.ts';
-import { adrFilePath, writeAdr } from './log.ts';
+import { adrFilePath, readWorkingLog, writeAdr } from './log.ts';
 import type { Adr, AdrMeta, Origin } from './model.ts';
 import { slugify } from './slug.ts';
 import { type LogView, workingAdrs } from './view.ts';
@@ -95,10 +95,13 @@ export function createAdr(
 ): CreateResult {
   assertWritable(ctx);
   validateInput(ctx, input);
-  const duplicates = findDuplicates(input.title, [...workingAdrs(view), ...view.base]);
+  // The view was loaded asynchronously and may predate another proposal: allocate from the files on disk right now.
+  // Nothing below awaits, so no other call in this process can slip in between reading them and writing the new one.
+  const live: LogView = { ...view, working: readWorkingLog(ctx.logRoot, ctx.config).adrs };
+  const duplicates = findDuplicates(input.title, [...workingAdrs(live), ...live.base]);
   if (duplicates.length && !opts?.force) return { written: false, duplicates };
 
-  const id = formatId(nextIdNumber(allIds(view), ctx.config.id_format), ctx.config.id_format);
+  const id = formatId(nextIdNumber(allIds(live), ctx.config.id_format), ctx.config.id_format);
   const adr: Adr = {
     path: adrFilePath(ctx.config, id, input.title, input.subdir),
     body: input.body ?? BODY_TEMPLATE,
@@ -121,7 +124,7 @@ export function createAdr(
     },
   };
   if (adr.meta.review_rule === undefined) delete adr.meta.review_rule;
-  writeAdr(ctx.logRoot, adr);
+  writeAdr(ctx.logRoot, adr, { exclusive: true });
   return { written: true, adr };
 }
 

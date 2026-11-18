@@ -157,3 +157,12 @@ test('an ADR id added both upstream and on this branch is a duplicate-id after m
   const diags = await checkAt(root);
   expect(codes(diags).filter(([, code]) => code === 'duplicate-id')).toEqual([['error', 'duplicate-id', 'ADR-0002']]);
 });
+
+test('--mr without a resolvable default branch is an error, plain check is not', async () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': ok('ADR-0001') });
+  initRepo(root);
+  git(root, 'branch', '-m', 'trunk');
+  expect(codes(await checkAt(root, { mr: true }))).toEqual([['error', 'base-unresolved', undefined]]);
+  expect(await checkAt(root)).toEqual([]);
+});

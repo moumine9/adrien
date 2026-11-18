@@ -160,3 +160,36 @@ test('mergedAdrs applies pending modifications and deletions over base', async (
   const view = await loadLogView(root, config);
   expect(mergedAdrs(view).map((a) => [a.meta.id, a.meta.status])).toEqual([['ADR-0001', 'deprecated']]);
 });
+
+test('a malformed ADR on the default branch is reported, not silently dropped', async () => {
+  const root = logWith({ 'docs/adr/ADR-0001-a.md': accepted });
+  const { origin } = initRepo(root, { origin: true });
+  const other = tmpDir();
+  git(other, 'clone', '-q', origin ?? '', '.');
+  writeFiles(other, { 'docs/adr/ADR-0002-bad.md': '---\n: bad: [\n---\n' });
+  commitAll(other, 'add a malformed ADR upstream');
+  git(other, 'push', '-q', 'origin', 'main');
+  git(root, 'fetch', '-q', 'origin');
+
+  const view = await loadLogView(root, config);
+  expect(view.problems.map((p) => p.path)).toEqual(['docs/adr/ADR-0002-bad.md']);
+});
+
+test('a malformed ADR in both the tree and the default branch is reported once', async () => {
+  const root = logWith({ 'docs/adr/ADR-0001-a.md': accepted, 'docs/adr/ADR-0002-bad.md': '---\n: bad: [\n---\n' });
+  initRepo(root, { origin: true });
+  expect((await loadLogView(root, config)).problems).toHaveLength(1);
+});
+
+test('a repo with commits but no recognised default branch is flagged baseUnresolved', async () => {
+  const root = logWith({ 'docs/adr/ADR-0001-a.md': accepted });
+  initRepo(root);
+  git(root, 'branch', '-m', 'trunk');
+  const view = await loadLogView(root, config);
+  expect(view).toMatchObject({ mode: 'files', baseRef: null, baseUnresolved: true });
+
+  const fresh = logWith({ 'docs/adr/ADR-0001-a.md': accepted });
+  git(fresh, 'init', '-q');
+  expect((await loadLogView(fresh, config)).baseUnresolved).toBeFalsy();
+  expect((await loadLogView(logWith({ 'docs/adr/ADR-0001-a.md': accepted }), config)).baseUnresolved).toBeFalsy();
+});

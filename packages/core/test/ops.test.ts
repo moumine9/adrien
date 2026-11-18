@@ -86,6 +86,25 @@ test('a --subdir that escapes the ADR dir → INVALID_INPUT and nothing written'
   expect(nested.written && nested.adr.path).toBe('docs/adr/backend/db/ADR-0001-y.md');
 });
 
+test('createAdr allocates from the files on disk, not from a stale view', async () => {
+  const root = makeLog();
+  const { ctx, view } = await load(root);
+  const first = createAdr(ctx, view, { title: 'First topic' }, { today: TODAY });
+  const second = createAdr(ctx, view, { title: 'Second topic, unrelated' }, { today: TODAY });
+  expect([first, second].map((r) => r.written && r.adr.meta.id)).toEqual(['ADR-0001', 'ADR-0002']);
+  expect(ids(root, ctx).sort()).toEqual(['ADR-0001', 'ADR-0002']);
+});
+
+test('createAdr never overwrites a file, even one it cannot parse', async () => {
+  const garbage = '---\n: bad: [\n---\n';
+  const root = makeLog({ 'docs/adr/ADR-0001-x.md': garbage });
+  const { ctx, view } = await load(root);
+  expect(() => createAdr(ctx, view, { title: 'X' }, { today: TODAY })).toThrow(
+    expect.objectContaining({ code: 'INVALID_INPUT', message: expect.stringContaining('already exists') }),
+  );
+  expect(readFileSync(join(root, 'docs/adr/ADR-0001-x.md'), 'utf8')).toBe(garbage);
+});
+
 test('a read-only cached log → READ_ONLY_LOG and nothing written', async () => {
   const decisions = makeLog();
   const { origin } = initRepo(decisions, { origin: true });

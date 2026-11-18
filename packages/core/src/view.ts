@@ -22,7 +22,13 @@ export interface LogView {
   pending: PendingChange[];
   /** The working-tree ADRs, duplicate ids included. These are the files this checkout can edit. */
   working: Adr[];
+  /** Files that failed to parse: in the working tree, and on the default branch when this checkout lacks them. */
   problems: LoadProblem[];
+  /**
+   * True when the log is in a git repo with commits but none of the default-branch refs exist (a shallow or detached CI
+   * checkout, an unusual branch name). Statuses are then read as written, so nothing is verified as merged.
+   */
+  baseUnresolved?: boolean;
 }
 
 const fingerprint = (adr: Adr): string => JSON.stringify([adr.meta, adr.body]);
@@ -65,6 +71,7 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
   // A log the enclosing repo ignores is not part of that repo: read it as plain files, never as pending additions.
   const ignored = top ? (await git(top, ['check-ignore', '-q', '--', adrDirFromTop || '.'])) !== null : false;
   if (!top || !baseRef || ignored) {
+    const hasCommits = top ? (await git(top, ['rev-parse', '--verify', '--quiet', 'HEAD'])) !== null : false;
     return {
       mode: 'files',
       baseRef: null,
@@ -72,6 +79,7 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
       pending: [],
       working: working.adrs,
       problems: working.problems,
+      ...(top && !baseRef && !ignored && hasCommits ? { baseUnresolved: true } : {}),
     };
   }
 
@@ -83,21 +91,25 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
     return parseLogFiles(
       files.filter((f) => f.path.endsWith('.md')).map((f) => ({ path: f.path.slice(prefix.length), text: f.text })),
       config,
-    ).adrs;
+    );
   };
-  const base = await logAt(baseRef);
+  const atBase = await logAt(baseRef);
+  const base = atBase.adrs;
+  // A file the default branch cannot parse would otherwise vanish from the binding view without a word.
+  const inTree = new Set([...working.adrs.map((a) => a.path), ...working.problems.map((p) => p.path)]);
+  const problems = [...working.problems, ...atBase.problems.filter((p) => !inTree.has(p.path))];
   // Pending = what this checkout changed since it forked from the default branch, so ADRs merged upstream since
   // then stay plain base instead of looking deleted.
   const forkPoint = (await git(top, ['merge-base', 'HEAD', baseRef]))?.trim();
   const baseSha = (await git(top, ['rev-parse', baseRef]))?.trim();
-  const fork = forkPoint && forkPoint !== baseSha ? await logAt(forkPoint) : base;
+  const fork = forkPoint && forkPoint !== baseSha ? (await logAt(forkPoint)).adrs : base;
   return {
     mode: 'git',
     baseRef,
     base,
     pending: diff(fork, working.adrs).map((change) => ({ ...change, base: latest(change.base, base) })),
     working: working.adrs,
-    problems: working.problems,
+    problems,
   };
 }
 

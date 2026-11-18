@@ -138,6 +138,18 @@ test('adr_propose writes status proposed, origin agent, with the sections filled
   expect(text).toContain('## Considered options\n');
 });
 
+test('two adr_propose calls in flight at once get distinct ids and both files survive', async () => {
+  const root = monorepo();
+  const client = await connect({ cwd: root });
+  const [a, b] = await Promise.all([
+    call(client, 'adr_propose', proposal),
+    call(client, 'adr_propose', { ...proposal, title: 'Retry failed webhooks with backoff' }),
+  ]);
+  expect([a.structured.id, b.structured.id].sort()).toEqual(['ADR-0002', 'ADR-0003']);
+  expect(readFileSync(join(root, ...a.structured.path.split('/')), 'utf8')).toContain('Cache invoices in Redis');
+  expect(readFileSync(join(root, ...b.structured.path.split('/')), 'utf8')).toContain('Retry failed webhooks');
+});
+
 test('adr_propose on a near-duplicate returns written:false; force:true writes', async () => {
   const client = await connect({ cwd: monorepo() });
   await call(client, 'adr_propose', proposal);

@@ -18,7 +18,8 @@ export type DiagnosticCode =
   | 'missing-review-rule'
   | 'stale-anchor'
   | 'anchors-not-verified'
-  | 'pending-proposed';
+  | 'pending-proposed'
+  | 'base-unresolved';
 
 export interface Diagnostic {
   severity: Severity;
@@ -190,6 +191,14 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
     path: p.path,
     message: p.message,
   }));
+  if (opts.mr && view.baseUnresolved) {
+    out.push({
+      severity: 'error',
+      code: 'base-unresolved',
+      message:
+        'No default branch found (looked for origin/HEAD, origin/main, origin/master, main, master), so pending ADRs cannot be told from merged ones. Fetch it first, e.g. `git fetch origin <default-branch>`.',
+    });
+  }
   const adrs = mergedAdrs(view);
   for (const adr of adrs) checkFields(ctx, adr, out);
   checkLinks(adrs, out);
