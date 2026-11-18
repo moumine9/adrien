@@ -74,7 +74,6 @@ export async function readTreeAtRef(
   const listing = await git(repoDir, ['ls-tree', '-r', '-z', '--name-only', ref, '--', subdir || '.']);
   if (!listing) return [];
   const paths = listing.split('\0').filter(Boolean);
-  if (paths.length === 0) return [];
   return parseBatch(
     await catFileBatch(
       repoDir,

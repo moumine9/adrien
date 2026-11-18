@@ -96,7 +96,7 @@ export function parseAdr(text: string, path: string, opts: { idFormat: string })
   });
   if (!parsed.success) {
     const issue = parsed.error.issues[0];
-    throw parseError(path, `${issue?.path.join('.') || 'frontmatter'}: ${issue?.message}`);
+    throw parseError(path, `${issue?.path.join('.')}: ${issue?.message}`);
   }
   const meta: AdrMeta = { ...parsed.data, extra };
   return { meta, body, path };
