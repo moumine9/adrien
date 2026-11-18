@@ -8,6 +8,7 @@ import { cpSync, existsSync, mkdirSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { assertNoDemoBundle } from './site/demo-bundle.mjs';
 import { renderDocs } from './site/docs.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -22,6 +23,10 @@ function run(command, args, cwd) {
     );
   }
 }
+
+// The normal web build, the one `adrien serve` ships. CI runs this script on a fresh checkout, so it builds it here.
+run('pnpm', ['run', 'build'], webDir);
+assertNoDemoBundle(join(webDir, 'dist'));
 
 // The demo: the web visualizer built with its mock API installed (see packages/web/src/lib/demo.ts).
 run('pnpm', ['run', 'build:demo'], webDir);

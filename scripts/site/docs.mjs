@@ -25,7 +25,7 @@ export const DOC_PAGES = [
 const PAGE_BY_SOURCE = new Map(DOC_PAGES.map((page) => [page.source, page]));
 const SCHEME = /^[a-z][a-z0-9+.-]*:/i;
 // A raw <img> alone on its line (the README's logo). Raw HTML cannot render, so the line is dropped, not shown.
-const LONE_IMG = /^[ \t]*<img\b[^>\n]*>[ \t]*$/gm;
+const LONE_IMG = /^[ \t]*<img\b[^>\n]*>[ \t]*$/;
 
 /** A GitHub-style heading id: "ADR format" becomes "adr-format". */
 export function slugify(text) {
@@ -165,6 +165,24 @@ ${body}
 }
 
 /**
+ * Blanks each lone <img> line outside code. A line inside a fenced or indented code block is code, so it stays (and is
+ * escaped like any other code). The parser finds the blocks, so fences nested in lists are found too.
+ */
+function dropLoneImages(md, markdown, env) {
+  const code = new Set();
+  // A copy of env: parsing records link references in it, and the render must see the document's own state.
+  for (const token of md.parse(markdown, { ...env })) {
+    if ((token.type === 'fence' || token.type === 'code_block') && token.map) {
+      for (let line = token.map[0]; line < token.map[1]; line++) code.add(line);
+    }
+  }
+  return markdown
+    .split('\n')
+    .map((line, i) => (!code.has(i) && LONE_IMG.test(line) ? '' : line))
+    .join('\n');
+}
+
+/**
  * Renders every page of DOC_PAGES from `sourceRoot` into `outDir` and returns the file names written. Throws when a
  * source file is missing, so a renamed doc fails the build instead of leaving a dead link.
  */
@@ -172,8 +190,9 @@ export function renderDocs({ sourceRoot, outDir }) {
   const md = createMarkdown();
   mkdirSync(outDir, { recursive: true });
   return DOC_PAGES.map((page) => {
-    const markdown = readFileSync(join(sourceRoot, page.source), 'utf8').replace(LONE_IMG, '');
-    const body = md.render(markdown, { sourcePath: page.source, sourceRoot });
+    const env = { sourcePath: page.source, sourceRoot };
+    const markdown = dropLoneImages(md, readFileSync(join(sourceRoot, page.source), 'utf8'), env);
+    const body = md.render(markdown, env);
     writeFileSync(join(outDir, page.out), pageHtml(page, body));
     return page.out;
   });
