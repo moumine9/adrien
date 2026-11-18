@@ -61,7 +61,10 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
   const working = readWorkingLog(logRoot, config);
   const top = await gitToplevel(logRoot);
   const baseRef = top ? await resolveBaseRef(top) : null;
-  if (!top || !baseRef) {
+  const adrDirFromTop = top ? toPosix(relative(top, join(logRoot, config.adr_dir))) : '';
+  // A log the enclosing repo ignores is not part of that repo: read it as plain files, never as pending additions.
+  const ignored = top ? (await git(top, ['check-ignore', '-q', '--', adrDirFromTop || '.'])) !== null : false;
+  if (!top || !baseRef || ignored) {
     return {
       mode: 'files',
       baseRef: null,

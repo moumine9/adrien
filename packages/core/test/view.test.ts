@@ -119,3 +119,12 @@ test('ADRs merged upstream after branching are base, never "pending deleted"', a
   expect(view.base.map((a) => a.meta.id)).toEqual(['ADR-0001', 'ADR-0002']);
   expect(view.pending).toEqual([]);
 });
+
+test('a log inside a git repo that ignores it is read in files mode, not as pending additions', async () => {
+  const repo = logWith({ '.gitignore': '.local/\n', 'README.md': '# repo\n' });
+  initRepo(repo, { origin: true });
+  writeFiles(repo, { '.local/log/docs/adr/ADR-0001-a.md': accepted });
+  const view = await loadLogView(join(repo, '.local', 'log'), config);
+  expect(view).toMatchObject({ mode: 'files', baseRef: null, pending: [] });
+  expect(view.base.map((a) => a.meta.id)).toEqual(['ADR-0001']);
+});

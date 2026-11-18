@@ -128,3 +128,16 @@ test('exitCodeFor is 1 on any error', () => {
   expect(exitCodeFor([{ severity: 'error', code: 'unknown-tag', message: 'x' }])).toBe(1);
   expect(exitCodeFor([{ severity: 'info', code: 'anchors-not-verified', message: 'x' }], true)).toBe(0);
 });
+
+test('components without a checkout are reported in a single anchors-not-verified line', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml({
+      components: { a: { repo: 'https://x.example/a' }, b: { repo: 'https://x.example/b' } },
+    }),
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { code: ['a:src/**', 'b:lib/**'] }),
+  });
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['info', 'anchors-not-verified', undefined]]);
+  expect(diags[0]?.message).toContain('a, b');
+});

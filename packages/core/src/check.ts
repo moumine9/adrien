@@ -155,16 +155,11 @@ async function checkAnchors(ctx: Context, adrs: Adr[], here: boolean, out: Diagn
     }
   }
   const roots = await checkouts(ctx, here);
+  const unverified: string[] = [];
   for (const [component, uses] of anchored) {
     const root = roots.get(component);
     if (!root) {
-      if (!here) {
-        out.push({
-          severity: 'info',
-          code: 'anchors-not-verified',
-          message: `Anchors of "${component}" were not verified: no local checkout (set ADRIEN_REPOS or run check --here in its CI)`,
-        });
-      }
+      unverified.push(component);
       continue;
     }
     const files = await listFiles(root);
@@ -178,6 +173,13 @@ async function checkAnchors(ctx: Context, adrs: Adr[], here: boolean, out: Diagn
         });
       }
     }
+  }
+  if (unverified.length && !here) {
+    out.push({
+      severity: 'info',
+      code: 'anchors-not-verified',
+      message: `Anchors not verified for ${unverified.join(', ')}: no local checkout (set ADRIEN_REPOS, or run \`adrien check --here\` in each code repo's CI)`,
+    });
   }
 }
 
