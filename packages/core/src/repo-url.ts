@@ -27,7 +27,7 @@ export function normalizeRepoUrl(url: string): string {
     return `${u.hostname.toLowerCase()}/${trimRepoPath(u.pathname)}`;
   }
   const scp = WINDOWS_DRIVE.test(s) ? null : SCP_LIKE.exec(s);
-  if (scp) return `${(scp[1] ?? '').toLowerCase()}/${trimRepoPath(scp[2] ?? '')}`;
+  if (scp) return `${(scp[1] as string).toLowerCase()}/${trimRepoPath(scp[2] as string)}`;
   return trimRepoLocal(s);
 }
 
