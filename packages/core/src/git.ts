@@ -112,6 +112,16 @@ function walk(dir: string, rel = ''): string[] {
   return out;
 }
 
+/** Whether the path is there (a symlink counts, even a dangling one). Any failure to look, such as ENOENT or ENOTDIR, means it is not. */
+function present(path: string): boolean {
+  try {
+    lstatSync(path);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Tracked and untracked (non-ignored) files under `subdir`, relative to `subdir`. */
 export async function listFiles(repoDir: string, subdir = ''): Promise<string[]> {
   const root = join(repoDir, subdir);
@@ -120,7 +130,7 @@ export async function listFiles(repoDir: string, subdir = ''): Promise<string[]>
   if (out !== null)
     return out
       .split('\0')
-      .filter((path) => path && lstatSync(join(root, path), { throwIfNoEntry: false }))
+      .filter((path) => path && present(join(root, path)))
       .map(toPosix);
   return walk(root);
 }

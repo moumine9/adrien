@@ -1,3 +1,4 @@
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { gitToplevel, listFiles, readTreeAtRef } from '../src/git.ts';
 import { tmpDir, writeFiles } from './helpers/fixtures.ts';
@@ -42,4 +43,14 @@ test('propagates a nonzero exit after the tree listing succeeds', async () => {
   // Listing names does not load blobs; resolving this blob follows a replacement cycle.
   git(root, 'update-ref', `refs/replace/${blob}`, blob);
   await expect(readTreeAtRef(root, 'HEAD', '')).rejects.toThrow('git cat-file exited');
+});
+
+test('a tracked directory replaced by a file is listed without its old paths, and does not throw', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'src/old.ts': 'export {};\n' });
+  initRepo(root);
+  rmSync(join(root, 'src'), { recursive: true });
+  writeFiles(root, { src: 'now a file\n' });
+  // `git ls-files` still reports src/old.ts: lstat on it fails with ENOTDIR, which means the path is gone.
+  expect(await listFiles(root)).toEqual(['src']);
 });
