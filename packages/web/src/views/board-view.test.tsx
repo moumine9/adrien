@@ -191,4 +191,19 @@ describe('Board view, decisions that share an id', () => {
     expect(columnHeadings()).toContain('Accepted (2)');
     expect(screen.queryByRole('link', { name: 'Edited title' })).not.toBeInTheDocument();
   });
+
+  it('keeps a pending edit that has no base row, marked as pending in this checkout', async () => {
+    const orphan = row({
+      id: 'ADR-0007',
+      title: 'Orphan edit',
+      status: 'proposed',
+      layer: 'pending',
+      pending_kind: 'modified',
+      path: 'docs/adr/ADR-0007-orphan.md',
+    });
+    renderApp('/board', { fetch: withRows([orphan]) });
+    await screen.findAllByRole('article');
+    expect(screen.getByRole('link', { name: 'Orphan edit' })).toBeInTheDocument();
+    expect(columnHeadings()).toContain('Proposed (1)');
+  });
 });

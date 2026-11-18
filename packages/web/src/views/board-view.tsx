@@ -15,10 +15,13 @@ const COLUMNS: readonly Status[] = ['proposed', 'accepted', 'rejected', 'superse
 
 /**
  * The rows of the board: every default-branch row, plus decisions that only exist in this checkout. A pending edit or
- * deletion always has a base row of its own, so it is not shown twice. Rows are not merged by id: two files can share an id
- * (two branches picked the same number), and `adrien check` reports that, so the board must show both.
+ * deletion is hidden only while its base row is shown. Rows are not merged by id: two files can share an id (two branches
+ * picked the same number), and `adrien check` reports that, so the board must show both.
  */
-const boardRows = (rows: AdrRow[]): AdrRow[] => rows.filter((r) => r.layer === 'base' || r.pending_kind === 'added');
+const boardRows = (rows: AdrRow[]): AdrRow[] => {
+  const baseIds = new Set(rows.filter((r) => r.layer === 'base').map((r) => r.id));
+  return rows.filter((r) => r.layer === 'base' || r.pending_kind === 'added' || !baseIds.has(r.id));
+};
 
 /** Shows the command that approves a proposal. Approval is a merge, so the board never changes a status itself. */
 function ApproveDisclosure({ id }: { id: string }) {
