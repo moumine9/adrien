@@ -2,13 +2,18 @@ import { createRequire } from 'node:module';
 import { AdrienError } from '@adrien/core';
 import { Command, CommanderError } from 'commander';
 import type { Cli } from './cli.ts';
+import { registerAccept } from './commands/accept.ts';
 import { registerCheck } from './commands/check.ts';
 import { registerFor } from './commands/for.ts';
 import { registerInit } from './commands/init.ts';
 import { registerList } from './commands/list.ts';
 import { registerNew } from './commands/new.ts';
+import { registerRenumber } from './commands/renumber.ts';
 import { registerSearch } from './commands/search.ts';
 import { registerShow } from './commands/show.ts';
+import { registerStatus } from './commands/status.ts';
+import { registerSupersede } from './commands/supersede.ts';
+import { registerSync } from './commands/sync.ts';
 
 export const VERSION: string = createRequire(import.meta.url)('../package.json').version;
 
@@ -41,6 +46,11 @@ export function buildProgram(cli: Cli): Command {
     registerSearch,
     registerFor,
     registerCheck,
+    registerAccept,
+    registerStatus,
+    registerSupersede,
+    registerRenumber,
+    registerSync,
   ]) {
     register(program, cli);
   }
