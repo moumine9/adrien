@@ -11,14 +11,16 @@ adrien serve --port 8080 --log ../decisions
 
 ## Rules
 
-- **Read-only.** There is no endpoint that writes. Proposing and approving decisions stay with the CLI, the MCP server
-  and your git host's merge requests.
+- **Read-only.** There is no endpoint that writes, and any method but `GET` and `HEAD` is refused with 405. Proposing
+  and approving decisions stay with the CLI, the MCP server and your git host's merge requests.
 - **Local by default.** It binds to `127.0.0.1`. A request whose `Host` header is not `localhost`, `127.0.0.1` or `[::1]`
   (plus the host you passed to `--host`) is refused with 403, which blocks DNS-rebinding from a web page.
 - **No CORS headers.** Browsers on other origins cannot read it.
 - **Stateless.** Each request re-reads the log, so it always shows what is on disk and in git now.
 - **Errors** are `{ "error": { "code": "ADR_NOT_FOUND", "message": "…" } }` with 404 for `ADR_NOT_FOUND`, 400 for
-  `INVALID_INPUT`, 403 for a refused host, and 500 otherwise.
+  `INVALID_INPUT`, 403 for a refused host (`FORBIDDEN_HOST`), 405 for a refused method (`METHOD_NOT_ALLOWED`), 404 for
+  an unknown `/api` path (`NOT_FOUND`), and 500 otherwise (the Adrien error code, such as `CONFIG_NOT_FOUND`, or
+  `INTERNAL_ERROR`). API responses carry `Cache-Control: no-store`.
 
 ## Endpoints
 

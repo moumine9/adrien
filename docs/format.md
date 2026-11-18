@@ -207,6 +207,12 @@ can read them from one file. "Accepted" means what the default branch holds: an 
 under "Pending in this checkout" until it is merged. `--out <file>` writes it instead, with links relative to that file. The output is
 generated: regenerate it rather than editing it.
 
+## `adrien serve`
+
+`adrien serve [--port <n>] [--host <h>]` starts a read-only HTTP server on `127.0.0.1:4310` for the web visualizer,
+scripts and dashboards, and prints its URL. It runs until you stop it. The endpoints and the security rules are in
+[api.md](api.md).
+
 ## The MCP server
 
 `adrien mcp` serves these tools on stdio, from the code repo or log repo it runs in:
