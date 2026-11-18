@@ -23,7 +23,7 @@ Agent tokens are the scarce resource. Using the strongest model for everything i
 
 ## Decision
 
-Haiku does bounded, well-specified work with a test to pass. Sonnet orchestrates: it plans, writes the specs, integrates, reruns the gates and opens pull requests. Opus is the sage: it reviews every pull request before a merge is requested, decides design and security questions, and settles disputes. Its verdict wins. A worker that fails twice escalates to the orchestrator, and Codex acts as an extra worker or reviewer whose output is verified like any other. The rules and the loop are in `AGENTS.md` and `CLAUDE.md`.
+Haiku does bounded, well-specified work with a test to pass. Sonnet orchestrates: it plans, writes the specs, integrates, reruns the gates and opens pull requests. Opus is the sage: it reviews every pull request before a merge is requested, decides design and security questions, and settles disputes. Its verdict wins. A worker that fails twice escalates to the orchestrator, and Codex acts as an extra worker or reviewer whose output is verified like any other. A Haiku PR watcher, driven by `scripts/pr-watch.mjs`, hands review comments to the orchestrator and implements the fixes the orchestrator specifies. It is the only agent that merges, and only when the script reports that Codex approved the head commit, the checks are green and the merge state is clean. The rules and the loop are in `AGENTS.md` and `CLAUDE.md`.
 
 ## Consequences
 
