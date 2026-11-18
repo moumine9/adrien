@@ -4,6 +4,8 @@ import { resolveContext } from '../src/context.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 
+import { git, initRepo } from './helpers/git.ts';
+
 test('a replacement must list the retired decision in supersedes', async () => {
   const dir = tmpDir();
   writeFiles(dir, {
@@ -29,13 +31,18 @@ test('a replacement must list the retired decision in supersedes', async () => {
   ]);
 });
 
-test('--here skips external anchors when invoked outside a code checkout', async () => {
+test('--here reports unverified anchors in an unidentified checkout', async () => {
   const dir = tmpDir();
   writeFiles(dir, {
     [CONFIG_FILE]: configYaml(),
     'docs/adr/web.md': adrText({ id: 'ADR-0001', title: 'Assets', code: ['web:missing.ts'] }),
   });
-  const ctx = await resolveContext({ cwd: tmpDir(), log: dir, env: {} });
+  const cwd = tmpDir();
+  initRepo(cwd);
+  git(cwd, 'remote', 'add', 'origin', 'https://example.org/unrelated.git');
+  const ctx = await resolveContext({ cwd, log: dir, env: {} });
   expect(ctx.codeRepo).toBeNull();
-  expect(await runCheck(ctx, await loadLogView(dir, ctx.config), { here: true })).toEqual([]);
+  expect(await runCheck(ctx, await loadLogView(dir, ctx.config), { here: true })).toMatchObject([
+    { code: 'anchors-not-verified', message: expect.stringContaining('web') },
+  ]);
 });

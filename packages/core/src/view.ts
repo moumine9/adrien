@@ -29,6 +29,8 @@ export interface LogView {
    * checkout, an unusual branch name). Statuses are then read as written, so nothing is verified as merged.
    */
   baseUnresolved?: boolean;
+  /** The requested refresh failed, so this view contains only working-tree ADRs. */
+  baseFetchFailed?: boolean;
   /**
    * True when the default branch exists but its common ancestor with this checkout does not (a shallow clone), so what
    * the branch changed cannot be told from what landed upstream. Pending changes are then not trustworthy.
@@ -68,9 +70,9 @@ function diff(base: Adr[], working: Adr[]): PendingChange[] {
   return pending;
 }
 
-export async function loadLogView(logRoot: string, config: LogConfig): Promise<LogView> {
+export async function loadLogView(logRoot: string, config: LogConfig, fetched?: boolean): Promise<LogView> {
   const working = readWorkingLog(logRoot, config);
-  const top = await gitToplevel(logRoot);
+  const top = fetched === false ? null : await gitToplevel(logRoot);
   const baseRef = top ? await resolveBaseRef(top) : null;
   const adrDirFromTop = top ? toPosix(relative(top, join(logRoot, config.adr_dir))) : '';
   // A log the enclosing repo ignores is not part of that repo: read it as plain files, never as pending additions.
@@ -84,6 +86,7 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
       pending: [],
       working: working.adrs,
       problems: working.problems,
+      baseFetchFailed: fetched === false,
       ...(top && !baseRef && !ignored && hasCommits ? { baseUnresolved: true } : {}),
     };
   }
@@ -104,9 +107,9 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
   const logAt = async (ref: string) => {
     const atRef = await configAt(ref);
     const adrDir = toPosix(relative(top, join(logRoot, atRef.adr_dir)));
-    const files = await readTreeAtRef(top, ref, adrDir);
+    const files = await readTreeAtRef(top, ref, adrDir, '.md');
     return parseLogFiles(
-      files.filter((f) => f.path.endsWith('.md')).map((f) => ({ path: f.path.slice(prefix.length), text: f.text })),
+      files.map((f) => ({ path: f.path.slice(prefix.length), text: f.text })),
       atRef,
     );
   };
