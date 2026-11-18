@@ -14,7 +14,9 @@ workflow, with provenance, when the tag is pushed.
    if a line would not mean much to someone who has not seen the commit. `pnpm changelog --stdout` previews it.
 4. Commit with `chore(release): X.Y.Z`, push, and open the pull request.
 5. Merge it once the checks pass.
-6. Tag the merge commit on `main` and push the tag: `git tag vX.Y.Z origin/main && git push origin vX.Y.Z`.
+6. Fetch, then tag the merge commit on `main` and push the tag:
+   `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`. Without the fetch, `origin/main` is still the
+   commit before the merge, and the release workflow rejects a tag that does not match the package version.
 7. Check that the release workflow succeeded and that `npm view adrien version` shows the new version.
 
 ## The changelog rule
