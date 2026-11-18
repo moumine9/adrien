@@ -31,7 +31,8 @@ docker run -d --name adrien -p 4310:4310 -v adrien-data:/data \
 ```
 
 Or mount a checkout that you keep up to date yourself. The mount must be writable, because the search index lives in
-`.adrien/` inside the log:
+`.adrien/` inside the log. The image runs as uid 1000 (`node`), so the checkout must be writable by that user, or run the
+container with `--user "$(id -u):$(id -g)"`:
 
 ```sh
 docker run -d --name adrien -p 4310:4310 -v /srv/decisions:/log \
