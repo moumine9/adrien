@@ -7,6 +7,7 @@ import { registerCheck } from './commands/check.ts';
 import { registerFor } from './commands/for.ts';
 import { registerInit } from './commands/init.ts';
 import { registerList } from './commands/list.ts';
+import { registerMcp } from './commands/mcp.ts';
 import { registerNew } from './commands/new.ts';
 import { registerRenumber } from './commands/renumber.ts';
 import { registerSearch } from './commands/search.ts';
@@ -51,6 +52,7 @@ export function buildProgram(cli: Cli): Command {
     registerSupersede,
     registerRenumber,
     registerSync,
+    registerMcp,
   ]) {
     register(program, cli);
   }
