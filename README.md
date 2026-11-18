@@ -1,5 +1,7 @@
 # Adrien
 
+<img src="assets/icon-512.png" alt="The Adrien mark: a stack of three decision records, the front one marked with an A" width="112" height="112" align="right">
+
 Architecture decisions for developers **and their AI agents**. (Yes, the name is a nod to ADR.)
 
 Decisions get made in merge-request threads, chat and tickets, and then they are lost. Nobody has an overview, nothing
