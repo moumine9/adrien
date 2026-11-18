@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { CONFIG_FILE } from '@adrien/core';
 import { configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { initRepo } from '../../core/test/helpers/git.ts';
 import { assertSafeToExpose, scheduleSync } from '../src/commands/serve.ts';
 import { runCli } from '../src/program.ts';
 
@@ -140,4 +141,40 @@ describe.runIf(existsSync(dist))('ADRIEN_LOG', () => {
       child.on('exit', (code) => reject(new Error(`serve exited with ${code}:\n${output}`)));
     });
   });
+});
+
+describe.runIf(existsSync(dist))('a log that follows a git URL', () => {
+  test('says on stderr, while running, that it can no longer refresh', async () => {
+    const decisions = tmpDir();
+    writeFiles(decisions, { [CONFIG_FILE]: configYaml() });
+    const { origin } = initRepo(decisions, { origin: true });
+    const child = spawn(process.execPath, [dist, 'serve', '--port', '0', '--sync-every', '1'], {
+      cwd: tmpDir(),
+      env: { ...process.env, ADRIEN_HOME: tmpDir(), ADRIEN_LOG: pathToFileURL(origin ?? '').href },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    onTestFinished(async () => {
+      if (child.exitCode !== null || child.signalCode !== null) return;
+      const exited = once(child, 'exit');
+      child.kill();
+      await exited;
+    });
+    let output = '';
+    let listening = false;
+    const refused = new Promise<void>((resolve, reject) => {
+      const read = (chunk: Buffer) => {
+        output += chunk.toString();
+        if (!listening && /^Adrien serving /m.test(output)) {
+          listening = true;
+          rmSync(origin ?? '', { recursive: true, force: true });
+        }
+        if (/Could not refresh the log: .*Could not fetch/.test(output)) resolve();
+      };
+      child.stdout.on('data', read);
+      child.stderr.on('data', read);
+      child.on('exit', (code) => reject(new Error(`serve exited with ${code}:\n${output}`)));
+    });
+    await refused;
+    expect(child.exitCode).toBeNull();
+  }, 30_000);
 });

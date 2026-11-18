@@ -108,7 +108,7 @@ export function registerServe(program: Command, cli: Cli): void {
           throw new AdrienError('INVALID_INPUT', `Cannot listen on ${opts.host}:${opts.port}: ${e.message}`);
         });
         if (ctx.readOnly && opts.syncEvery > 0)
-          scheduleSync(ctx.logRoot, opts.syncEvery, syncCachedClone, (m) => cli.err(m));
+          scheduleSync(ctx.logRoot, opts.syncEvery, syncCachedClone, (m) => process.stderr.write(m));
         // The action ends once the server listens, so the bin prints this line now; the open server keeps the process
         // running until it is interrupted.
         cli.out(`Adrien serving ${ctx.config.product} at ${server.url}\n`);
