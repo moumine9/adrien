@@ -7,6 +7,7 @@ ignores:
   - "docs/superpowers/**" # private, never committed
   - ".superpowers/**"
   - ".local/**"
+  - "docs/decisions/**" # Adrien's own log: `adrien check --lint --strict` owns it
 config:
   default: true
   # The docs wrap near 120 columns and tables and links run longer.

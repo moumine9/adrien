@@ -23,3 +23,5 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      # Adrien checks its own decision log (the build from `pnpm test` is what runs). No --mr: a shallow checkout may lack origin/main.
+      - run: node packages/cli/dist/index.js check --lint --strict

@@ -80,6 +80,9 @@ Run `adrien <command> --help`. Add `--json` for machine-readable output.
 The [format reference](https://github.com/moumine9/adrien/blob/main/docs/format.md) covers the ADR format, the config
 files, anchors, and how approval works.
 
+Adrien keeps its own architecture decisions in
+[`docs/decisions`](https://github.com/moumine9/adrien/tree/main/docs/decisions), and its CI runs `adrien check` on them.
+
 ## Status
 
 Early. The local core (format, CLI, MCP server) is what exists today. Next: a server and API, a web UI, and detection
