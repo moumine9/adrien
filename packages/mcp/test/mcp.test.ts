@@ -1,0 +1,202 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { CONFIG_FILE } from '@adrien/core';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
+import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { initRepo } from '../../core/test/helpers/git.ts';
+import { createAdrienServer, type ServerOptions } from '../src/server.ts';
+
+const rule = 'Format dates with the locale helper.';
+const governed = adrText({
+  id: 'ADR-0001',
+  title: 'Render dates in the user locale',
+  status: 'accepted',
+  tags: ['frontend'],
+  components: ['web'],
+  code: ['web:src/**'],
+  review_rule: rule,
+});
+
+function monorepo(files: Record<string, string> = {}): string {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml(),
+    'apps/web/src/a.ts': 'export {};\n',
+    'docs/adr/ADR-0001-dates.md': governed,
+    ...files,
+  });
+  return root;
+}
+
+async function connect(opts: Partial<ServerOptions> & { cwd: string }) {
+  const server = createAdrienServer({ env: { ADRIEN_HOME: tmpDir() }, today: () => '2026-11-17', ...opts });
+  const [clientSide, serverSide] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverSide);
+  const client = new Client({ name: 'test', version: '0.0.0' });
+  await client.connect(clientSide);
+  onTestFinished(async () => {
+    await client.close();
+    await server.close();
+  });
+  return client;
+}
+
+async function call(client: Client, name: string, args: Record<string, unknown> = {}) {
+  const result = await client.callTool({ name, arguments: args });
+  const text = (result.content as { type: string; text: string }[])[0]?.text ?? '';
+  // biome-ignore lint/suspicious/noExplicitAny: tool output is untyped JSON and each test asserts its own shape
+  return { isError: result.isError === true, structured: result.structuredContent as any, text };
+}
+
+test('lists exactly the six tools', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const { tools } = await client.listTools();
+  expect(tools.map((t) => t.name).sort()).toEqual([
+    'adr_for_files',
+    'adr_get',
+    'adr_list',
+    'adr_propose',
+    'adr_propose_change',
+    'adr_search',
+  ]);
+});
+
+test('no write tool can set status or origin, and no tool input has an origin', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const { tools } = await client.listTools();
+  const keys = (schema: unknown): string[] => {
+    if (Array.isArray(schema)) return schema.flatMap(keys);
+    if (schema && typeof schema === 'object') {
+      return Object.entries(schema).flatMap(([k, v]) => [k, ...keys(v)]);
+    }
+    return [];
+  };
+  for (const tool of tools) {
+    const inputKeys = keys(tool.inputSchema.properties);
+    expect(inputKeys, `${tool.name} must not accept an origin`).not.toContain('origin');
+    // status is a read filter on adr_search / adr_list only; the tools that write must never take it
+    if (tool.name === 'adr_propose' || tool.name === 'adr_propose_change') {
+      expect(inputKeys, `${tool.name} must not accept a status`).not.toContain('status');
+    }
+  }
+});
+
+test('the server tells agents never to accept', async () => {
+  const client = await connect({ cwd: monorepo(), version: '9.9.9' });
+  expect(client.getServerVersion()).toMatchObject({ name: 'adrien', version: '9.9.9' });
+  expect(client.getInstructions()).toContain('adr_for_files');
+  expect(client.getInstructions()).toContain("Never set an ADR's status to `accepted` yourself.");
+});
+
+test('adr_for_files returns the binding ADR with its review_rule', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const { structured, isError } = await call(client, 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
+  expect(isError).toBe(false);
+  expect(structured.files).toHaveLength(1);
+  expect(structured.files[0]).toMatchObject({
+    file: 'apps/web/src/a.ts',
+    component: 'web',
+    decisions: [{ id: 'ADR-0001', binding: true, layer: 'base', review_rule: rule }],
+  });
+});
+
+test('adr_search, adr_list and adr_get read the log', async () => {
+  const client = await connect({ cwd: monorepo() });
+  expect(
+    (await call(client, 'adr_search', { query: 'dates' })).structured.results.map((r: { id: string }) => r.id),
+  ).toEqual(['ADR-0001']);
+  expect((await call(client, 'adr_list', { tags: ['frontend'] })).structured.results).toHaveLength(1);
+  expect((await call(client, 'adr_list', { tags: ['database'] })).structured.results).toEqual([]);
+  const got = (await call(client, 'adr_get', { id: 'ADR-0001' })).structured;
+  expect(got).toMatchObject({ id: 'ADR-0001', base: { meta: { review_rule: rule } }, pending: null });
+  const missing = await call(client, 'adr_get', { id: 'ADR-0099' });
+  expect(missing).toMatchObject({ isError: true, text: 'ADR_NOT_FOUND: No ADR ADR-0099 in the log' });
+});
+
+const proposal = {
+  title: 'Cache invoices in Redis',
+  context: 'Invoice reads dominate the load.',
+  decision: 'Cache rendered invoices in Redis for 5 minutes.',
+  rationale: 'It removes the hot path without a schema change.',
+  review_rule: 'Invoice reads go through the cache helper.',
+  tags: ['backend'],
+};
+
+test('adr_propose writes status proposed, origin agent, with the sections filled', async () => {
+  const root = monorepo();
+  const client = await connect({ cwd: root });
+  const { structured, isError } = await call(client, 'adr_propose', proposal);
+  expect(isError).toBe(false);
+  expect(structured).toMatchObject({ written: true, id: 'ADR-0002' });
+  const text = readFileSync(join(root, ...structured.path.split('/')), 'utf8');
+  expect(text).toContain('status: proposed');
+  expect(text).toContain('origin: agent');
+  expect(text).toContain('## Context\n\nInvoice reads dominate the load.\n');
+  expect(text).toContain('## Decision\n\nCache rendered invoices in Redis for 5 minutes.\n');
+  expect(text).toContain('## Considered options\n');
+});
+
+test('adr_propose on a near-duplicate returns written:false; force:true writes', async () => {
+  const client = await connect({ cwd: monorepo() });
+  await call(client, 'adr_propose', proposal);
+  const again = await call(client, 'adr_propose', { ...proposal, title: 'Cache invoices in Redis cache' });
+  expect(again.isError).toBe(false);
+  expect(again.structured.written).toBe(false);
+  expect(again.structured.duplicates[0]).toMatchObject({ id: 'ADR-0002' });
+  const forced = await call(client, 'adr_propose', {
+    ...proposal,
+    title: 'Cache invoices in Redis cache',
+    force: true,
+  });
+  expect(forced.structured).toMatchObject({ written: true, id: 'ADR-0003' });
+});
+
+test("after adr_propose_change, adr_for_files shows base binding:true and the agent's version binding:false", async () => {
+  const root = monorepo();
+  initRepo(root, { origin: true });
+  const client = await connect({ cwd: root });
+  const changed = await call(client, 'adr_propose_change', {
+    id: 'ADR-0001',
+    patch: { review_rule: 'Always use Intl.DateTimeFormat.' },
+    rationale: 'The locale helper was removed.',
+  });
+  expect(changed.structured).toMatchObject({ id: 'ADR-0001', pending: true });
+
+  const { structured } = await call(client, 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
+  const decisions = structured.files[0].decisions;
+  expect(decisions).toMatchObject([
+    { id: 'ADR-0001', binding: true, layer: 'base', review_rule: rule },
+    { id: 'ADR-0001', binding: false, layer: 'pending', review_rule: 'Always use Intl.DateTimeFormat.' },
+  ]);
+  const body = readFileSync(join(root, 'docs/adr/ADR-0001-dates.md'), 'utf8');
+  expect(body).toContain('> Proposed change (agent, 2026-11-17): The locale helper was removed.');
+});
+
+test('adr_propose_change rejects a status in the patch', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const result = await call(client, 'adr_propose_change', {
+    id: 'ADR-0001',
+    patch: { status: 'deprecated' },
+    rationale: 'trying to sneak in a status',
+  });
+  expect(result.isError).toBe(true);
+});
+
+test('unknown tag → isError text lists allowed tags', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const result = await call(client, 'adr_propose', { ...proposal, tags: ['ghost'] });
+  expect(result.isError).toBe(true);
+  expect(result.text).toMatch(/^INVALID_INPUT: Unknown tag\(s\): ghost\. Allowed: frontend, backend/);
+});
+
+test('read-only cached log → isError READ_ONLY_LOG', async () => {
+  const decisions = monorepo();
+  const { origin } = initRepo(decisions, { origin: true });
+  const client = await connect({ cwd: tmpDir(), log: pathToFileURL(origin ?? '').href });
+  const result = await call(client, 'adr_propose', proposal);
+  expect(result.isError).toBe(true);
+  expect(result.text).toMatch(/^READ_ONLY_LOG: /);
+  expect((await call(client, 'adr_list')).structured.results).toHaveLength(1);
+});
