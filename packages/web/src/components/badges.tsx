@@ -107,6 +107,19 @@ export function PendingBadge({ kind, className }: { kind: 'added' | 'modified' |
   );
 }
 
+/** A decision that exists only in this checkout: it binds nothing until it is merged. */
+export function InCheckoutBadge({ className }: { className?: string }) {
+  return (
+    <Badge
+      title="A change in this checkout. It binds nothing until it is merged."
+      className={cn(base, 'hatch border-dashed bg-secondary-background text-foreground', className)}
+    >
+      <GitPullRequestDraft aria-hidden strokeWidth={2.5} />
+      Pending in this checkout
+    </Badge>
+  );
+}
+
 export function DueBadge({ className }: { className?: string }) {
   return (
     <Badge
