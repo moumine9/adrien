@@ -11,10 +11,6 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    # A job-level block replaces the workflow-level one, so it repeats id-token: write.
-    permissions:
-      contents: write # create the GitHub Release
-      id-token: write # npm trusted publishing and provenance
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -34,6 +30,16 @@ jobs:
       - run: pnpm test
       - run: npm publish --provenance --access public
         working-directory: packages/cli
+
+  # Its own job, so the token that can write releases never exists while dependencies install or tests run.
+  # It runs after npm has published, so a notes problem can never stop the publish.
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
       - name: Create the GitHub Release from the changelog entry
         run: |
           node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > release-notes.md
