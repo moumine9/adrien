@@ -85,6 +85,12 @@ test('createAdr writes the body template chosen by the call, else the config, el
   expect(fromConfig.written && fromConfig.adr.body).toBe('\n## Context\n\n## Decision\n\n## Consequences\n');
 });
 
+test('createAdr records review_on', async () => {
+  const { ctx, view } = await load(makeLog());
+  const result = createAdr(ctx, view, { title: 'Revisit me', review_on: '2027-06-01' }, { today: TODAY });
+  expect(result.written && result.adr.meta.review_on).toBe('2027-06-01');
+});
+
 test('a --subdir that escapes the ADR dir → INVALID_INPUT and nothing written', async () => {
   const root = makeLog();
   const { ctx, view } = await load(root);

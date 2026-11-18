@@ -17,6 +17,7 @@ export interface NewAdrInput {
   components?: string[];
   code?: string[];
   review_rule?: string;
+  review_on?: string;
   sources?: string[];
   related?: string[];
   body?: string;
@@ -47,7 +48,13 @@ export function assertWritable(ctx: Context): void {
   }
 }
 
-export function validateInput(ctx: Context, input: { tags?: string[]; components?: string[]; code?: string[] }): void {
+export function validateInput(
+  ctx: Context,
+  input: { tags?: string[]; components?: string[]; code?: string[]; review_on?: string },
+): void {
+  if (input.review_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(input.review_on)) {
+    throw new AdrienError('INVALID_INPUT', `review_on "${input.review_on}" must be a date like 2027-03-04`);
+  }
   const known = Object.keys(ctx.config.components);
   const badTags = (input.tags ?? []).filter((t) => !ctx.config.tags.includes(t));
   if (badTags.length) {
@@ -116,6 +123,7 @@ export function createAdr(
       components: input.components ?? [],
       code: input.code ?? [],
       review_rule: input.review_rule,
+      review_on: input.review_on,
       sources: input.sources ?? [],
       supersedes: [],
       related: input.related ?? [],
@@ -126,6 +134,7 @@ export function createAdr(
     },
   };
   if (adr.meta.review_rule === undefined) delete adr.meta.review_rule;
+  if (adr.meta.review_on === undefined) delete adr.meta.review_on;
   writeAdr(ctx.logRoot, adr, { exclusive: true });
   return { written: true, adr };
 }

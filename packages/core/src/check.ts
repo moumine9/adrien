@@ -24,7 +24,8 @@ export type DiagnosticCode =
   | 'markdown'
   | 'unfilled-placeholder'
   | 'empty-decision'
-  | 'numbered-heading';
+  | 'numbered-heading'
+  | 'review-due';
 
 export interface Diagnostic {
   severity: Severity;
@@ -41,6 +42,8 @@ export interface CheckOptions {
   mr?: boolean;
   /** Also report style warnings (markdownlint and Adrien's own rules), as `adrien lint` does. */
   lint?: boolean;
+  /** `YYYY-MM-DD`, for `review_on`. Default: today. */
+  today?: string;
 }
 
 const RETIRED: ReadonlySet<Status> = new Set(['rejected', 'superseded', 'deprecated']);
@@ -220,6 +223,18 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
           message: `${change.id} is still "proposed": merging it adds only a hint. Run \`adrien accept ${change.id}\` to approve it`,
         });
       }
+    }
+  }
+  const today = opts.today ?? new Date().toISOString().slice(0, 10);
+  for (const adr of adrs) {
+    const due = adr.meta.review_on;
+    if (due && due <= today && !RETIRED.has(adr.meta.status)) {
+      out.push({
+        severity: 'warning',
+        code: 'review-due',
+        ...at(adr),
+        message: `${adr.meta.id} was due for review on ${due}: confirm it still holds, or supersede it`,
+      });
     }
   }
   if (opts.lint) out.push(...(await lintAdrs(ctx, view)));

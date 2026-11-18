@@ -15,6 +15,8 @@ export interface AdrMeta {
   title: string;
   status: Status;
   date?: string;
+  /** `YYYY-MM-DD`: when this decision is due to be looked at again. `check` warns once it passes. */
+  review_on?: string;
   tags: string[];
   components: string[];
   code: string[];
@@ -43,6 +45,7 @@ export const META_KEYS = [
   'title',
   'status',
   'date',
+  'review_on',
   'tags',
   'components',
   'code',
@@ -63,6 +66,10 @@ export const adrMetaSchema = z.object({
   title: z.string().min(1),
   status: z.enum(STATUSES),
   date: z.string().optional(),
+  review_on: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'must be a date like 2027-03-04')
+    .optional(),
   tags: stringList,
   components: stringList,
   code: stringList,

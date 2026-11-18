@@ -127,3 +127,13 @@ test('an unfilled MADR template status is a parse error that names the file', ()
     expect.objectContaining({ code: 'PARSE_ERROR', message: expect.stringContaining('0001-t.md') }),
   );
 });
+
+test('review_on round-trips after date, and a malformed one is a parse error', () => {
+  const text = '---\nid: ADR-0001\ntitle: T\nstatus: accepted\ndate: 2026-03-04\nreview_on: 2027-03-04\n---\n';
+  const adr = parseAdr(text, 'docs/adr/ADR-0001-t.md', opts);
+  expect(adr.meta.review_on).toBe('2027-03-04');
+  expect(serializeAdr(adr)).toBe(text);
+  expect(() => parseAdr(text.replace('2027-03-04', 'next spring'), 'docs/adr/ADR-0001-t.md', opts)).toThrow(
+    expect.objectContaining({ code: 'PARSE_ERROR', message: expect.stringContaining('review_on') }),
+  );
+});

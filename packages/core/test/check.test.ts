@@ -166,3 +166,21 @@ test('--mr without a resolvable default branch is an error, plain check is not',
   expect(codes(await checkAt(root, { mr: true }))).toEqual([['error', 'base-unresolved', undefined]]);
   expect(await checkAt(root)).toEqual([]);
 });
+
+test('review_on: due or overdue → review-due warning; future, retired or absent → nothing', async () => {
+  const diags = await check(
+    {
+      'docs/adr/ADR-0001-a.md': ok('ADR-0001', { review_on: '2026-11-17' }),
+      'docs/adr/ADR-0002-b.md': ok('ADR-0002', { review_on: '2026-01-01' }),
+      'docs/adr/ADR-0003-c.md': ok('ADR-0003', { review_on: '2027-01-01' }),
+      'docs/adr/ADR-0004-d.md': ok('ADR-0004', { review_on: '2026-01-01', status: 'deprecated' }),
+      'docs/adr/ADR-0005-e.md': ok('ADR-0005'),
+    },
+    { today: '2026-11-17' },
+  );
+  expect(codes(diags)).toEqual([
+    ['warning', 'review-due', 'ADR-0001'],
+    ['warning', 'review-due', 'ADR-0002'],
+  ]);
+  expect(diags[1]?.message).toContain('2026-01-01');
+});

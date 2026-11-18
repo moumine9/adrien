@@ -159,3 +159,12 @@ test('lint --json lists the diagnostics', async () => {
   const json = JSON.parse((await run(root, '--json', 'lint')).stdout);
   expect(json).toMatchObject({ errors: 0, warnings: 1, diagnostics: [{ code: 'markdown', id: 'ADR-0001' }] });
 });
+
+test('new --review-on records the date, and check flags it once it has passed', async () => {
+  const root = log();
+  const created = await run(root, 'new', 'Revisit this', '--review-on', '2020-01-01', '--review-rule', 'A rule.');
+  expect(created.code).toBe(0);
+  expect(readFileSync(join(root, 'docs/adr/ADR-0001-revisit-this.md'), 'utf8')).toContain('review_on: 2020-01-01');
+  expect((await run(root, 'check')).stdout).toContain('warning  review-due  ADR-0001');
+  expect((await run(root, 'new', 'Bad date', '--review-on', 'soon')).code).toBe(2);
+});
