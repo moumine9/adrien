@@ -2,7 +2,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CODE_CONFIG_FILE, CONFIG_FILE } from '../src/config.ts';
-import { componentForPath, resolveContext, workspacePaths } from '../src/context.ts';
+import { componentForPath, componentRoot, resolveContext, workspacePaths } from '../src/context.ts';
 import { configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { git, initRepo } from './helpers/git.ts';
 
@@ -98,4 +98,17 @@ test('workspacePaths keeps Windows drive letters and lets ADRIEN_REPOS override 
     infra: '/srv/infra',
     web: 'C:\\code\\web',
   });
+});
+
+test('a component root with a leading dot keeps it', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml({ components: { ci: { repo: '.', root: '.github' }, dot: { repo: '.', root: './' } } }),
+    '.github/workflows/ci.yml': 'on: push\n',
+  });
+  initRepo(root);
+  const ctx = await resolveContext({ cwd: root, env: {} });
+  expect(componentRoot(ctx.config, 'ci')).toBe('.github');
+  expect(componentRoot(ctx.config, 'dot')).toBe('');
+  expect(componentForPath(ctx, '.github/workflows/ci.yml')).toEqual({ component: 'ci', relPath: 'workflows/ci.yml' });
 });

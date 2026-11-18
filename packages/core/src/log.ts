@@ -49,7 +49,13 @@ export function readWorkingLog(logRoot: string, config: LogConfig): LoadedLog {
 }
 
 export function adrFilePath(config: LogConfig, id: string, title: string, subdir?: string): string {
-  return posix.join(toPosix(config.adr_dir), toPosix(subdir ?? ''), `${id}-${slugify(title)}.md`);
+  const adrDir = posix.join(toPosix(config.adr_dir));
+  const dir = posix.join(adrDir, toPosix(subdir ?? ''));
+  const inside = posix.relative(adrDir, dir);
+  if (inside === '..' || inside.startsWith('../')) {
+    throw new AdrienError('INVALID_INPUT', `--subdir "${subdir}" leaves the ADR directory (${config.adr_dir}).`);
+  }
+  return posix.join(dir, `${id}-${slugify(title)}.md`);
 }
 
 export function writeAdr(logRoot: string, adr: Adr): void {

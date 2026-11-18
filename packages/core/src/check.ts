@@ -3,7 +3,7 @@ import { anchorMatches, parseAnchor } from './anchors.ts';
 import { type Context, componentRoot, workspacePaths } from './context.ts';
 import { gitToplevel, listFiles } from './git.ts';
 import type { Adr, Status } from './model.ts';
-import { type LogView, workingAdrs } from './view.ts';
+import { type LogView, mergedAdrs } from './view.ts';
 
 export type Severity = 'error' | 'warning' | 'info';
 
@@ -190,7 +190,7 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
     path: p.path,
     message: p.message,
   }));
-  const adrs = workingAdrs(view);
+  const adrs = mergedAdrs(view);
   for (const adr of adrs) checkFields(ctx, adr, out);
   checkLinks(adrs, out);
   await checkAnchors(ctx, adrs, opts.here ?? false, out);

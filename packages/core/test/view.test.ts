@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LogConfig } from '../src/config.ts';
-import { loadLogView, workingAdrs } from '../src/view.ts';
+import { loadLogView, mergedAdrs, workingAdrs } from '../src/view.ts';
 import { adrText, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { commitAll, git, initRepo } from './helpers/git.ts';
 
@@ -90,7 +90,7 @@ test('reads base from a log that lives in a subdirectory of the repo', async () 
   expect(view.base.map((a) => a.path)).toEqual(['docs/adr/ADR-0001-a.md']);
 });
 
-test('workingAdrs is what the default branch would hold after merging, duplicates included', async () => {
+test('workingAdrs is the working tree, duplicates included', async () => {
   const root = logWith({ 'docs/adr/ADR-0001-a.md': accepted });
   initRepo(root, { origin: true });
   writeFiles(root, {
@@ -127,4 +127,36 @@ test('a log inside a git repo that ignores it is read in files mode, not as pend
   const view = await loadLogView(join(repo, '.local', 'log'), config);
   expect(view).toMatchObject({ mode: 'files', baseRef: null, pending: [] });
   expect(view.base.map((a) => a.meta.id)).toEqual(['ADR-0001']);
+});
+
+test('mergedAdrs is the latest base plus this branch’s pending changes, upstream-only ADRs included', async () => {
+  const root = logWith({ 'docs/adr/ADR-0001-a.md': accepted });
+  const { origin } = initRepo(root, { origin: true });
+  const other = tmpDir();
+  git(other, 'clone', '-q', origin ?? '', '.');
+  writeFiles(other, { 'docs/adr/ADR-0002-b.md': adrText({ id: 'ADR-0002', title: 'Upstream' }) });
+  commitAll(other, 'add ADR-0002 upstream');
+  git(other, 'push', '-q', 'origin', 'main');
+  git(root, 'fetch', '-q', 'origin');
+  writeFiles(root, { 'docs/adr/ADR-0002-mine.md': adrText({ id: 'ADR-0002', title: 'Mine' }) });
+
+  const view = await loadLogView(root, config);
+  expect(workingAdrs(view).map((a) => a.path)).toEqual(['docs/adr/ADR-0001-a.md', 'docs/adr/ADR-0002-mine.md']);
+  expect(mergedAdrs(view).map((a) => a.path)).toEqual([
+    'docs/adr/ADR-0001-a.md',
+    'docs/adr/ADR-0002-b.md',
+    'docs/adr/ADR-0002-mine.md',
+  ]);
+});
+
+test('mergedAdrs applies pending modifications and deletions over base', async () => {
+  const root = logWith({
+    'docs/adr/ADR-0001-a.md': accepted,
+    'docs/adr/ADR-0002-b.md': adrText({ id: 'ADR-0002', title: 'B' }),
+  });
+  initRepo(root, { origin: true });
+  writeFiles(root, { 'docs/adr/ADR-0001-a.md': accepted.replace('status: accepted', 'status: deprecated') });
+  rmSync(join(root, 'docs/adr/ADR-0002-b.md'));
+  const view = await loadLogView(root, config);
+  expect(mergedAdrs(view).map((a) => [a.meta.id, a.meta.status])).toEqual([['ADR-0001', 'deprecated']]);
 });

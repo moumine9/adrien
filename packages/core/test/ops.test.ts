@@ -73,6 +73,19 @@ test('an unknown tag → INVALID_INPUT listing the allowed tags', async () => {
   );
 });
 
+test('a --subdir that escapes the ADR dir → INVALID_INPUT and nothing written', async () => {
+  const root = makeLog();
+  const { ctx, view } = await load(root);
+  for (const subdir of ['../../outside', '..', 'a/../../x']) {
+    expect(() => createAdr(ctx, view, { title: 'X', subdir }, { today: TODAY })).toThrow(
+      expect.objectContaining({ code: 'INVALID_INPUT' }),
+    );
+  }
+  expect(existsSync(join(root, 'outside'))).toBe(false);
+  const nested = createAdr(ctx, view, { title: 'Y', subdir: 'backend/db' }, { today: TODAY });
+  expect(nested.written && nested.adr.path).toBe('docs/adr/backend/db/ADR-0001-y.md');
+});
+
 test('a read-only cached log → READ_ONLY_LOG and nothing written', async () => {
   const decisions = makeLog();
   const { origin } = initRepo(decisions, { origin: true });

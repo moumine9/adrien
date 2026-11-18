@@ -104,7 +104,8 @@ export async function resolveContext(opts: ResolveOptions): Promise<Context> {
 
 export const componentRoot = (config: LogConfig, id: string): string =>
   toPosix(config.components[id]?.root ?? '')
-    .replace(/^\.\/?/, '')
+    .replace(/^(\.\/)+/, '')
+    .replace(/^\.$/, '')
     .replace(/\/+$/, '');
 
 /** Maps a file (relative to `ctx.cwd`, `\` or `/`) to the component whose root is its longest prefix. */

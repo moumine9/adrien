@@ -4,7 +4,7 @@ import { resolveContext } from '../src/context.ts';
 import type { AdrMeta } from '../src/model.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
-import { initRepo } from './helpers/git.ts';
+import { commitAll, git, initRepo } from './helpers/git.ts';
 
 const ok = (id: string, over: Partial<AdrMeta> = {}) =>
   adrText({ id, title: `Title ${id}`, status: 'accepted', review_rule: 'A rule.', tags: ['backend'], ...over });
@@ -140,4 +140,20 @@ test('components without a checkout are reported in a single anchors-not-verifie
   const diags = await checkAt(root);
   expect(codes(diags)).toEqual([['info', 'anchors-not-verified', undefined]]);
   expect(diags[0]?.message).toContain('a, b');
+});
+
+test('an ADR id added both upstream and on this branch is a duplicate-id after merging', async () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': ok('ADR-0001') });
+  const { origin } = initRepo(root, { origin: true });
+  const other = tmpDir();
+  git(other, 'clone', '-q', origin ?? '', '.');
+  writeFiles(other, { 'docs/adr/ADR-0002-theirs.md': ok('ADR-0002') });
+  commitAll(other, 'add ADR-0002 upstream');
+  git(other, 'push', '-q', 'origin', 'main');
+  git(root, 'fetch', '-q', 'origin');
+  writeFiles(root, { 'docs/adr/ADR-0002-mine.md': ok('ADR-0002', { title: 'Mine' }) });
+
+  const diags = await checkAt(root);
+  expect(codes(diags).filter(([, code]) => code === 'duplicate-id')).toEqual([['error', 'duplicate-id', 'ADR-0002']]);
 });

@@ -20,7 +20,7 @@ export interface LogView {
   baseRef: string | null;
   base: Adr[];
   pending: PendingChange[];
-  /** The working-tree ADRs: what the default branch would hold after merging (duplicate ids included). */
+  /** The working-tree ADRs, duplicate ids included. These are the files this checkout can edit. */
   working: Adr[];
   problems: LoadProblem[];
 }
@@ -111,7 +111,23 @@ function latest(atFork: Adr | undefined, base: Adr[]): Adr | undefined {
   );
 }
 
-/** What the default branch would hold after merging: base with every pending change applied. */
+/** The ADR files in this checkout (what edits and renumbering act on). */
 export function workingAdrs(view: LogView): Adr[] {
   return view.working;
+}
+
+const sameAdr = (a: Adr, b: Adr): boolean => a.path === b.path && a.meta.id === b.meta.id;
+
+/**
+ * What the default branch would hold after merging this checkout: the latest base with every pending change applied.
+ * Unlike `workingAdrs`, it includes ADRs merged upstream since this branch forked, so id collisions show up here.
+ */
+export function mergedAdrs(view: LogView): Adr[] {
+  let merged = [...view.base];
+  for (const change of view.pending) {
+    const gone = change.base;
+    if (gone) merged = merged.filter((a) => !sameAdr(a, gone));
+    if (change.current) merged.push(change.current);
+  }
+  return merged.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0));
 }
