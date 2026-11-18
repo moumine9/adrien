@@ -78,6 +78,9 @@ Free markdown. The template for new ADRs is:
 ## Consequences
 ```
 
+MADR 4 files work as they are. Its `decision-makers`, `consulted` and `informed` keys are kept exactly as written, even
+when Adrien rewrites the file, and the `Decision Outcome` section is what agents are shown as the reason.
+
 ### Anchors
 
 `code: ["billing-service:src/Invoices/**"]` means: the files matching `src/Invoices/**` inside the component
@@ -122,6 +125,10 @@ components:
     root: apps/web # the component's folder inside that repo
 ```
 
+- `template` picks the headings `adrien new` starts from (`adrien new --template minimal` overrides it for one ADR):
+  `standard` (Context, Considered options, Decision, Rationale, Consequences), `minimal` (Context, Decision,
+  Consequences) or `madr` (MADR 4's section names, including Confirmation).
+- `lint.markdownlint` overrides markdownlint rule settings for `adrien lint`, for example `lint: { markdownlint: { MD013: true } }`.
 - `tags` and component ids are lowercase letters, digits, `.`, `_` and `-`. `:` is reserved for anchors.
 - A component lives in exactly one repo and one root. A backend service and its micro-frontend are two components.
 - `repo` is matched against a checkout's git remote, so `https://…`, `git@…:` and `ssh://…` forms of the same repo are
@@ -181,6 +188,14 @@ flagged in the same merge request.
 
 Exit codes: `0` ok, `1` check errors (or warnings with `--strict`) or duplicate titles on `new`, `2` a usage or
 configuration error, `3` an unexpected error (set `ADRIEN_DEBUG=1` for the stack).
+
+## `adrien lint`
+
+`adrien lint` (or `adrien check --lint`) reports how the ADRs read, as warnings that never fail the build unless you pass
+`--strict`. It runs [markdownlint](https://github.com/DavidAnson/markdownlint) over each ADR with settings tuned for
+ADRs (as MADR does: no line-length limit, repeated headings allowed, no required H1 because the title lives in the
+frontmatter), plus three Adrien rules: a template placeholder left in the text, an accepted ADR whose Decision section is
+empty, and numbered headings. Fenced code and inline code are ignored.
 
 ## The MCP server
 

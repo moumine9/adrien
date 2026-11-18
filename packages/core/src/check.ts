@@ -2,6 +2,7 @@ import { join } from 'node:path';
 import { anchorMatches, parseAnchor } from './anchors.ts';
 import { type Context, componentRoot, workspacePaths } from './context.ts';
 import { gitToplevel, listFiles } from './git.ts';
+import { lintAdrs } from './lint.ts';
 import type { Adr, Status } from './model.ts';
 import { type LogView, mergedAdrs } from './view.ts';
 
@@ -19,7 +20,11 @@ export type DiagnosticCode =
   | 'stale-anchor'
   | 'anchors-not-verified'
   | 'pending-proposed'
-  | 'base-unresolved';
+  | 'base-unresolved'
+  | 'markdown'
+  | 'unfilled-placeholder'
+  | 'empty-decision'
+  | 'numbered-heading';
 
 export interface Diagnostic {
   severity: Severity;
@@ -34,6 +39,8 @@ export interface CheckOptions {
   here?: boolean;
   /** Merge-request mode: warn about pending ADRs that would merge as mere hints. */
   mr?: boolean;
+  /** Also report style warnings (markdownlint and Adrien's own rules), as `adrien lint` does. */
+  lint?: boolean;
 }
 
 const RETIRED: ReadonlySet<Status> = new Set(['rejected', 'superseded', 'deprecated']);
@@ -215,6 +222,7 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
       }
     }
   }
+  if (opts.lint) out.push(...(await lintAdrs(ctx, view)));
   return out;
 }
 

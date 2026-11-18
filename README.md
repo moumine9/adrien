@@ -72,7 +72,7 @@ Run from the code repo (or log repo). Any MCP client that speaks stdio works the
 
 ## Commands
 
-`init`, `new`, `list`, `show`, `search`, `for`, `check`, `accept`, `status`, `supersede`, `renumber`, `sync`, `mcp`.
+`init`, `new`, `list`, `show`, `search`, `for`, `check`, `lint`, `accept`, `status`, `supersede`, `renumber`, `sync`, `mcp`.
 Run `adrien <command> --help`. Add `--json` for machine-readable output.
 
 ## Documentation

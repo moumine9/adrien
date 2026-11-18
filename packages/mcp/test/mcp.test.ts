@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CONFIG_FILE } from '@adrien/core';
+import { CONFIG_FILE, lintAdrs, loadLogView, resolveContext } from '@adrien/core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
@@ -9,15 +9,18 @@ import { initRepo } from '../../core/test/helpers/git.ts';
 import { createAdrienServer, type ServerOptions } from '../src/server.ts';
 
 const rule = 'Format dates with the locale helper.';
-const governed = adrText({
-  id: 'ADR-0001',
-  title: 'Render dates in the user locale',
-  status: 'accepted',
-  tags: ['frontend'],
-  components: ['web'],
-  code: ['web:src/**'],
-  review_rule: rule,
-});
+const governed = adrText(
+  {
+    id: 'ADR-0001',
+    title: 'Render dates in the user locale',
+    status: 'accepted',
+    tags: ['frontend'],
+    components: ['web'],
+    code: ['web:src/**'],
+    review_rule: rule,
+  },
+  '\n## Context\n\nDates were shown in UTC.\n\n## Decision\n\nRender dates in the user locale.\n',
+);
 
 function monorepo(files: Record<string, string> = {}): string {
   const root = tmpDir();
@@ -148,6 +151,19 @@ test('two adr_propose calls in flight at once get distinct ids and both files su
   expect([a.structured.id, b.structured.id].sort()).toEqual(['ADR-0002', 'ADR-0003']);
   expect(readFileSync(join(root, ...a.structured.path.split('/')), 'utf8')).toContain('Cache invoices in Redis');
   expect(readFileSync(join(root, ...b.structured.path.split('/')), 'utf8')).toContain('Retry failed webhooks');
+});
+
+test('what adr_propose and adr_propose_change write lints clean', async () => {
+  const root = monorepo();
+  const client = await connect({ cwd: root });
+  await call(client, 'adr_propose', { ...proposal, options: 'Redis\nMemcached', consequences: 'One more service.' });
+  await call(client, 'adr_propose_change', {
+    id: 'ADR-0001',
+    patch: { review_rule: 'Use Intl.DateTimeFormat.' },
+    rationale: 'The helper was removed.',
+  });
+  const ctx = await resolveContext({ cwd: root, env: { ADRIEN_HOME: tmpDir() } });
+  expect(await lintAdrs(ctx, await loadLogView(ctx.logRoot, ctx.config))).toEqual([]);
 });
 
 test('adr_propose on a near-duplicate returns written:false; force:true writes', async () => {

@@ -24,6 +24,8 @@ export interface LogConfig {
   id_format: string;
   tags: string[];
   components: Record<string, ComponentDef>;
+  /** `adrien lint`: markdownlint rule settings, merged over Adrien's defaults. */
+  lint?: { markdownlint: Record<string, unknown> };
 }
 
 export interface CodeRepoConfig {
@@ -46,6 +48,7 @@ const logConfigSchema = z.strictObject({
   template: z.enum(TEMPLATE_NAMES).default('standard'),
   tags: z.array(z.string().regex(ID, idMessage)).default([]),
   components: z.record(z.string(), componentDef).default({}),
+  lint: z.strictObject({ markdownlint: z.record(z.string(), z.unknown()).default({}) }).optional(),
 });
 
 const codeRepoSchema = z.strictObject({

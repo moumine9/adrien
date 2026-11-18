@@ -132,3 +132,30 @@ test('new --template picks the body skeleton; an unknown template exits 2', asyn
   expect(bad.code).toBe(2);
   expect(bad.stderr).toContain('standard, minimal, madr');
 });
+
+const sloppy = adrText(
+  { id: 'ADR-0001', title: 'A' },
+  '\n## Context\n\nWe store invoices.\n\n##Decision\n\nUse Postgres.\n',
+);
+
+test('lint reports style warnings and still exits 0; --strict makes them fail', async () => {
+  const root = log({ 'docs/adr/ADR-0001-a.md': sloppy });
+  const result = await run(root, 'lint');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain('warning  markdown  ADR-0001');
+  expect(result.stdout).toContain('MD018 no-missing-space-atx');
+  expect(result.stdout).toContain('0 errors, 1 warnings');
+  expect((await run(root, 'lint', '--strict')).code).toBe(1);
+});
+
+test('check only reports style with --lint', async () => {
+  const root = log({ 'docs/adr/ADR-0001-a.md': sloppy });
+  expect((await run(root, 'check')).stdout).toBe('0 errors, 0 warnings\n');
+  expect((await run(root, 'check', '--lint')).stdout).toContain('markdown  ADR-0001');
+});
+
+test('lint --json lists the diagnostics', async () => {
+  const root = log({ 'docs/adr/ADR-0001-a.md': sloppy });
+  const json = JSON.parse((await run(root, '--json', 'lint')).stdout);
+  expect(json).toMatchObject({ errors: 0, warnings: 1, diagnostics: [{ code: 'markdown', id: 'ADR-0001' }] });
+});

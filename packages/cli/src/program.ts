@@ -6,6 +6,7 @@ import { registerAccept } from './commands/accept.ts';
 import { registerCheck } from './commands/check.ts';
 import { registerFor } from './commands/for.ts';
 import { registerInit } from './commands/init.ts';
+import { registerLint } from './commands/lint.ts';
 import { registerList } from './commands/list.ts';
 import { registerMcp } from './commands/mcp.ts';
 import { registerNew } from './commands/new.ts';
@@ -47,6 +48,7 @@ export function buildProgram(cli: Cli): Command {
     registerSearch,
     registerFor,
     registerCheck,
+    registerLint,
     registerAccept,
     registerStatus,
     registerSupersede,
