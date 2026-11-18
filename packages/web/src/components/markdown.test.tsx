@@ -1,4 +1,5 @@
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { AdrMarkdown, adrUrlTransform } from './markdown.tsx';
 
 describe('AdrMarkdown', () => {
@@ -37,10 +38,40 @@ describe('AdrMarkdown', () => {
 
   it('opens links to other ADR files inside the app', () => {
     render(
-      <AdrMarkdown source={'See [the queue](ADR-0007-send-notifications.md) and [x](./ADR-0002-db.md#context).'} />,
+      <AdrMarkdown
+        source={'See [the queue](ADR-0007-send-notifications.md) and [x](./ADR-0002-db.md#context).'}
+        resolveFile={(name) => ({ 'ADR-0007-send-notifications.md': 'ADR-0007', 'ADR-0002-db.md': 'ADR-0002' })[name]}
+      />,
     );
     expect(screen.getByRole('link', { name: 'the queue' })).toHaveAttribute('href', '#/adr/ADR-0007');
     expect(screen.getByRole('link', { name: 'x' })).toHaveAttribute('href', '#/adr/ADR-0002');
+  });
+
+  it("resolves links with the log's real ids, whatever its id format", () => {
+    const files = new Map([
+      ['DEC-0001-ARCH-some-title.md', 'DEC-0001-ARCH'],
+      ['0003-use-postgres.md', '0003'],
+    ]);
+    render(
+      <AdrMarkdown
+        source={'[a](DEC-0001-ARCH-some-title.md) [b](../old/0003-use-postgres.md#why) [c](0009-unknown.md)'}
+        resolveFile={(name) => files.get(name)}
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'a' })).toHaveAttribute('href', '#/adr/DEC-0001-ARCH');
+    expect(screen.getByRole('link', { name: 'b' })).toHaveAttribute('href', '#/adr/0003');
+    expect(screen.getByRole('link', { name: 'c' })).toHaveAttribute('href', '0009-unknown.md');
+  });
+
+  it('scrolls to a same-page heading without replacing the routing hash', async () => {
+    const scroll = vi.fn();
+    Element.prototype.scrollIntoView = scroll;
+    window.location.hash = '#/adr/ADR-0001';
+    render(<AdrMarkdown source={'[jump](#considered-options)\n\n## Considered options\n\ntext'} />);
+    await userEvent.click(screen.getByRole('link', { name: 'jump' }));
+    expect(window.location.hash).toBe('#/adr/ADR-0001');
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll.mock.contexts[0]).toBe(screen.getByRole('heading', { name: 'Considered options' }));
   });
 
   it('opens external links in a new tab without an opener', () => {
@@ -55,7 +86,10 @@ describe('adrUrlTransform', () => {
   it('keeps safe URLs and rewrites ADR files', () => {
     expect(adrUrlTransform('https://example.com')).toBe('https://example.com');
     expect(adrUrlTransform('#section')).toBe('#section');
-    expect(adrUrlTransform('ADR-0012-cap.md')).toBe('#/adr/ADR-0012');
+    expect(adrUrlTransform('ADR-0012-cap.md', (name) => (name === 'ADR-0012-cap.md' ? 'ADR-0012' : undefined))).toBe(
+      '#/adr/ADR-0012',
+    );
+    expect(adrUrlTransform('ADR-0012-cap.md')).toBe('ADR-0012-cap.md');
     expect(adrUrlTransform('javascript:alert(1)')).toBe('');
   });
 });

@@ -8,7 +8,7 @@ import { ErrorState, LoadingBlocks } from '@/components/states.tsx';
 import { buttonVariants } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { ApiRequestError } from '@/lib/api.ts';
-import { useAdr, useGraph, useMeta } from '@/lib/queries.ts';
+import { useAdr, useFileResolver, useGraph, useMeta } from '@/lib/queries.ts';
 import { type Binding, bindingOf, isReviewDue, STATUS_STYLES, verificationOf } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
 
@@ -257,6 +257,7 @@ function Changes({ before, after }: { before: AdrMeta; after: AdrMeta }) {
 }
 
 function PendingSection({ data }: { data: AdrResponse }) {
+  const resolveFile = useFileResolver();
   const pending = data.pending;
   if (!pending) return null;
   const file = pendingFileOf(pending);
@@ -293,7 +294,7 @@ function PendingSection({ data }: { data: AdrResponse }) {
         <details className="rounded-base border-2 border-border bg-secondary-background">
           <summary className="cursor-pointer px-4 py-3 font-heading">Read the edited text</summary>
           <div className="border-t-2 border-border px-4 py-4">
-            <AdrMarkdown source={file.body} />
+            <AdrMarkdown source={file.body} resolveFile={resolveFile} />
           </div>
         </details>
       )}
@@ -315,6 +316,7 @@ function DetailSkeleton() {
 export function DecisionView() {
   const { id = '' } = useParams();
   const adr = useAdr(id);
+  const resolveFile = useFileResolver();
   const meta = useMeta();
   const graph = useGraph();
   const verification = verificationOf(meta.data);
@@ -413,7 +415,7 @@ export function DecisionView() {
           )}
         >
           {primary.body.trim() ? (
-            <AdrMarkdown source={primary.body} />
+            <AdrMarkdown source={primary.body} resolveFile={resolveFile} />
           ) : (
             <p className="text-muted-foreground">This decision has no text beyond its frontmatter.</p>
           )}
