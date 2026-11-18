@@ -102,7 +102,7 @@ export async function resolveContext(opts: ResolveOptions): Promise<Context> {
   return { cwd, ...located, config, codeRepo: await detectCodeRepo(cwd, located.logRoot, config), env };
 }
 
-const componentRoot = (config: LogConfig, id: string): string =>
+export const componentRoot = (config: LogConfig, id: string): string =>
   toPosix(config.components[id]?.root ?? '')
     .replace(/^\.\/?/, '')
     .replace(/\/+$/, '');

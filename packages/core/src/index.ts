@@ -1,4 +1,5 @@
 export * from './anchors.ts';
+export * from './check.ts';
 export * from './config.ts';
 export * from './context.ts';
 export * from './errors.ts';

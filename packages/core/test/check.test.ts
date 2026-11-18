@@ -1,0 +1,130 @@
+import { type CheckOptions, type Diagnostic, exitCodeFor, runCheck } from '../src/check.ts';
+import { CONFIG_FILE } from '../src/config.ts';
+import { resolveContext } from '../src/context.ts';
+import type { AdrMeta } from '../src/model.ts';
+import { loadLogView } from '../src/view.ts';
+import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
+import { initRepo } from './helpers/git.ts';
+
+const ok = (id: string, over: Partial<AdrMeta> = {}) =>
+  adrText({ id, title: `Title ${id}`, status: 'accepted', review_rule: 'A rule.', tags: ['backend'], ...over });
+
+async function check(files: Record<string, string>, opts: CheckOptions = {}, env: NodeJS.ProcessEnv = {}) {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml(), ...files });
+  return checkAt(root, opts, env);
+}
+
+async function checkAt(root: string, opts: CheckOptions = {}, env: NodeJS.ProcessEnv = {}): Promise<Diagnostic[]> {
+  const ctx = await resolveContext({ cwd: root, env: { ADRIEN_HOME: tmpDir(), ...env } });
+  return runCheck(ctx, await loadLogView(ctx.logRoot, ctx.config), opts);
+}
+
+const codes = (diags: Diagnostic[]) => diags.map((d) => [d.severity, d.code, d.id]);
+
+test('a clean log has no diagnostics', async () => {
+  expect(await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { components: ['billing-service'] }) })).toEqual([]);
+});
+
+test('unknown tag → error', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { tags: ['backend', 'ghost'] }) });
+  expect(codes(diags)).toEqual([['error', 'unknown-tag', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain('ghost');
+});
+
+test('unknown component → error', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { components: ['ghost'] }) });
+  expect(codes(diags)).toEqual([['error', 'unknown-component', 'ADR-0001']]);
+});
+
+test('unparsable or unknown-component anchors → invalid-anchor errors', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { code: ['nocolon', 'ghost:src/**'] }) });
+  expect(codes(diags)).toEqual([
+    ['error', 'invalid-anchor', 'ADR-0001'],
+    ['error', 'invalid-anchor', 'ADR-0001'],
+  ]);
+});
+
+test('duplicate id → one error listing every path', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001'), 'docs/adr/ADR-0001-b.md': ok('ADR-0001') });
+  expect(codes(diags)).toEqual([['error', 'duplicate-id', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain('docs/adr/ADR-0001-a.md');
+  expect(diags[0]?.message).toContain('docs/adr/ADR-0001-b.md');
+});
+
+test('a link to an unknown id → broken-link', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { related: ['ADR-0099'] }) });
+  expect(codes(diags)).toEqual([['error', 'broken-link', 'ADR-0001']]);
+});
+
+test('A supersedes B but B is still accepted → supersede-asymmetry', async () => {
+  const diags = await check({
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001'),
+    'docs/adr/ADR-0002-b.md': ok('ADR-0002', { supersedes: ['ADR-0001'] }),
+  });
+  expect(codes(diags)).toEqual([['error', 'supersede-asymmetry', 'ADR-0002']]);
+});
+
+test('accepted without review_rule → error; proposed without is fine', async () => {
+  const diags = await check({
+    'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A', status: 'accepted' }),
+    'docs/adr/ADR-0002-b.md': adrText({ id: 'ADR-0002', title: 'B', status: 'proposed' }),
+  });
+  expect(codes(diags)).toEqual([['error', 'missing-review-rule', 'ADR-0001']]);
+});
+
+test('--here: a missing anchor target is a stale-anchor warning, which never fails CI unless strict', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml(),
+    'apps/web/src/a.ts': 'export {};\n',
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { code: ['web:src/a.ts', 'web:src/missing/**'] }),
+  });
+  const diags = await checkAt(root, { here: true });
+  expect(codes(diags)).toEqual([['warning', 'stale-anchor', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain('web:src/missing/**');
+  expect(exitCodeFor(diags)).toBe(0);
+  expect(exitCodeFor(diags, true)).toBe(1);
+});
+
+test('a log repo without a checkout reports anchors-not-verified (never a silent pass)', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { code: ['billing-service:src/**'] }) });
+  expect(codes(diags)).toEqual([['info', 'anchors-not-verified', undefined]]);
+  expect(diags[0]?.message).toContain('billing-service');
+});
+
+test('ADRIEN_REPOS pointing at a checkout lets the log repo detect a stale anchor', async () => {
+  const billing = tmpDir();
+  writeFiles(billing, { 'src/Invoices/Invoice.ts': 'export {};\n' });
+  const diags = await check(
+    {
+      'docs/adr/ADR-0001-a.md': ok('ADR-0001', { code: ['billing-service:src/Invoices/**', 'billing-service:lib/**'] }),
+    },
+    {},
+    { ADRIEN_REPOS: `billing-service=${billing}` },
+  );
+  expect(codes(diags)).toEqual([['warning', 'stale-anchor', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain('billing-service:lib/**');
+});
+
+test("--mr: a pending ADR still 'proposed' → pending-proposed warning", async () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': ok('ADR-0001') });
+  initRepo(root, { origin: true });
+  writeFiles(root, { 'docs/adr/ADR-0002-b.md': adrText({ id: 'ADR-0002', title: 'B' }) });
+  expect(codes(await checkAt(root, { mr: true }))).toEqual([['warning', 'pending-proposed', 'ADR-0002']]);
+  expect(await checkAt(root)).toEqual([]);
+});
+
+test('a parse problem becomes a parse-error diagnostic instead of throwing', async () => {
+  const diags = await check({
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001'),
+    'docs/adr/ADR-0002-bad.md': '---\nid: ADR-0002\ntitle: [unclosed\n---\n',
+  });
+  expect(diags).toMatchObject([{ severity: 'error', code: 'parse-error', path: 'docs/adr/ADR-0002-bad.md' }]);
+});
+
+test('exitCodeFor is 1 on any error', () => {
+  expect(exitCodeFor([{ severity: 'error', code: 'unknown-tag', message: 'x' }])).toBe(1);
+  expect(exitCodeFor([{ severity: 'info', code: 'anchors-not-verified', message: 'x' }], true)).toBe(0);
+});
