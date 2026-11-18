@@ -1,4 +1,4 @@
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import type { LogConfig } from './config.ts';
 import { AdrienError } from './errors.ts';
@@ -91,12 +91,29 @@ export function writeAdr(logRoot: string, adr: Adr, opts: { exclusive?: boolean 
   const file = join(logRoot, ...adr.path.split('/'));
   assertInsideLog(logRoot, file, adr.path);
   mkdirSync(dirname(file), { recursive: true });
+  if (!tryWriteFile(file, serializeAdr(adr), opts.exclusive ? 'wx' : 'w')) {
+    throw new AdrienError('INVALID_INPUT', `${adr.path} already exists; refusing to overwrite it.`);
+  }
+}
+
+function tryWriteFile(file: string, content: string, flag: 'wx' | 'w'): boolean {
   try {
-    writeFileSync(file, serializeAdr(adr), { flag: opts.exclusive ? 'wx' : 'w' });
+    writeFileSync(file, content, { flag });
+    return true;
   } catch (e) {
-    if ((e as NodeJS.ErrnoException).code === 'EEXIST') {
-      throw new AdrienError('INVALID_INPUT', `${adr.path} already exists; refusing to overwrite it.`);
-    }
+    if ((e as NodeJS.ErrnoException).code === 'EEXIST') return false;
     throw e;
+  }
+}
+
+/** A crashed writer costs one number: later writers skip occupied markers without waiting or stealing them. */
+export function reserveId(logRoot: string, start: number): { number: number; release: () => void } {
+  const dir = join(logRoot, '.adrien');
+  assertInsideLog(logRoot, dir, '.adrien');
+  mkdirSync(dir, { recursive: true });
+  tryWriteFile(join(dir, '.gitignore'), '*\n', 'wx');
+  for (let number = start; ; number++) {
+    const marker = join(dir, `create-${number}.lock`);
+    if (tryWriteFile(marker, '', 'wx')) return { number, release: () => unlinkSync(marker) };
   }
 }

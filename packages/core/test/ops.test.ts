@@ -262,3 +262,27 @@ test('supersede refuses an ADR that supersedes itself, before writing anything',
   );
   expect(readFileSync(join(root, 'docs/adr/ADR-0001-a.md'), 'utf8')).toBe(before);
 });
+
+test('createAdr skips a reservation abandoned by a crashed writer', async () => {
+  const root = makeLog({ '.adrien/create-1.lock': '' });
+  const { ctx, view } = await load(root);
+  expect(createAdr(ctx, view, { title: 'Storage' })).toMatchObject({ adr: { meta: { id: 'ADR-0002' } } });
+  expect(existsSync(join(root, '.adrien/create-2.lock'))).toBe(false);
+});
+
+test('createAdr retries a number published after its initial scan', async () => {
+  const root = makeLog();
+  const { ctx, view } = await load(root);
+  let published = false;
+  const result = createAdr(ctx, view, {
+    get title() {
+      if (!published) {
+        createAdr(ctx, view, { title: 'Caching' });
+        published = true;
+      }
+      return 'Rendering';
+    },
+  });
+  expect(result).toMatchObject({ adr: { meta: { id: 'ADR-0002' } } });
+  expect(ids(root, ctx).sort()).toEqual(['ADR-0001', 'ADR-0002']);
+});
