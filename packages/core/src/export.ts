@@ -37,18 +37,31 @@ export function exportLog(ctx: Context, view: LogView, format: ExportFormat, opt
     ].join('\n');
   }
 
-  const entry = (a: Adr) =>
-    `- [${a.meta.id}: ${a.meta.title}](${link(a)})${a.meta.review_rule ? `: ${a.meta.review_rule}` : ''}`;
-  const group = (title: string, status: Adr['meta']['status']) => {
-    const list = adrs.filter((a) => a.meta.status === status);
-    return list.length ? ['', `## ${title}`, '', ...list.map(entry)] : [];
-  };
+  // llms.txt tells a model what to follow, so "accepted" means binding: the default branch's version. An edit made in
+  // this checkout is listed apart, as pending, until it is merged.
+  const base = [...view.base].sort(byId);
+  const pending = view.pending
+    .filter((c): c is typeof c & { current: Adr } => c.current !== undefined)
+    .sort((a, b) => byId(a.current, b.current));
+  const entry = (a: Adr, kind = '') =>
+    `- [${a.meta.id}: ${a.meta.title}](${link(a)})${a.meta.review_rule ? `: ${a.meta.review_rule}` : ''}${kind}`;
+  const group = (title: string, lines: string[]) => (lines.length ? ['', `## ${title}`, '', ...lines] : []);
   return [
     `# ${product}`,
     '',
     `> Architecture decisions for ${product}. Before changing code, follow the rule of every accepted decision that governs it.`,
-    ...group('Accepted', 'accepted'),
-    ...group('Proposed (not yet binding)', 'proposed'),
+    ...group(
+      'Accepted',
+      base.filter((a) => a.meta.status === 'accepted').map((a) => entry(a)),
+    ),
+    ...group(
+      'Proposed (not yet binding)',
+      base.filter((a) => a.meta.status === 'proposed').map((a) => entry(a)),
+    ),
+    ...group(
+      'Pending in this checkout (not yet binding)',
+      pending.map((c) => entry(c.current, ` (${c.kind})`)),
+    ),
     '',
   ].join('\n');
 }

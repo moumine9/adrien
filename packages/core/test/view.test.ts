@@ -1,8 +1,9 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import type { LogConfig } from '../src/config.ts';
+import { pathToFileURL } from 'node:url';
+import { CONFIG_FILE, type LogConfig, loadLogConfig } from '../src/config.ts';
 import { loadLogView, mergedAdrs, workingAdrs } from '../src/view.ts';
-import { adrText, tmpDir, writeFiles } from './helpers/fixtures.ts';
+import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { commitAll, git, initRepo } from './helpers/git.ts';
 
 const config: LogConfig = { product: 'acme', adr_dir: 'docs/adr', id_format: 'ADR-{n:4}', tags: [], components: {} };
@@ -192,4 +193,34 @@ test('a repo with commits but no recognised default branch is flagged baseUnreso
   git(fresh, 'init', '-q');
   expect((await loadLogView(fresh, config)).baseUnresolved).toBeFalsy();
   expect((await loadLogView(logWith({ 'docs/adr/ADR-0001-a.md': accepted }), config)).baseUnresolved).toBeFalsy();
+});
+
+test('a branch that moves the ADR directory leaves the default branch’s decisions binding', async () => {
+  const root = logWith({ [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': accepted });
+  initRepo(root, { origin: true });
+  rmSync(join(root, 'docs/adr/ADR-0001-a.md'));
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml({ adr_dir: 'docs/decisions' }),
+    'docs/decisions/ADR-0001-a.md': accepted,
+  });
+  const view = await loadLogView(root, loadLogConfig(root));
+  expect(view.base.map((a) => a.path)).toEqual(['docs/adr/ADR-0001-a.md']);
+  expect(view.pending).toMatchObject([{ id: 'ADR-0001', kind: 'modified' }]);
+});
+
+test('a shallow checkout with no merge base is flagged forkUnresolved', async () => {
+  const seed = logWith({ [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': accepted });
+  const { origin } = initRepo(seed, { origin: true });
+  const root = tmpDir();
+  git(root, 'clone', '-q', '--depth', '1', pathToFileURL(origin ?? '').href, '.');
+  git(root, 'checkout', '-q', '-b', 'feature');
+  writeFiles(root, { 'docs/adr/ADR-0002-b.md': adrText({ id: 'ADR-0002', title: 'B' }) });
+  commitAll(root, 'branch work');
+  writeFiles(seed, { 'docs/adr/ADR-0003-c.md': adrText({ id: 'ADR-0003', title: 'C' }) });
+  commitAll(seed, 'upstream work');
+  git(seed, 'push', '-q', 'origin', 'main');
+  git(root, 'fetch', '-q', '--depth', '1', 'origin');
+
+  expect((await loadLogView(root, loadLogConfig(root))).forkUnresolved).toBe(true);
+  expect((await loadLogView(seed, loadLogConfig(seed))).forkUnresolved).toBeFalsy();
 });

@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { dirname, join, relative, resolve } from 'node:path';
 import YAML from 'yaml';
 import { CODE_CONFIG_FILE, CONFIG_FILE, findUp, type LogConfig, loadCodeRepoConfig, loadLogConfig } from './config.ts';
 import { AdrienError } from './errors.ts';
 import { git, gitToplevel, remoteUrl, resolveBaseRef } from './git.ts';
 import { toPosix } from './log.ts';
-import { canonicalPath } from './paths.ts';
+import { canonicalPath, isInside } from './paths.ts';
 import { isGitUrl, normalizeRepoUrl } from './repo-url.ts';
 
 export interface CodeRepoContext {
@@ -60,11 +60,6 @@ async function locate(log: string, baseDir: string, env: NodeJS.ProcessEnv) {
   const logRoot = resolve(baseDir, log);
   return { logRoot, readOnly: false, logSource: logRoot };
 }
-
-const isInside = (child: string, parent: string): boolean => {
-  const rel = relative(parent, child);
-  return !rel.startsWith('..') && !isAbsolute(rel);
-};
 
 async function detectCodeRepo(cwd: string, logRoot: string, config: LogConfig): Promise<CodeRepoContext | null> {
   const codeConfigDir = findUp(cwd, CODE_CONFIG_FILE);

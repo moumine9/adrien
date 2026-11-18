@@ -184,3 +184,23 @@ test('review_on: due or overdue → review-due warning; future, retired or absen
   ]);
   expect(diags[1]?.message).toContain('2026-01-01');
 });
+
+test('--mr in a shallow checkout with no merge base is an error, so a collision cannot slip through', async () => {
+  const seed = tmpDir();
+  writeFiles(seed, { [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': ok('ADR-0001') });
+  const { origin } = initRepo(seed, { origin: true });
+  const root = tmpDir();
+  git(root, 'clone', '-q', '--depth', '1', `file://${origin}`, '.');
+  git(root, 'checkout', '-q', '-b', 'feature');
+  writeFiles(root, { 'docs/adr/ADR-0002-b.md': ok('ADR-0002') });
+  commitAll(root, 'branch work');
+  writeFiles(seed, { 'docs/adr/ADR-0002-c.md': ok('ADR-0002', { title: 'Upstream' }) });
+  commitAll(seed, 'upstream work');
+  git(seed, 'push', '-q', 'origin', 'main');
+  git(root, 'fetch', '-q', '--depth', '1', 'origin');
+
+  expect(codes(await checkAt(root, { mr: true })).filter(([, code]) => code === 'fork-unresolved')).toEqual([
+    ['error', 'fork-unresolved', undefined],
+  ]);
+  expect((await checkAt(root)).filter((d) => d.code === 'fork-unresolved')).toEqual([]);
+});

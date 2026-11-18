@@ -1,9 +1,10 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import type { LogConfig } from './config.ts';
 import { AdrienError } from './errors.ts';
 import { isAdrFile, parseAdr, serializeAdr } from './frontmatter.ts';
 import type { Adr } from './model.ts';
+import { canonicalPath, isInside } from './paths.ts';
 import { slugify } from './slug.ts';
 
 export interface LoadProblem {
@@ -55,12 +56,40 @@ export function adrFilePath(config: LogConfig, id: string, title: string, subdir
   if (inside === '..' || inside.startsWith('../')) {
     throw new AdrienError('INVALID_INPUT', `--subdir "${subdir}" leaves the ADR directory (${config.adr_dir}).`);
   }
-  return posix.join(dir, `${id}-${slugify(title)}.md`);
+  const file = posix.join(dir, `${id}-${slugify(title)}.md`);
+  // An id_format with separators (`../ADR-{n}`) would otherwise put the file somewhere the log never reads.
+  const filePart = posix.relative(adrDir, file);
+  if (filePart === '..' || filePart.startsWith('../')) {
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `The id "${id}" would place ${file} outside the ADR directory (${config.adr_dir}).`,
+    );
+  }
+  return file;
+}
+
+/** Refuses a destination that leaves the log, lexically or through a symlink (whether the file or a folder above it). */
+function assertInsideLog(logRoot: string, file: string, adrPath: string): void {
+  const root = canonicalPath(logRoot);
+  const outside = (where: string) =>
+    new AdrienError('INVALID_INPUT', `${adrPath} resolves outside the log (${where}); refusing to write it.`);
+  if (!isInside(file, logRoot)) throw outside(file);
+  const link = lstatSync(file, { throwIfNoEntry: false });
+  if (link?.isSymbolicLink()) {
+    const real = canonicalPath(file);
+    if (real === file || !isInside(real, root)) throw outside(real);
+    return;
+  }
+  let probe = file;
+  while (!existsSync(probe) && dirname(probe) !== probe) probe = dirname(probe);
+  const real = canonicalPath(probe);
+  if (!isInside(real, root)) throw outside(real);
 }
 
 /** `exclusive` refuses to replace an existing file, so creating an ADR can never overwrite another one. */
 export function writeAdr(logRoot: string, adr: Adr, opts: { exclusive?: boolean } = {}): void {
   const file = join(logRoot, ...adr.path.split('/'));
+  assertInsideLog(logRoot, file, adr.path);
   mkdirSync(dirname(file), { recursive: true });
   try {
     writeFileSync(file, serializeAdr(adr), { flag: opts.exclusive ? 'wx' : 'w' });

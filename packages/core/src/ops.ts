@@ -84,8 +84,12 @@ export function validateInput(
 
 const allIds = (view: LogView) => [...view.base, ...workingAdrs(view)].map((a) => a.meta.id);
 
-function findAdr(view: LogView, id: string): Adr {
-  const matches = workingAdrs(view).filter((a) => a.meta.id === id);
+/**
+ * The ADR as it is on disk now. A view was loaded asynchronously and may predate another edit, and rewriting an ADR from
+ * a stale copy would silently undo that edit.
+ */
+function findAdr(ctx: Context, id: string): Adr {
+  const matches = readWorkingLog(ctx.logRoot, ctx.config).adrs.filter((a) => a.meta.id === id);
   if (matches.length === 0) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
   if (matches.length > 1) {
     throw new AdrienError(
@@ -144,7 +148,7 @@ const PATCH_KEYS = new Set(['title', 'tags', 'components', 'code', 'review_rule'
 /** Edits an ADR in the working copy; the merge request that carries it is the approval gate. */
 export function updateAdr(
   ctx: Context,
-  view: LogView,
+  _view: LogView,
   id: string,
   patch: AdrPatch,
   opts?: OpOptions & { note?: string; origin?: Origin },
@@ -158,7 +162,7 @@ export function updateAdr(
     );
   }
   validateInput(ctx, patch);
-  const adr = findAdr(view, id);
+  const adr = findAdr(ctx, id);
   const { body, ...metaPatch } = patch;
   let nextBody = body ?? adr.body;
   if (opts?.note) {
@@ -175,9 +179,9 @@ function write(ctx: Context, adr: Adr, meta: Partial<AdrMeta>): Adr {
   return updated;
 }
 
-export function acceptAdr(ctx: Context, view: LogView, id: string, opts?: OpOptions): Adr {
+export function acceptAdr(ctx: Context, _view: LogView, id: string, opts?: OpOptions): Adr {
   assertWritable(ctx);
-  const adr = findAdr(view, id);
+  const adr = findAdr(ctx, id);
   if (!adr.meta.review_rule?.trim()) {
     throw new AdrienError('INVALID_INPUT', `${id} needs a review_rule before it can be accepted`);
   }
@@ -186,7 +190,7 @@ export function acceptAdr(ctx: Context, view: LogView, id: string, opts?: OpOpti
 
 export function setStatus(
   ctx: Context,
-  view: LogView,
+  _view: LogView,
   id: string,
   status: 'proposed' | 'rejected' | 'deprecated',
 ): Adr {
@@ -194,13 +198,14 @@ export function setStatus(
   if (!['proposed', 'rejected', 'deprecated'].includes(status)) {
     throw new AdrienError('INVALID_INPUT', `Use \`adrien accept\` or \`adrien supersede\` to set "${status}"`);
   }
-  return write(ctx, findAdr(view, id), { status });
+  return write(ctx, findAdr(ctx, id), { status });
 }
 
-export function supersede(ctx: Context, view: LogView, oldId: string, newId: string): { old: Adr; replacement: Adr } {
+export function supersede(ctx: Context, _view: LogView, oldId: string, newId: string): { old: Adr; replacement: Adr } {
   assertWritable(ctx);
-  const oldAdr = findAdr(view, oldId);
-  const newAdr = findAdr(view, newId);
+  if (oldId === newId) throw new AdrienError('INVALID_INPUT', `${oldId} cannot supersede itself`);
+  const oldAdr = findAdr(ctx, oldId);
+  const newAdr = findAdr(ctx, newId);
   return {
     old: write(ctx, oldAdr, { status: 'superseded', superseded_by: newId }),
     replacement: write(ctx, newAdr, { supersedes: [...new Set([...newAdr.meta.supersedes, oldId])] }),
@@ -215,7 +220,7 @@ export function renumber(
   opts?: { path?: string },
 ): { from: string; to: string; path: string } {
   assertWritable(ctx);
-  const candidates = workingAdrs(view).filter((a) => a.meta.id === id);
+  const candidates = readWorkingLog(ctx.logRoot, ctx.config).adrs.filter((a) => a.meta.id === id);
   if (candidates.length === 0) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
   const basePaths = new Set(view.base.filter((a) => a.meta.id === id).map((a) => a.path));
   const notInBase = candidates.filter((a) => !basePaths.has(a.path));
@@ -233,8 +238,11 @@ export function renumber(
 
   const to = formatId(nextIdNumber(allIds(view), ctx.config.id_format), ctx.config.id_format);
   const path = posix.join(posix.dirname(target.path), `${to}-${slugify(target.meta.title)}.md`);
-  writeAdr(ctx.logRoot, { ...target, path, meta: { ...target.meta, id: to } });
-  unlinkSync(join(ctx.logRoot, ...target.path.split('/')));
+  // The file may already be named for the new id (then it is rewritten in place); anywhere else it must be free, so a
+  // file the view could not parse is never replaced.
+  const inPlace = path === target.path;
+  writeAdr(ctx.logRoot, { ...target, path, meta: { ...target.meta, id: to } }, { exclusive: !inPlace });
+  if (!inPlace) unlinkSync(join(ctx.logRoot, ...target.path.split('/')));
 
   const swap = (ids: string[]) => ids.map((x) => (x === id ? to : x));
   for (const change of view.pending) {

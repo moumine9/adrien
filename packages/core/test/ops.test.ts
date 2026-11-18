@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runCheck } from '../src/check.ts';
@@ -187,4 +187,78 @@ test('updateAdr appends a dated note and rejects a status key', async () => {
   expect(updated.meta.tags).toEqual(['backend']);
   const patch = { status: 'accepted' } as unknown as Parameters<typeof updateAdr>[3];
   expect(() => updateAdr(ctx, view, 'ADR-0001', patch)).toThrow(expect.objectContaining({ code: 'INVALID_INPUT' }));
+});
+
+test.skipIf(process.platform === 'win32')(
+  'an ADR that is a symlink out of the log is never written through',
+  async () => {
+    const outside = join(tmpDir(), 'elsewhere.md');
+    const original = adrText({ id: 'ADR-0001', title: 'A' });
+    writeFileSync(outside, original);
+    const root = makeLog();
+    writeFiles(root, { 'docs/adr/.keep': '' });
+    symlinkSync(outside, join(root, 'docs/adr/ADR-0001-a.md'));
+    const { ctx, view } = await load(root);
+    expect(() => updateAdr(ctx, view, 'ADR-0001', { review_rule: 'Changed.' })).toThrow(
+      expect.objectContaining({ code: 'INVALID_INPUT', message: expect.stringContaining('outside the log') }),
+    );
+    expect(readFileSync(outside, 'utf8')).toBe(original);
+  },
+);
+
+test('an id_format with path separators cannot put a new ADR outside the ADR directory', async () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml({ id_format: '../ADR-{n:4}' }) });
+  const { ctx, view } = await load(root);
+  expect(() => createAdr(ctx, view, { title: 'X' }, { today: TODAY })).toThrow(
+    expect.objectContaining({ code: 'INVALID_INPUT' }),
+  );
+  expect(existsSync(join(root, 'docs/ADR-0001-x.md'))).toBe(false);
+});
+
+test('renumber never overwrites a file that already holds the next id, and leaves the source intact', async () => {
+  const garbage = '---\n: bad: [\n---\n';
+  const root = makeLog({
+    'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }),
+    'docs/adr/ADR-0001-dup.md': adrText({ id: 'ADR-0001', title: 'Dup' }),
+    'docs/adr/ADR-0002-dup.md': garbage,
+  });
+  initRepo(root, { origin: true });
+  const { ctx, view } = await load(root);
+  expect(() => renumber(ctx, view, 'ADR-0001', { path: 'docs/adr/ADR-0001-dup.md' })).toThrow(
+    expect.objectContaining({ code: 'INVALID_INPUT', message: expect.stringContaining('already exists') }),
+  );
+  expect(readFileSync(join(root, 'docs/adr/ADR-0002-dup.md'), 'utf8')).toBe(garbage);
+  expect(existsSync(join(root, 'docs/adr/ADR-0001-dup.md'))).toBe(true);
+});
+
+test('renumber keeps the file when it is already named for the new id', async () => {
+  const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  initRepo(root, { origin: true });
+  writeFiles(root, { 'docs/adr/ADR-0002-dup.md': adrText({ id: 'ADR-0001', title: 'Dup' }) });
+  const { ctx, view } = await load(root);
+  expect(renumber(ctx, view, 'ADR-0001')).toMatchObject({ to: 'ADR-0002', path: 'docs/adr/ADR-0002-dup.md' });
+  expect(readFileSync(join(root, 'docs/adr/ADR-0002-dup.md'), 'utf8')).toContain('id: ADR-0002');
+});
+
+test('two edits made from the same stale view both survive', async () => {
+  const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  const { ctx, view } = await load(root);
+  updateAdr(ctx, view, 'ADR-0001', { review_rule: 'First rule.' }, { note: 'first', today: TODAY });
+  updateAdr(ctx, view, 'ADR-0001', { tags: ['backend'] }, { note: 'second', today: TODAY });
+  const text = readFileSync(join(root, 'docs/adr/ADR-0001-a.md'), 'utf8');
+  expect(text).toContain('review_rule: First rule.');
+  expect(text).toContain('tags: [backend]');
+  expect(text).toContain('first');
+  expect(text).toContain('second');
+});
+
+test('supersede refuses an ADR that supersedes itself, before writing anything', async () => {
+  const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  const before = readFileSync(join(root, 'docs/adr/ADR-0001-a.md'), 'utf8');
+  const { ctx, view } = await load(root);
+  expect(() => supersede(ctx, view, 'ADR-0001', 'ADR-0001')).toThrow(
+    expect.objectContaining({ code: 'INVALID_INPUT' }),
+  );
+  expect(readFileSync(join(root, 'docs/adr/ADR-0001-a.md'), 'utf8')).toBe(before);
 });

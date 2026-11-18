@@ -4,6 +4,7 @@ import { resolveContext } from '../src/context.ts';
 import { exportLog } from '../src/export.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
+import { initRepo } from './helpers/git.ts';
 
 async function load() {
   const root = tmpDir();
@@ -63,5 +64,26 @@ test('the llms.txt export has the accepted decisions with their rule, then the p
       '- [ADR-0010: Try queues](docs/adr/ADR-0010-c.md)',
       '',
     ].join('\n'),
+  );
+});
+
+test('llms.txt keeps the default branch’s rule binding and lists an edited rule as pending', async () => {
+  const root = tmpDir();
+  const adr = (rule: string) =>
+    adrText(
+      { id: 'ADR-0001', title: 'Cache reads', status: 'accepted', review_rule: rule },
+      '\n## Decision\n\nCache.\n',
+    );
+  writeFiles(root, { [CONFIG_FILE]: configYaml(), 'docs/adr/ADR-0001-a.md': adr('Old rule.') });
+  initRepo(root, { origin: true });
+  writeFiles(root, { 'docs/adr/ADR-0001-a.md': adr('New rule.') });
+  const ctx = await resolveContext({ cwd: root, env: { ADRIEN_HOME: tmpDir() } });
+  const text = exportLog(ctx, await loadLogView(ctx.logRoot, ctx.config), 'llms');
+
+  const accepted = text.slice(text.indexOf('## Accepted'), text.indexOf('## Pending'));
+  expect(accepted).toContain('Old rule.');
+  expect(accepted).not.toContain('New rule.');
+  expect(text.slice(text.indexOf('## Pending'))).toContain(
+    '[ADR-0001: Cache reads](docs/adr/ADR-0001-a.md): New rule. (modified)',
   );
 });

@@ -21,6 +21,7 @@ export type DiagnosticCode =
   | 'anchors-not-verified'
   | 'pending-proposed'
   | 'base-unresolved'
+  | 'fork-unresolved'
   | 'markdown'
   | 'unfilled-placeholder'
   | 'empty-decision'
@@ -207,6 +208,13 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
       code: 'base-unresolved',
       message:
         'No default branch found (looked for origin/HEAD, origin/main, origin/master, main, master), so pending ADRs cannot be told from merged ones. Fetch it first, e.g. `git fetch origin <default-branch>`.',
+    });
+  }
+  if (opts.mr && view.forkUnresolved) {
+    out.push({
+      severity: 'error',
+      code: 'fork-unresolved',
+      message: `This checkout shares no history with ${view.baseRef} (a shallow clone?), so what the merge request changed cannot be told from what landed upstream. Fetch more history first, e.g. \`git fetch --unshallow\`.`,
     });
   }
   const adrs = mergedAdrs(view);

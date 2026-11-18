@@ -84,6 +84,11 @@ export async function readTreeAtRef(
   );
 }
 
+/** The text of one file at `ref`, or null when the ref or the file does not exist. */
+export async function readFileAtRef(repoDir: string, ref: string, path: string): Promise<string | null> {
+  return git(repoDir, ['show', `${ref}:${path}`]);
+}
+
 export async function remoteUrl(repoDir: string, remote = 'origin'): Promise<string | null> {
   return (await git(repoDir, ['remote', 'get-url', remote]))?.trim() || null;
 }

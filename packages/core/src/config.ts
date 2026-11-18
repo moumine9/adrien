@@ -71,15 +71,26 @@ function validate<T>(schema: z.ZodType<T>, data: unknown, file: string): T {
   throw new AdrienError('CONFIG_INVALID', `${file}: ${issue?.path.join('.') || 'config'}: ${issue?.message}`);
 }
 
-export function loadLogConfig(logRoot: string): LogConfig {
-  const file = join(logRoot, CONFIG_FILE);
-  if (!existsSync(file)) throw new AdrienError('CONFIG_NOT_FOUND', `No ${CONFIG_FILE} in ${logRoot}`);
-  const config = validate(logConfigSchema, readYamlFile(file), file);
+/** Parses and validates the text of an `adrien.config.yaml`; `label` names it in error messages. */
+export function parseLogConfigText(text: string, label: string): LogConfig {
+  let data: unknown;
+  try {
+    data = YAML.parse(text) ?? {};
+  } catch (e) {
+    throw new AdrienError('CONFIG_INVALID', `${label}: invalid YAML (${(e as Error).message.split('\n')[0]})`);
+  }
+  const config = validate(logConfigSchema, data, label);
   for (const id of Object.keys(config.components)) {
-    if (!ID.test(id)) throw new AdrienError('CONFIG_INVALID', `${file}: component "${id}" ${idMessage}`);
+    if (!ID.test(id)) throw new AdrienError('CONFIG_INVALID', `${label}: component "${id}" ${idMessage}`);
   }
   parseIdFormat(config.id_format);
   return config;
+}
+
+export function loadLogConfig(logRoot: string): LogConfig {
+  const file = join(logRoot, CONFIG_FILE);
+  if (!existsSync(file)) throw new AdrienError('CONFIG_NOT_FOUND', `No ${CONFIG_FILE} in ${logRoot}`);
+  return parseLogConfigText(readFileSync(file, 'utf8'), file);
 }
 
 function writeNew(file: string, data: unknown): void {

@@ -1,6 +1,6 @@
 import { join, relative } from 'node:path';
-import type { LogConfig } from './config.ts';
-import { git, gitToplevel, readTreeAtRef, resolveBaseRef } from './git.ts';
+import { CONFIG_FILE, type LogConfig, parseLogConfigText } from './config.ts';
+import { git, gitToplevel, readFileAtRef, readTreeAtRef, resolveBaseRef } from './git.ts';
 import { type LoadProblem, parseLogFiles, readWorkingLog, toPosix } from './log.ts';
 import type { Adr } from './model.ts';
 
@@ -29,6 +29,11 @@ export interface LogView {
    * checkout, an unusual branch name). Statuses are then read as written, so nothing is verified as merged.
    */
   baseUnresolved?: boolean;
+  /**
+   * True when the default branch exists but its common ancestor with this checkout does not (a shallow clone), so what
+   * the branch changed cannot be told from what landed upstream. Pending changes are then not trustworthy.
+   */
+  forkUnresolved?: boolean;
 }
 
 const fingerprint = (adr: Adr): string => JSON.stringify([adr.meta, adr.body]);
@@ -85,12 +90,24 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
 
   const logFromTop = toPosix(relative(top, logRoot));
   const prefix = logFromTop ? `${logFromTop}/` : '';
-  const adrDir = toPosix(relative(top, join(logRoot, config.adr_dir)));
+  // A revision reads its ADRs with its own config: a branch that moves the log (or changes its id format) must not
+  // hide what the default branch still holds where it always was.
+  const configAt = async (ref: string): Promise<LogConfig> => {
+    const text = await readFileAtRef(top, ref, `${prefix}${CONFIG_FILE}`);
+    if (text === null) return config;
+    try {
+      return parseLogConfigText(text, `${ref}:${prefix}${CONFIG_FILE}`);
+    } catch {
+      return config;
+    }
+  };
   const logAt = async (ref: string) => {
+    const atRef = await configAt(ref);
+    const adrDir = toPosix(relative(top, join(logRoot, atRef.adr_dir)));
     const files = await readTreeAtRef(top, ref, adrDir);
     return parseLogFiles(
       files.filter((f) => f.path.endsWith('.md')).map((f) => ({ path: f.path.slice(prefix.length), text: f.text })),
-      config,
+      atRef,
     );
   };
   const atBase = await logAt(baseRef);
@@ -104,6 +121,7 @@ export async function loadLogView(logRoot: string, config: LogConfig): Promise<L
   const baseSha = (await git(top, ['rev-parse', baseRef]))?.trim();
   const fork = forkPoint && forkPoint !== baseSha ? (await logAt(forkPoint)).adrs : base;
   return {
+    ...(forkPoint ? {} : { forkUnresolved: true }),
     mode: 'git',
     baseRef,
     base,

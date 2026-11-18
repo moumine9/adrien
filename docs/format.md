@@ -202,7 +202,8 @@ empty, and numbered headings. Fenced code and inline code are ignored.
 
 `adrien export` prints an overview of the ADRs in your checkout: a markdown table of every ADR by default, or with
 `--format llms` an [llms.txt](https://llmstxt.org) that lists the accepted decisions with their `review_rule`, so a model
-can read them from one file. `--out <file>` writes it instead, with links relative to that file. The output is
+can read them from one file. "Accepted" means what the default branch holds: an edit made in your checkout is listed
+under "Pending in this checkout" until it is merged. `--out <file>` writes it instead, with links relative to that file. The output is
 generated: regenerate it rather than editing it.
 
 ## The MCP server
