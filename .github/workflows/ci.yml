@@ -28,5 +28,8 @@ jobs:
       # The core is held to 100% (see vitest.config.ts). One cell is enough: coverage does not vary by platform.
       - run: pnpm vitest run --coverage
         if: matrix.os == 'ubuntu-latest' && matrix.node == 24
+      # The showcase site must build before it is merged, not only when Pages deploys it from main.
+      - run: pnpm build:site
+        if: matrix.os == 'ubuntu-latest' && matrix.node == 24
       # Adrien checks its own decision log (the build from `pnpm test` is what runs). No --mr: a shallow checkout may lack origin/main.
       - run: node packages/cli/dist/index.js check --lint --strict

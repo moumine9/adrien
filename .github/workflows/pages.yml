@@ -16,8 +16,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 # One deployment at a time; a newer push waits for the one running, and is not cancelled by it.
 concurrency:
@@ -42,6 +40,11 @@ jobs:
 
   deploy:
     needs: build
+    # Only the deploy job may publish; the build job installs dependencies with read access alone.
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      pages: write
+      id-token: write
     runs-on: ubuntu-latest
     environment:
       name: github-pages
