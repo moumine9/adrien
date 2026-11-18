@@ -14,3 +14,15 @@ describe('Skip link', () => {
     ).toBeInTheDocument();
   });
 });
+
+describe('Brand', () => {
+  it('shows the mark beside the name, hidden from assistive technology, in the theme ink', async () => {
+    renderApp('/');
+    const brand = await screen.findByRole('link', { name: 'Adrien' });
+    const mark = brand.querySelector('svg');
+    expect(mark).not.toBeNull();
+    expect(mark).toHaveAttribute('aria-hidden', 'true');
+    // The strokes follow the border colour, so the mark stays visible in the dark theme.
+    expect(mark?.querySelector('g')).toHaveAttribute('stroke', 'var(--border)');
+  });
+});

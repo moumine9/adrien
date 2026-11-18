@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { useMeta } from '@/lib/queries.ts';
 import { useTheme } from '@/lib/theme.ts';
 import { cn } from '@/lib/utils.ts';
+import { BrandMark } from './brand-mark.tsx';
 import { LoadingBlocks } from './states.tsx';
 
 const NAV = [
@@ -114,9 +115,10 @@ export function Layout() {
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
           <Link
             to="/"
-            className="rounded-base text-[1.75rem] leading-none font-black tracking-[-0.02em]"
+            className="flex items-center gap-2.5 rounded-base text-[1.75rem] leading-none font-black tracking-[-0.02em]"
             style={{ fontStretch: '125%' }}
           >
+            <BrandMark className="size-9 shrink-0" />
             Adrien
           </Link>
           <nav aria-label="Main" className="order-last -mx-1 w-full overflow-x-auto px-1 pb-1 md:order-none md:w-auto">

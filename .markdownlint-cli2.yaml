@@ -12,3 +12,6 @@ config:
   default: true
   # The docs wrap near 120 columns and tables and links run longer.
   MD013: false
+  # The README floats the mark beside its introduction; Markdown has no way to size or align an image.
+  MD033:
+    allowed_elements: [img]
