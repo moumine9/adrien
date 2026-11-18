@@ -114,6 +114,15 @@ describe('Decision view', () => {
     expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
   });
 
+  it('does not call a refused request a missing decision', async () => {
+    renderApp('/adr/ADR-0002', {
+      fetch: failingFetch(403, 'FORBIDDEN_HOST', 'Host header not allowed.'),
+    });
+    expect(await screen.findByText('Could not load this decision')).toBeInTheDocument();
+    expect(screen.getByText('Host header not allowed.')).toBeInTheDocument();
+    expect(screen.queryByText('No decision ADR-0002')).toBeNull();
+  });
+
   it('keeps working when every other request fails', async () => {
     renderApp('/adr/ADR-0002', { fetch: failingFetch(500, 'INTERNAL', 'down') });
     expect(await screen.findByText('Could not load this decision')).toBeInTheDocument();

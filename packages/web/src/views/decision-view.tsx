@@ -7,7 +7,7 @@ import { AdrMarkdown } from '@/components/markdown.tsx';
 import { ErrorState, LoadingBlocks } from '@/components/states.tsx';
 import { buttonVariants } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
-import { isClientError } from '@/lib/api.ts';
+import { ApiRequestError } from '@/lib/api.ts';
 import { useAdr, useGraph, useMeta } from '@/lib/queries.ts';
 import { type Binding, bindingOf, isReviewDue, STATUS_STYLES, verificationOf } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
@@ -328,13 +328,15 @@ export function DecisionView() {
 
   if (adr.isPending) return <DetailSkeleton />;
   if (adr.isError) {
+    const notFound =
+      adr.error instanceof ApiRequestError && (adr.error.status === 404 || adr.error.code === 'ADR_NOT_FOUND');
     return (
       <div className="space-y-6">
         {back}
         <ErrorState
-          title={isClientError(adr.error) ? `No decision ${id}` : 'Could not load this decision'}
+          title={notFound ? `No decision ${id}` : 'Could not load this decision'}
           error={adr.error}
-          onRetry={isClientError(adr.error) ? undefined : () => adr.refetch()}
+          onRetry={notFound ? undefined : () => adr.refetch()}
         >
           <Link to="/" className={buttonVariants({ variant: 'neutral' })}>
             Back to the decisions
