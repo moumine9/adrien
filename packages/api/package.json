@@ -8,6 +8,8 @@
     "./contract": "./src/contract.ts"
   },
   "dependencies": {
-    "@adrien/core": "workspace:*"
+    "@adrien/core": "workspace:*",
+    "@hono/node-server": "^2.1.8",
+    "hono": "^4.13.19"
   }
 }

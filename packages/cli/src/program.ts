@@ -13,6 +13,7 @@ import { registerMcp } from './commands/mcp.ts';
 import { registerNew } from './commands/new.ts';
 import { registerRenumber } from './commands/renumber.ts';
 import { registerSearch } from './commands/search.ts';
+import { registerServe } from './commands/serve.ts';
 import { registerShow } from './commands/show.ts';
 import { registerStatus } from './commands/status.ts';
 import { registerSupersede } from './commands/supersede.ts';
@@ -57,6 +58,7 @@ export function buildProgram(cli: Cli): Command {
     registerSync,
     registerExport,
     registerMcp,
+    registerServe,
   ]) {
     register(program, cli);
   }
