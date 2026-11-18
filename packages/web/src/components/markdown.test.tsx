@@ -90,6 +90,12 @@ describe('adrUrlTransform', () => {
       '#/adr/ADR-0012',
     );
     expect(adrUrlTransform('ADR-0012-cap.md')).toBe('ADR-0012-cap.md');
+    // A file of the same name elsewhere is not the local decision.
+    const resolve = () => 'ADR-0012';
+    expect(adrUrlTransform('https://github.com/x/y/blob/main/ADR-0012-cap.md', resolve)).toBe(
+      'https://github.com/x/y/blob/main/ADR-0012-cap.md',
+    );
+    expect(adrUrlTransform('//example.com/ADR-0012-cap.md', resolve)).toBe('//example.com/ADR-0012-cap.md');
     expect(adrUrlTransform('javascript:alert(1)')).toBe('');
   });
 });

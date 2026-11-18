@@ -10,13 +10,16 @@ export type ResolveFile = (fileName: string) => string | undefined;
 /** `ADR-0007-some-title.md`, `../old/0003-x.md#context`: a link to a Markdown file, split into file name and fragment. */
 const MARKDOWN_FILE = /^(?:[^#?]*\/)?([^/#?]+\.md)(?:#.*)?$/;
 
+/** `https://…`, `mailto:…`, `//host/…`: it names a file somewhere else, never one in this log. */
+const ABSOLUTE_URL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
+
 /**
  * Links to other decision files open inside the app, resolved against the log's real ids (any `id_format`);
  * everything else goes through react-markdown's default transform, which empties `javascript:`, `data:` and other
  * unsafe protocols.
  */
 export function adrUrlTransform(url: string, resolveFile?: ResolveFile): string {
-  const file = MARKDOWN_FILE.exec(url)?.[1];
+  const file = ABSOLUTE_URL.test(url) ? undefined : MARKDOWN_FILE.exec(url)?.[1];
   const id = file ? resolveFile?.(file) : undefined;
   return id ? `#/adr/${encodeURIComponent(id)}` : defaultUrlTransform(url);
 }
