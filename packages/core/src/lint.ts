@@ -34,7 +34,7 @@ const prose = (body: string): string => body.replace(FENCE, '').replace(COMMENT,
 function decisionText(body: string): string | null {
   const m = /^##\s+(?:Decision Outcome|Decision)\s*$([\s\S]*?)(?=^##\s|(?![\s\S]))/im.exec(body);
   if (!m) return null;
-  return (m[1] ?? '')
+  return (m[1] as string)
     .replace(COMMENT, '')
     .replace(/^#+\s.*$/gm, '')
     .trim();

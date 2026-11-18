@@ -4,3 +4,4 @@ dist/
 *.tgz
 packages/cli/LICENSE
 packages/cli/README.md
+coverage/

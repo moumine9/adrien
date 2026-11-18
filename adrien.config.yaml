@@ -1,7 +1,7 @@
 product: adrien
 adr_dir: docs/decisions
 id_format: "ADR-{n:4}"
-tags: [format, storage, workflow, agents, release]
+tags: [format, storage, workflow, agents, release, api, ui, quality]
 components:
   core:
     repo: .
@@ -12,3 +12,9 @@ components:
   mcp:
     repo: .
     root: packages/mcp
+  api:
+    repo: .
+    root: packages/api
+  web:
+    repo: .
+    root: packages/web

@@ -72,8 +72,9 @@ Run from the code repo (or log repo). Any MCP client that speaks stdio works the
 
 ## Commands
 
-`init`, `new`, `list`, `show`, `search`, `for`, `check`, `lint`, `export`, `accept`, `status`, `supersede`, `renumber`, `sync`, `mcp`.
-Run `adrien <command> --help`. Add `--json` for machine-readable output.
+`init`, `new`, `list`, `show`, `search`, `for`, `check`, `lint`, `export`, `accept`, `status`, `supersede`, `renumber`, `sync`, `mcp`, `serve`.
+Run `adrien <command> --help`. Add `--json` for machine-readable output. `adrien serve` starts a read-only
+[local HTTP API](https://github.com/moumine9/adrien/blob/main/docs/api.md) on `127.0.0.1:4310`.
 
 ## Documentation
 

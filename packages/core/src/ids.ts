@@ -10,7 +10,7 @@ export interface IdFormat {
 export function parseIdFormat(fmt: string): IdFormat {
   const m = /^(.*)\{n(?::(\d+))?\}(.*)$/.exec(fmt);
   if (!m) throw new AdrienError('CONFIG_INVALID', `id_format "${fmt}" must contain {n} or {n:WIDTH}`);
-  return { prefix: m[1] ?? '', width: m[2] ? Number(m[2]) : 1, suffix: m[3] ?? '' };
+  return { prefix: m[1] as string, width: m[2] ? Number(m[2]) : 1, suffix: m[3] as string };
 }
 
 export function formatId(n: number, fmt: string): string {

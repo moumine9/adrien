@@ -147,7 +147,7 @@ async function checkouts(ctx: Context, here: boolean): Promise<Map<string, strin
   const add = (component: string, repoRoot: string) =>
     roots.set(component, join(repoRoot, componentRoot(ctx.config, component)));
   if (here) {
-    for (const c of ctx.codeRepo?.components ?? []) add(c, ctx.codeRepo?.root ?? '');
+    if (ctx.codeRepo) for (const c of ctx.codeRepo.components) add(c, ctx.codeRepo.root);
     return roots;
   }
   const logTop = (await gitToplevel(ctx.logRoot)) ?? ctx.logRoot;
