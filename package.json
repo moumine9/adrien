@@ -10,6 +10,7 @@
     "build": "pnpm -r --if-present build",
     "pretest": "pnpm build",
     "test": "vitest run",
+    "test:coverage": "pnpm build && vitest run --coverage",
     "lint": "biome check . && pnpm lint:md",
     "format": "biome format --write .",
     "typecheck": "tsc -p tsconfig.json",

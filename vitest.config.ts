@@ -10,6 +10,7 @@ export default defineConfig({
       // The core is the product's logic and is held to 100%; the CLI, MCP server and API are thin layers over it.
       include: ['packages/core/src/**/*.ts'],
       reporter: ['text', 'json-summary'],
+      thresholds: { statements: 100, branches: 100, functions: 100, lines: 100 },
     },
   },
 });
