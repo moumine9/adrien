@@ -49,10 +49,18 @@ export async function ensureCachedClone(url: string, home: string): Promise<stri
   return dir;
 }
 
+/** Brings a cached clone up to date. Throws when it cannot, so a caller never reports success on a stale copy. */
 export async function syncCachedClone(dir: string): Promise<void> {
-  await git(dir, ['fetch', '--quiet', 'origin']);
+  if ((await git(dir, ['fetch', '--quiet', 'origin'])) === null) {
+    throw new AdrienError(
+      'CONFIG_INVALID',
+      'Could not fetch the ADR log from its origin: showing the last copy it had.',
+    );
+  }
   const ref = (await resolveBaseRef(dir)) ?? 'origin/HEAD';
-  await git(dir, ['checkout', '--quiet', '--detach', ref]);
+  if ((await git(dir, ['checkout', '--quiet', '--detach', ref])) === null) {
+    throw new AdrienError('CONFIG_INVALID', `Could not check out ${ref} in the cached ADR log.`);
+  }
 }
 
 async function locate(log: string, baseDir: string, env: NodeJS.ProcessEnv) {

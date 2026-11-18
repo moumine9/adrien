@@ -49,10 +49,23 @@ test('a missing local clone source is identified in the error', async () => {
 
 test('sync tries origin/HEAD when the cache has no resolvable default branch', async () => {
   const dir = tmpDir();
-  const git = vi.spyOn(gitModule, 'git');
+  const git = vi.spyOn(gitModule, 'git').mockImplementation(async (_dir, args) => (args[0] === 'fetch' ? '' : null));
   try {
-    await syncCachedClone(dir);
+    await expect(syncCachedClone(dir)).rejects.toThrow('origin/HEAD');
     expect(git).toHaveBeenCalledWith(dir, ['checkout', '--quiet', '--detach', 'origin/HEAD']);
+  } finally {
+    git.mockRestore();
+  }
+});
+
+test('sync says so when the fetch fails, instead of reporting success on a stale copy', async () => {
+  const git = vi.spyOn(gitModule, 'git').mockResolvedValue(null);
+  try {
+    await expect(syncCachedClone(tmpDir())).rejects.toMatchObject({
+      code: 'CONFIG_INVALID',
+      message: expect.stringContaining('Could not fetch'),
+    });
+    expect(git).toHaveBeenCalledTimes(1);
   } finally {
     git.mockRestore();
   }

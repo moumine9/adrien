@@ -7,7 +7,7 @@ review_on: 2027-05-18
 tags: [api, agents]
 components: [api]
 code: [api:src/**]
-review_rule: The API only answers GET and HEAD, binds 127.0.0.1 by default, refuses any Host that is not a loopback name and sends no CORS headers.
+review_rule: The API only answers GET and HEAD, binds 127.0.0.1 by default, refuses any Host that is not a loopback name, the bound host or an allowed host, and sends no CORS headers.
 origin: agent
 ---
 
@@ -27,4 +27,4 @@ The API answers GET and HEAD only; everything else is 405. It binds 127.0.0.1 by
 
 ## Consequences
 
-Rebinding and cross-origin reads are closed without tokens or sessions. Approving a decision stays a merge in git, never a click (see the approval decision). Reaching the API from another machine needs an explicit `--host` and a Host the allow-list accepts, so it is deliberately awkward.
+Rebinding and cross-origin reads are closed without tokens or sessions. Approving a decision stays a merge in git, never a click (see the approval decision). Reaching the API from another machine needs an explicit `--host`, a Host the allow-list accepts and a token (see the self-hosting decision), so it is deliberately awkward.

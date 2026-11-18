@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module';
 import { AdrienError } from '@adrien/core';
-import { Command, CommanderError } from 'commander';
+import { Command, CommanderError, Option } from 'commander';
 import type { Cli } from './cli.ts';
 import { registerAccept } from './commands/accept.ts';
 import { registerCheck } from './commands/check.ts';
@@ -38,7 +38,9 @@ export function buildProgram(cli: Cli): Command {
   const program = new Command('adrien')
     .description('Architecture Decision Records for developers and their AI agents')
     .version(VERSION, '-v, --version')
-    .option('--log <path|url>', 'ADR log to use (default: found from the current directory)')
+    .addOption(
+      new Option('--log <path|url>', 'ADR log to use (default: found from the current directory)').env('ADRIEN_LOG'),
+    )
     .option('--json', 'machine-readable output')
     .exitOverride()
     .configureOutput({ writeOut: (s) => cli.out(s), writeErr: (s) => cli.err(s) });

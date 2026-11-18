@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CODE_CONFIG_FILE, CONFIG_FILE } from '@adrien/core';
@@ -173,6 +173,16 @@ test('sync on a cached clone picks up a new upstream ADR', async () => {
   expect(synced.code).toBe(0);
   expect(synced.stdout).toMatch(new RegExp(`^Log ${url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} at \\S+\n$`));
   expect((await run('list')).stdout).toContain('ADR-0002');
+});
+
+test('sync on a cached clone whose origin is gone exits 2 and says so', async () => {
+  const { origin, run } = cachedLog();
+  await run('list');
+  rmSync(origin, { recursive: true, force: true });
+  const result = await run('sync');
+  expect(result.code).toBe(2);
+  expect(result.stderr).toContain('Could not fetch');
+  expect(result.stdout).toBe('');
 });
 
 test('sync on a local log fetches origin and reports the base ref', async () => {

@@ -17,6 +17,7 @@ import {
 } from '@adrien/core';
 import { Hono, type Context as HonoContext } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
+import { isAuthorized } from './auth.ts';
 import type { AdrsResponse, ApiError, CheckResponse, ForResponse } from './contract.ts';
 import { isAllowedHost } from './host.ts';
 import { adrOf, graphOf, metaOf } from './views.ts';
@@ -33,6 +34,10 @@ export interface ApiOptions {
   /** The host the server is bound to: a request may name it in `Host`, besides the loopback names. */
   host?: string;
   port?: number;
+  /** Further host names a request may carry, for a server reached by name (behind a reverse proxy). */
+  allowedHosts?: string[];
+  /** When set, every request must carry it (`Authorization: Bearer` or Basic), except `/healthz`. */
+  token?: string;
   /** The built web visualizer. Without one, `/` says where the API is. */
   webDir?: string;
 }
@@ -75,17 +80,29 @@ export function createApp(opts: ApiOptions): Hono {
 
   app.use(async (c, next) => {
     const host = c.req.header('host') ?? new URL(c.req.url).host;
-    if (!isAllowedHost(host, opts.host)) {
+    if (!isAllowedHost(host, opts.host, opts.allowedHosts)) {
       return fail(
         c,
         403,
         'FORBIDDEN_HOST',
-        `Requests for host "${host}" are refused: open the URL adrien serve printed.`,
+        `Requests for host "${host}" are refused: open the URL adrien serve printed, or allow this name with --allowed-host.`,
       );
     }
     if (c.req.method !== 'GET' && c.req.method !== 'HEAD') {
       c.header('Allow', 'GET, HEAD');
       return fail(c, 405, 'METHOD_NOT_ALLOWED', 'This API is read-only: only GET and HEAD are served.');
+    }
+    // Liveness for a container or load balancer: no data, so no credentials.
+    if (c.req.path === '/healthz') return c.text('ok\n');
+    if (opts.token !== undefined && !isAuthorized(c.req.header('authorization'), opts.token)) {
+      c.header('WWW-Authenticate', 'Basic realm="Adrien", charset="UTF-8"');
+      c.header('Cache-Control', 'no-store');
+      return fail(
+        c,
+        401,
+        'UNAUTHORIZED',
+        'This server asks for its access token: send it as a Bearer token or as the password.',
+      );
     }
     await next();
   });
