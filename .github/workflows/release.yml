@@ -40,9 +40,14 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Create the GitHub Release from the changelog entry
         run: |
           node scripts/release-notes.mjs "${GITHUB_REF_NAME#v}" > release-notes.md
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag
+          # A tag such as v1.0.0-rc.1 is a prerelease.
+          flags=()
+          case "$GITHUB_REF_NAME" in *-*) flags=(--prerelease) ;; esac
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file release-notes.md --verify-tag "${flags[@]}"
         env:
           GH_TOKEN: ${{ github.token }}
