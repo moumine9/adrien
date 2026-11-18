@@ -117,6 +117,19 @@ describe('path traversal', () => {
     expect(await res.text()).toBe('console.log("adrien");\n');
   });
 
+  // A file symlink needs a privilege on Windows (a junction is for directories only).
+  test.skipIf(process.platform === 'win32')('an index.html linked out of the web root is not served', async () => {
+    const root = tmpDir();
+    writeFiles(root, { [CONFIG_FILE]: configYaml(), 'secret.txt': 'do not serve\n', 'web/assets/app.js': '' });
+    symlinkSync(join(root, 'secret.txt'), join(root, 'web/index.html'));
+    const app = createApp({ cwd: root, env: { ADRIEN_HOME: tmpDir() }, webDir: join(root, 'web') });
+    for (const path of ['/', '/graph', '/index.html']) {
+      const res = await app.request(path);
+      expect(res.status).toBe(404);
+      expect(await res.text()).not.toContain('do not serve');
+    }
+  });
+
   test('a web root reached through a symlink still serves its files', async () => {
     const { root } = site();
     symlinkSync(join(root, 'web'), join(root, 'web-link'), 'junction');

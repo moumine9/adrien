@@ -7,14 +7,16 @@ import { getMimeType } from 'hono/utils/mime';
 const NOT_BUILT =
   'The Adrien web visualizer is not part of this build. The API is served at /api/meta (see docs/api.md).\n';
 
-/** The real path of a built web app (one with an index.html), or null. */
-async function builtRoot(webDir: string): Promise<string | null> {
+/** A built web app: its real root and its index.html, which must be a file inside that root. */
+async function builtApp(webDir: string): Promise<{ root: string; index: string } | null> {
+  let root: string;
   try {
-    const root = await realpath(webDir);
-    return (await stat(join(root, 'index.html'))).isFile() ? root : null;
+    root = await realpath(webDir);
   } catch {
     return null;
   }
+  const index = await fileIn(root, ['index.html']);
+  return index ? { root, index } : null;
 }
 
 /**
@@ -58,13 +60,13 @@ async function send(c: Context, file: string): Promise<Response> {
 /** Serves the built web visualizer, with `index.html` for client-side routes (paths without an extension). */
 export function serveWeb(webDir: string | undefined): (c: Context) => Promise<Response> {
   return async (c) => {
-    const root = webDir === undefined ? null : await builtRoot(webDir);
-    if (!root) return c.text(NOT_BUILT, 404);
+    const app = webDir === undefined ? null : await builtApp(webDir);
+    if (!app) return c.text(NOT_BUILT, 404);
     const segments = segmentsOf(new URL(c.req.url).pathname);
     if (!segments) return c.text('Bad request path.\n', 400);
-    const file = await fileIn(root, segments);
+    const file = await fileIn(app.root, segments);
     if (file) return send(c, file);
-    if (!(segments.at(-1) ?? '').includes('.')) return send(c, join(root, 'index.html'));
+    if (!(segments.at(-1) ?? '').includes('.')) return send(c, app.index);
     return c.text('Not found.\n', 404);
   };
 }
