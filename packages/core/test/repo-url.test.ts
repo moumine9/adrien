@@ -1,0 +1,28 @@
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { toPosix } from '../src/log.ts';
+import { isGitUrl, normalizeRepoUrl } from '../src/repo-url.ts';
+
+test.each([
+  'git@gitlab.com:acme/billing-service.git',
+  'https://gitlab.com/acme/billing-service',
+  'https://user:tok@GitLab.com/acme/billing-service.git/',
+  'ssh://git@gitlab.com:2222/acme/billing-service.git',
+])('normalizes %s to host/group/name', (url) => {
+  expect(normalizeRepoUrl(url)).toBe('gitlab.com/acme/billing-service');
+});
+
+test('a local path and its file:// URL normalize to the same absolute posix path', () => {
+  // On Windows an absolute path gains the current drive (`D:/srv/...`), so compare against the resolved form.
+  const expected = toPosix(resolve('/srv/git/decisions'));
+  expect(normalizeRepoUrl('/srv/git/decisions.git')).toBe(expected);
+  expect(normalizeRepoUrl(pathToFileURL(resolve('/srv/git/decisions.git')).href)).toBe(expected);
+});
+
+test('isGitUrl tells URLs from paths', () => {
+  expect(isGitUrl('https://gitlab.com/acme/decisions.git')).toBe(true);
+  expect(isGitUrl('git@gitlab.com:acme/decisions.git')).toBe(true);
+  expect(isGitUrl('file:///srv/decisions')).toBe(true);
+  expect(isGitUrl('../decisions')).toBe(false);
+  expect(isGitUrl('C:\\code\\decisions')).toBe(false);
+});

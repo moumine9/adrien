@@ -1,0 +1,47 @@
+{
+  "name": "adrien",
+  "version": "0.1.0",
+  "description": "AI-native Architecture Decision Records: a CLI and MCP server that tells developers and AI agents which decisions govern their code, and why.",
+  "type": "module",
+  "bin": {
+    "adrien": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "AGPL-3.0-only",
+  "author": "Abdoul Moumine",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/moumine9/adrien.git"
+  },
+  "keywords": [
+    "adr",
+    "architecture-decision-records",
+    "mcp",
+    "ai-agents",
+    "cli"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "prepack": "node -e \"const fs=require('fs');fs.copyFileSync('../../LICENSE','LICENSE');fs.copyFileSync('../../README.md','README.md')\""
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "commander": "^15.1.0",
+    "markdownlint": "^0.42.1",
+    "picomatch": "^4.0.7",
+    "yaml": "^2.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@adrien/core": "workspace:*",
+    "@adrien/mcp": "workspace:*",
+    "tsdown": "^0.23.7"
+  }
+}
