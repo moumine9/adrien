@@ -1,6 +1,6 @@
 {
   "name": "adrien",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "AI-native Architecture Decision Records: a CLI and MCP server that tells developers and AI agents which decisions govern their code, and why.",
   "type": "module",
   "bin": {
@@ -29,7 +29,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "prepack": "node -e \"require('fs').copyFileSync('../../LICENSE','LICENSE')\""
+    "prepack": "node -e \"const fs=require('fs');fs.copyFileSync('../../LICENSE','LICENSE');fs.copyFileSync('../../README.md','README.md')\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.32.2",

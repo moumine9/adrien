@@ -3,3 +3,4 @@ dist/
 .adrien/
 *.tgz
 packages/cli/LICENSE
+packages/cli/README.md

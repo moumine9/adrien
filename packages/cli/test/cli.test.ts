@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE } from '@adrien/core';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
-import { runCli } from '../src/program.ts';
+import { runCli, VERSION } from '../src/program.ts';
 
 function run(cwd: string, ...argv: string[]) {
   return runCli(argv, { cwd, env: { ADRIEN_HOME: join(cwd, '.home') } });
@@ -16,7 +16,7 @@ function log(files: Record<string, string> = {}): string {
 
 test('--version prints the package version', async () => {
   const result = await run(tmpDir(), '--version');
-  expect(result).toMatchObject({ code: 0, stdout: '0.0.1\n' });
+  expect(result).toMatchObject({ code: 0, stdout: `${VERSION}\n` });
 });
 
 test('init writes the config and prints the setup hint; a second init exits 2', async () => {
