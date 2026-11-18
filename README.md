@@ -53,7 +53,7 @@ adrien init --agents                           # adds a block to AGENTS.md
 adrien for src/Invoices/Invoice.ts
 ```
 
-```
+```text
 src/Invoices/Invoice.ts [billing-service]
   ADR-0007 BINDING Store invoices in Postgres
     rule: Invoices are read and written through the repository, never the document client.

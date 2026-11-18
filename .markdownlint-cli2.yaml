@@ -1,0 +1,13 @@
+# Lints the repo's own docs. Biome formats Markdown too, so style rules that would fight it are left to Biome.
+globs:
+  - "README.md"
+  - "docs/**/*.md"
+ignores:
+  - "node_modules/**"
+  - "docs/superpowers/**" # private, never committed
+  - ".superpowers/**"
+  - ".local/**"
+config:
+  default: true
+  # The docs wrap near 120 columns and tables and links run longer.
+  MD013: false
