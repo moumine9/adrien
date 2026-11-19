@@ -399,7 +399,8 @@ export function listBackups(root: string): BackupEntry[] {
 /** Compares the log's decision files with a backup: changed (content differs), missing (gone) and added (not in it). */
 export function verifyBackup(root: string, id: string): BackupVerification {
   const { manifest } = openBackup(root, id);
-  const current = new Set(logFiles(root, loadLogConfig(root)).files);
+  // Also the directories the backup covers beyond the live config's, so a pre-restore snapshot verifies cleanly.
+  const current = new Set(unionFiles(root, loadLogConfig(root), manifest.adrDirs).files);
   const listed = new Map(manifest.files.map((f) => [f.path, f.sha256]));
   const changed: string[] = [];
   const missing: string[] = [];

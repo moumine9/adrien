@@ -648,6 +648,8 @@ test('the pre-restore backup holds every existing file the restore overwrites, e
     'edited since',
   );
   // The undo works: restoring the pre-restore backup brings the edit back.
+  // Verifying the pre-restore backup looks in every directory it covers, not only the live config's.
+  expect(verifyBackup(root, result.preRestore)).toMatchObject({ missing: [] });
   const undone = restoreBackup(root, null, result.preRestore, VERSION);
   expect(read(root, 'docs/guide.md')).toBe('edited since');
   // Undoing the undo is possible too: its snapshot holds what the undo overwrote.
