@@ -29,17 +29,18 @@ const COLUMN_LIMIT = 15;
 /**
  * The local edits and removals hidden behind a base row, by the base file's path. `boardRows` hides them, so the base
  * card carries the change instead: without it the card would look untouched while this checkout changes the decision.
- * Like the core, a pending row is paired with the base row at the same path first; only a moved file, whose path
- * changed, is paired by id, and only when that id has a single base row. Two files that share an id are never mixed up.
+ * Like the core, a pending row is paired with the base row at the same path AND id first; only a moved file, whose
+ * path changed, is paired by id, and only when that id has a single base row. Two files that share an id are never mixed up.
  */
 const localEditsByPath = (rows: AdrRow[]): Map<string, LocalEditKind> => {
   const base = rows.filter((r) => r.layer === 'base');
-  const basePaths = new Set(base.map((r) => r.path));
   const edits = new Map<string, LocalEditKind>();
   for (const r of rows) {
     if (r.layer !== 'pending' || (r.pending_kind !== 'modified' && r.pending_kind !== 'deleted')) continue;
-    if (basePaths.has(r.path)) {
-      edits.set(r.path, r.pending_kind);
+    // The core requires the path AND the id to match: a different decision that reuses a path is not an edit of it.
+    const samePlace = base.find((b) => b.path === r.path && b.id === r.id);
+    if (samePlace) {
+      edits.set(samePlace.path, r.pending_kind);
       continue;
     }
     const sameId = base.filter((b) => b.id === r.id);

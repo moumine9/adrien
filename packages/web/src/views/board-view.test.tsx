@@ -369,3 +369,30 @@ describe('Board view, local edits on decisions that share an id', () => {
     expect(badgeOf('First file', 'Edited in this checkout')).toBeVisible();
   });
 });
+
+describe('Board view, a reused file path', () => {
+  const row = (over: Partial<AdrRow>): AdrRow => ({
+    id: 'ADR-0001',
+    title: 'Original decision',
+    status: 'accepted',
+    tags: [],
+    components: [],
+    review_rule: null,
+    layer: 'base',
+    pending_kind: null,
+    path: 'docs/adr/ADR-0001-original.md',
+    ...over,
+  });
+  const withRows = (rows: AdrRow[]) =>
+    overrideFetch((url) => (url.pathname === '/api/adrs' ? jsonResponse({ results: rows }) : undefined));
+
+  it("does not attach another decision's pending edit to a base card that only shares its path", async () => {
+    // The base file at this path is ADR-0001; the checkout has ADR-0002 at the same path, which the core pairs by
+    // path AND id, so it is not an edit of ADR-0001.
+    const other = row({ id: 'ADR-0002', title: 'Newcomer', layer: 'pending', pending_kind: 'modified' });
+    renderApp('/board', { fetch: withRows([row({}), other]) });
+    await screen.findAllByRole('article');
+    expect(within(cardOf('Original decision')).queryByText('Edited in this checkout')).toBeNull();
+    expect(within(cardOf('Original decision')).queryByText('Deleted in this checkout')).toBeNull();
+  });
+});
