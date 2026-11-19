@@ -1,3 +1,11 @@
+## [0.5.0](https://github.com/moumine9/adrien/compare/v0.4.0...v0.5.0) (2026-11-19)
+
+### Features
+
+* **review:** add `adrien review`, a comment for a merge or pull request that lists the recorded decisions governing the files it changes, with each one's review rule. It informs and never blocks (exit code 0), posts nothing and needs no network, so a CI job posts the text and keeps one comment up to date. Recipes for GitHub Actions and GitLab CI are in `docs/ci.md` ([7fc61f9](https://github.com/moumine9/adrien/commit/7fc61f944a2e5457d1305f0998bb951aded2a6b8))
+* **web:** the Board shows local edits and deletions on a decision's card and collapses long columns ([f36a19b](https://github.com/moumine9/adrien/commit/f36a19b18c96b67da4d3f678a3011b71bc65f079))
+* **docker:** a prebuilt image is published to `ghcr.io/moumine9/adrien` with each release, after the same smoke test that now runs on every Dockerfile change ([e74aa61](https://github.com/moumine9/adrien/commit/e74aa61))
+
 ## [0.4.0](https://github.com/moumine9/adrien/compare/v0.3.1...v0.4.0) (2026-11-18)
 
 ### Features
