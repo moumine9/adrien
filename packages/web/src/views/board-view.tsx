@@ -27,16 +27,23 @@ const boardRows = (rows: AdrRow[]): AdrRow[] => {
 const COLUMN_LIMIT = 15;
 
 /**
- * The local edits and removals hidden behind a base row, by id. `boardRows` hides them, so the base card carries the
- * change instead: without it the card would look untouched while this checkout changes the decision.
+ * The local edits and removals hidden behind a base row, by the base file's path. `boardRows` hides them, so the base
+ * card carries the change instead: without it the card would look untouched while this checkout changes the decision.
+ * Like the core, a pending row is paired with the base row at the same path first; only a moved file, whose path
+ * changed, is paired by id, and only when that id has a single base row. Two files that share an id are never mixed up.
  */
-const localEditsById = (rows: AdrRow[]): Map<string, LocalEditKind> => {
-  const baseIds = new Set(rows.filter((r) => r.layer === 'base').map((r) => r.id));
+const localEditsByPath = (rows: AdrRow[]): Map<string, LocalEditKind> => {
+  const base = rows.filter((r) => r.layer === 'base');
+  const basePaths = new Set(base.map((r) => r.path));
   const edits = new Map<string, LocalEditKind>();
   for (const r of rows) {
-    if (r.layer === 'pending' && baseIds.has(r.id) && (r.pending_kind === 'modified' || r.pending_kind === 'deleted')) {
-      edits.set(r.id, r.pending_kind);
+    if (r.layer !== 'pending' || (r.pending_kind !== 'modified' && r.pending_kind !== 'deleted')) continue;
+    if (basePaths.has(r.path)) {
+      edits.set(r.path, r.pending_kind);
+      continue;
     }
+    const sameId = base.filter((b) => b.id === r.id);
+    if (sameId.length === 1) edits.set((sameId[0] as AdrRow).path, r.pending_kind);
   }
   return edits;
 };
@@ -152,7 +159,7 @@ function Column({ status, rows, edits }: { status: Status; rows: AdrRow[]; edits
           <ul id={listId} className="space-y-4">
             {shown.map((row) => (
               <li key={`${row.layer}:${row.path}`}>
-                <BoardCard row={row} localEdit={row.layer === 'base' ? edits.get(row.id) : undefined} />
+                <BoardCard row={row} localEdit={row.layer === 'base' ? edits.get(row.path) : undefined} />
               </li>
             ))}
           </ul>
@@ -177,7 +184,7 @@ export function BoardView() {
   const adrs = useAdrs(EMPTY_FILTERS);
   const allRows = adrs.data?.results ?? [];
   const rows = boardRows(allRows);
-  const edits = localEditsById(allRows);
+  const edits = localEditsByPath(allRows);
 
   return (
     <div className="space-y-8">

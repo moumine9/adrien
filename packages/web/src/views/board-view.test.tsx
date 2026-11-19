@@ -324,3 +324,48 @@ describe('Board view, long columns', () => {
     expect(within(column).queryByRole('button', { name: /Show/ })).toBeNull();
   });
 });
+
+describe('Board view, local edits on decisions that share an id', () => {
+  const row = (over: Partial<AdrRow>): AdrRow => ({
+    id: 'ADR-0001',
+    title: 'First file',
+    status: 'accepted',
+    tags: [],
+    components: [],
+    review_rule: null,
+    layer: 'base',
+    pending_kind: null,
+    path: 'docs/adr/ADR-0001-first.md',
+    ...over,
+  });
+  const second = { title: 'Second file', path: 'docs/adr/ADR-0001-second.md' };
+  const withRows = (rows: AdrRow[]) =>
+    overrideFetch((url) => (url.pathname === '/api/adrs' ? jsonResponse({ results: rows }) : undefined));
+  const badgeOf = (title: string, text: string) => within(cardOf(title)).queryByText(text);
+
+  it('marks only the file that was edited, not every file with the same id', async () => {
+    const edit = row({ layer: 'pending', pending_kind: 'modified' });
+    renderApp('/board', { fetch: withRows([row({}), row(second), edit]) });
+    await screen.findAllByRole('article');
+    expect(badgeOf('First file', 'Edited in this checkout')).toBeVisible();
+    expect(badgeOf('Second file', 'Edited in this checkout')).toBeNull();
+  });
+
+  it('gives each file its own kind when one is edited and the other deleted', async () => {
+    const edited = row({ layer: 'pending', pending_kind: 'modified' });
+    const deleted = row({ ...second, layer: 'pending', pending_kind: 'deleted' });
+    renderApp('/board', { fetch: withRows([row({}), row(second), edited, deleted]) });
+    await screen.findAllByRole('article');
+    expect(badgeOf('First file', 'Edited in this checkout')).toBeVisible();
+    expect(badgeOf('First file', 'Deleted in this checkout')).toBeNull();
+    expect(badgeOf('Second file', 'Deleted in this checkout')).toBeVisible();
+    expect(badgeOf('Second file', 'Edited in this checkout')).toBeNull();
+  });
+
+  it("still marks a file that was moved, when its id is the base file's only one", async () => {
+    const moved = row({ layer: 'pending', pending_kind: 'modified', path: 'docs/adr/ADR-0001-renamed.md' });
+    renderApp('/board', { fetch: withRows([row({}), moved]) });
+    await screen.findAllByRole('article');
+    expect(badgeOf('First file', 'Edited in this checkout')).toBeVisible();
+  });
+});
