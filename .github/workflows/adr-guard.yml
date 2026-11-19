@@ -1,0 +1,39 @@
+name: ADR guard
+
+# Decision files and adrien.config.yaml change only in a pull request labelled `adr` (scripts/guard-adrs.mjs). The
+# check reruns when labels change. It is its own workflow, so the `test` checks are not rerun by label changes.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+jobs:
+  adr-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      # The rules come from the base branch, so a pull request cannot weaken them. The base copy imports its own core,
+      # installed in a worktree beside this checkout. A base without the script (the first pull request) uses this copy.
+      - name: Run the base branch's guard
+        env:
+          BASE: ${{ github.base_ref }}
+          GUARD_BASE: origin/${{ github.base_ref }}
+          ADR_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'adr') }}
+        run: |
+          if git cat-file -e "origin/$BASE:scripts/guard-adrs.mjs" 2>/dev/null; then
+            git worktree add --detach .guard-base "origin/$BASE"
+            (cd .guard-base && pnpm install --frozen-lockfile)
+            node .guard-base/scripts/guard-adrs.mjs
+          else
+            node scripts/guard-adrs.mjs
+          fi

@@ -1,67 +1,96 @@
-// Fails when a pull request changes the decision log (docs/decisions) without the `adr` label, or changes an ADR the
-// label does not allow. Only a pull request labelled `adr` may touch the log, and then an ADR may be added, but never
-// deleted or renamed, and an accepted ADR is frozen except for its status and its links (supersedes, related, ...).
-// The rules are a pure function over the changes, so they can be tested without git; `main` reads the changes from git.
+// Fails when a pull request changes the decision log (docs/decisions) or adrien.config.yaml without the `adr` label, or
+// changes them in a way the label does not allow. With the label, an ADR may be added but never deleted or renamed, and
+// an accepted ADR is frozen except for its status (only to superseded or deprecated) and its links and review fields.
+// Files are read and parsed with core (parseAdr, parseLogConfigText), so the guard sees what Adrien sees. The rules are
+// a pure function over the changes, so they can be tested without git; `main` reads the changes from git.
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+import { parseLogConfigText } from '../packages/core/src/config.ts';
+import { parseAdr } from '../packages/core/src/frontmatter.ts';
 
 const LOG = 'docs/decisions';
-// The frontmatter keys an accepted ADR may change. Every other key, and the body, is frozen.
-const ALLOWED_ON_ACCEPTED = new Set(['status', 'superseded_by', 'supersedes', 'related', 'deprecated_on']);
+const CONFIG = 'adrien.config.yaml';
+// The decision directory this guard protects. A config that names another adr_dir moves the log out of its reach.
+const GUARDED_DIR = LOG;
+const ID_FORMAT = 'ADR-{n:4}';
+// What an accepted ADR may change. `status` is restricted further (see below); `code` may only be edited, not grown or
+// shrunk, so a change is a path rename.
+const EDITABLE_ON_ACCEPTED = new Set([
+  'status',
+  'superseded_by',
+  'supersedes',
+  'related',
+  'review_on',
+  'contested',
+  'code',
+]);
+const STATUSES_AFTER_ACCEPTED = new Set(['superseded', 'deprecated']);
 
-/** Reads the frontmatter (top-level `key: value` lines; indented or `- ` lines belong to the key above) and the body. */
-function parseAdr(text) {
-  const lines = (text ?? '').split(/\r?\n/);
-  const end = lines[0] === '---' ? lines.indexOf('---', 1) : -1;
-  if (end === -1) return { fields: new Map(), body: (text ?? '').trimEnd() };
-  const values = new Map();
-  let key = null;
-  for (const line of lines.slice(1, end)) {
-    const field = /^([A-Za-z_][\w-]*):(.*)$/.exec(line);
-    if (field) {
-      key = field[1];
-      values.set(key, [field[2].trim()]);
-    } else if (key !== null && line.trim() !== '') {
-      values.get(key).push(line.trim());
-    }
-  }
-  const fields = new Map([...values].map(([name, parts]) => [name, parts.join('\n')]));
-  return {
-    fields,
-    body: lines
-      .slice(end + 1)
-      .join('\n')
-      .trimEnd(),
-  };
+const isConfig = (change) => change.path.toLowerCase() === CONFIG;
+const cannotRead = (path) => `${path}: cannot read the file at base or head, so the change is refused`;
+
+/** JSON with sorted keys, so two parsed values compare equal whatever order core put their keys in. */
+function canonical(value) {
+  return JSON.stringify(value, (_key, item) =>
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.keys(item)
+            .sort()
+            .map((key) => [key, item[key]]),
+        )
+      : item,
+  );
 }
 
-const scalar = (value) => (value ?? '').replace(/^["']|["']$/g, '');
+/** The parsed ADR without the fields an accepted ADR may change (its body is compared on its own). */
+function frozenPart(adr) {
+  return canonical(Object.fromEntries(Object.entries(adr.meta).filter(([key]) => !EDITABLE_ON_ACCEPTED.has(key))));
+}
 
-/** The frozen-text failure for a modified ADR that was accepted at base, or null when its change is allowed. */
-function frozenFailure({ path, base, head }) {
-  if (base == null) return null;
-  const before = parseAdr(base);
-  if (scalar(before.fields.get('status')) !== 'accepted') return null;
-  const after = parseAdr(head);
-  const keys = new Set([...before.fields.keys(), ...after.fields.keys()]);
-  const frozenKeyChanged = [...keys].some(
-    (name) => !ALLOWED_ON_ACCEPTED.has(name) && before.fields.get(name) !== after.fields.get(name),
-  );
-  if (!frozenKeyChanged && before.body === after.body) return null;
-  // The ADR is named as it was accepted at base, whatever id the change gives it.
-  const id =
-    scalar(before.fields.get('id')) ||
-    path
-      .split('/')
-      .pop()
-      .match(/^ADR-\d+/)?.[0];
-  return `${id} is accepted; its text is frozen. Supersede it with a new ADR.`;
+/** The failures for a modified ADR, given its base and head text. An ADR that was not accepted at base is free. */
+function adrFailures({ path, base, head }) {
+  if (base == null || head == null) return [cannotRead(path)];
+  let before;
+  let after;
+  try {
+    before = parseAdr(base, path, { idFormat: ID_FORMAT });
+    after = parseAdr(head, path, { idFormat: ID_FORMAT });
+  } catch (error) {
+    return [`${path}: cannot be read (${error.message})`];
+  }
+  if (before.meta.status !== 'accepted') return [];
+
+  const failures = [];
+  // The ADR is named as it was accepted at base, whatever the change does to its id.
+  const id = before.meta.id;
+  if (after.meta.status !== 'accepted' && !STATUSES_AFTER_ACCEPTED.has(after.meta.status)) {
+    failures.push(`${id} is accepted; it may only become superseded or deprecated.`);
+  }
+  const frozenChanged =
+    frozenPart(before) !== frozenPart(after) ||
+    before.body.trimEnd() !== after.body.trimEnd() ||
+    before.meta.code.length !== after.meta.code.length;
+  if (frozenChanged) failures.push(`${id} is accepted; its text is frozen. Supersede it with a new ADR.`);
+  return failures;
+}
+
+/** The failures for adrien.config.yaml: it is never deleted or renamed, and its adr_dir never changes. */
+function configFailures({ status, path, oldPath, base, head }) {
+  if (status === 'D' || status === 'R') return [`${oldPath ?? path}: ${CONFIG} is never deleted or renamed`];
+  if (head == null || (status !== 'A' && base == null)) return [cannotRead(path)];
+  try {
+    const before = base == null ? GUARDED_DIR : parseLogConfigText(base, path).adr_dir;
+    const after = parseLogConfigText(head, path).adr_dir;
+    return before === after ? [] : [`${path}: adr_dir cannot change from ${before} to ${after}`];
+  } catch (error) {
+    return [`${path}: cannot be read (${error.message})`];
+  }
 }
 
 /**
- * The failure messages for the changes under docs/decisions. A change is `{ status, path, oldPath?, base?, head? }`,
- * where status is git's letter (A, M, D, R, C, T) and base and head are the file's text before and after (null when
- * absent). An empty list passes.
+ * The failure messages for the changes under docs/decisions and the config. A change is
+ * `{ status, path, oldPath?, base?, head? }`, where status is git's letter (A, M, D, R, C, T, possibly with a score such
+ * as `R100`) and base and head are the file's text before and after (null when absent). An empty list passes.
  */
 export function guardChanges({ adrLabel, changes }) {
   if (changes.length === 0) return [];
@@ -72,12 +101,13 @@ export function guardChanges({ adrLabel, changes }) {
   const failures = [];
   for (const change of changes) {
     // git writes a rename or copy with its similarity score, as in `R100`; only the letter matters here.
-    const letter = change.status.charAt(0);
-    if (letter === 'D' || letter === 'R') {
+    const status = change.status.charAt(0);
+    if (isConfig(change)) {
+      failures.push(...configFailures({ ...change, status }));
+    } else if (status === 'D' || status === 'R') {
       failures.push(`${change.oldPath ?? change.path}: ADR files are never deleted or renamed; supersede instead`);
-    } else if (letter === 'M' || letter === 'T') {
-      const failure = frozenFailure(change);
-      if (failure) failures.push(failure);
+    } else if (status === 'M' || status === 'T') {
+      failures.push(...adrFailures(change));
     }
   }
   return failures;
@@ -93,30 +123,38 @@ function fileAt(ref, path) {
   return run.status === 0 ? run.stdout : null;
 }
 
-/** The changes under docs/decisions from the merge base with `base` to HEAD. */
+/**
+ * The changes under docs/decisions and the config from the merge base with `base` to HEAD. The pathspecs ignore case,
+ * and `-z` keeps names as they are (no quoting), so a non-ASCII file name is read with its real path.
+ */
 function changesSince(base) {
   const mergeBase = git(['merge-base', base, 'HEAD']);
   if (mergeBase.status !== 0) throw new Error(`cannot find a merge base with ${base}: ${mergeBase.stderr.trim()}`);
   const mergeBaseSha = mergeBase.stdout.trim();
-  const diff = git(['diff', '--name-status', `${base}...HEAD`, '--', LOG]);
+  const diff = git(['diff', '-z', '--name-status', `${base}...HEAD`, '--', `:(icase)${LOG}`, `:(icase)${CONFIG}`]);
   if (diff.status !== 0) throw new Error(`git diff failed: ${diff.stderr.trim()}`);
-  return diff.stdout
-    .split('\n')
-    .filter((line) => line !== '')
-    .map((line) => {
-      const [code, first, second] = line.split('\t');
-      const status = code.charAt(0);
-      if (status === 'R' || status === 'C') {
-        return {
-          status,
-          oldPath: first,
-          path: second,
-          base: fileAt(mergeBaseSha, first),
-          head: fileAt('HEAD', second),
-        };
-      }
-      return { status, path: first, base: fileAt(mergeBaseSha, first), head: fileAt('HEAD', first) };
-    });
+  const tokens = diff.stdout.split('\0');
+  const changes = [];
+  for (let i = 0; i < tokens.length && tokens[i] !== ''; ) {
+    const status = tokens[i].charAt(0);
+    i += 1;
+    if (status === 'R' || status === 'C') {
+      const oldPath = tokens[i];
+      const path = tokens[i + 1];
+      i += 2;
+      changes.push({ status, oldPath, path, base: fileAt(mergeBaseSha, oldPath), head: fileAt('HEAD', path) });
+    } else {
+      const path = tokens[i];
+      i += 1;
+      changes.push({
+        status,
+        path,
+        base: status === 'A' ? null : fileAt(mergeBaseSha, path),
+        head: status === 'D' ? null : fileAt('HEAD', path),
+      });
+    }
+  }
+  return changes;
 }
 
 function main() {

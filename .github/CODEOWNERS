@@ -1,2 +1,0 @@
-# The decision log changes only through a pull request labelled `adr` (scripts/guard-adrs.mjs), and its owner reviews it.
-/docs/decisions/ @moumine9
