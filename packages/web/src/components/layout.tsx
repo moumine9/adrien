@@ -59,7 +59,7 @@ function BaseRef({ meta }: { meta: MetaResponse }) {
     <span
       title={title}
       className={cn(
-        'inline-flex h-10 max-w-48 items-center gap-1.5 rounded-base border-2 border-border px-2.5 text-sm font-semibold',
+        'inline-flex h-10 max-w-48 items-center gap-2 rounded-base border-2 border-border px-4 text-sm font-semibold',
         unverified ? 'bg-caution text-ink' : 'bg-background',
       )}
     >
@@ -75,8 +75,9 @@ function BaseRef({ meta }: { meta: MetaResponse }) {
 function UnverifiedBanner({ meta }: { meta: MetaResponse }) {
   if (!meta.baseUnresolved && !meta.forkUnresolved) return null;
   return (
-    <div role="alert" className="border-b-4 border-border bg-secondary-background">
-      <div aria-hidden className="caution-tape h-2.5 border-b-2 border-border" />
+    <div role="alert" className="bg-secondary-background">
+      {/* The tape strip is the only divide between the header rule above and this banner. */}
+      <div aria-hidden className="caution-tape h-2.5" />
       <div className="mx-auto flex max-w-6xl gap-3 px-4 py-4 sm:px-6">
         <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
         {meta.baseUnresolved ? (
@@ -124,10 +125,10 @@ export function Layout() {
         Skip to content
       </button>
       <header className="border-b-4 border-border bg-secondary-background">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-3 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 py-3 sm:px-6">
           <Link
             to="/"
-            className="flex items-center gap-2.5 rounded-base text-[1.75rem] leading-none font-black tracking-[-0.02em]"
+            className="flex items-center gap-2 rounded-base text-[1.75rem] leading-none font-black tracking-[-0.02em]"
             style={{ fontStretch: '125%' }}
           >
             <BrandMark className="size-9 shrink-0" />
@@ -142,14 +143,14 @@ export function Layout() {
                     end={end}
                     className={({ isActive }) =>
                       cn(
-                        'inline-flex h-10 items-center gap-2 rounded-base border-2 px-2.5 font-heading whitespace-nowrap sm:px-3',
+                        'inline-flex h-10 items-center gap-2 rounded-base border-2 px-4 font-heading whitespace-nowrap',
                         isActive || (to === '/' && pathname.startsWith('/adr/'))
                           ? 'border-border bg-main text-main-foreground shadow-shadow'
                           : 'border-transparent hover:border-border hover:bg-background',
                       )
                     }
                   >
-                    <Icon aria-hidden className="hidden size-4 sm:block" strokeWidth={2.5} />
+                    <Icon aria-hidden className="hidden size-4 opacity-70 sm:block" strokeWidth={2} />
                     {label}
                   </NavLink>
                 </li>

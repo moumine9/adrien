@@ -36,6 +36,17 @@ afterEach(() => {
 });
 
 describe('Board view', () => {
+  it('hatches only a band on the top of a pending card, never the text', async () => {
+    renderApp('/board');
+    const card = (await screen.findByRole('link', { name: 'Move product search to a dedicated index' })).closest(
+      'article',
+    ) as HTMLElement;
+    const band = card.firstElementChild as HTMLElement;
+    expect(band).toHaveClass('hatch');
+    expect(band).toHaveAttribute('aria-hidden', 'true');
+    expect(card.querySelectorAll('.hatch')).toHaveLength(1);
+  });
+
   it('shows skeletons while loading', () => {
     renderApp('/board', { fetch: hangingFetch });
     expect(screen.getByRole('status', { name: 'Loading the board' })).toBeInTheDocument();

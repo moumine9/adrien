@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Link, useParams } from 'react-router';
 import { BindingBadge, Chip, DueBadge, PendingBadge, STATUS_ICONS, StatusBadge } from '@/components/badges.tsx';
 import { AdrMarkdown } from '@/components/markdown.tsx';
+import { PendingBand } from '@/components/pending-band.tsx';
 import { ErrorState, LoadingBlocks } from '@/components/states.tsx';
 import { buttonVariants } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
@@ -35,27 +36,30 @@ function RuleBlock({ rule, binding }: { rule: string | undefined; binding: Bindi
     <section
       aria-labelledby="rule-heading"
       className={cn(
-        'rounded-base border-4 border-border p-5 sm:p-6',
+        'overflow-hidden rounded-base border-2 border-border',
         strong ? 'bg-foreground text-background shadow-shadow' : 'bg-secondary-background',
-        binding === 'pending' && 'hatch border-dashed',
+        binding === 'pending' && 'border-dashed',
       )}
     >
-      <h2 id="rule-heading" className="flex items-center gap-2 text-base">
-        <Stamp aria-hidden className="size-5" strokeWidth={2.5} />
-        {heading[binding]}
-      </h2>
-      {rule ? (
-        <p className="mt-3 max-w-[60ch] text-xl leading-snug font-semibold sm:text-2xl">{rule}</p>
-      ) : (
-        <p className="mt-3 opacity-80">No review rule is written for this decision.</p>
-      )}
+      {binding === 'pending' && <PendingBand />}
+      <div className="p-5 sm:p-6">
+        <h2 id="rule-heading" className="flex items-center gap-2 text-base">
+          <Stamp aria-hidden className="size-5" strokeWidth={2.5} />
+          {heading[binding]}
+        </h2>
+        {rule ? (
+          <p className="mt-3 max-w-[60ch] text-xl leading-snug font-semibold sm:text-2xl">{rule}</p>
+        ) : (
+          <p className="mt-3 opacity-80">No review rule is written for this decision.</p>
+        )}
+      </div>
     </section>
   );
 }
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid gap-1 border-b-2 border-border py-3 last:border-b-0">
+    <div className="grid gap-1 border-b border-rule py-3 last:border-b-0">
       <dt className="text-sm font-heading text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words">{children}</dd>
     </div>
@@ -72,7 +76,7 @@ function AdrLink({ id, node }: { id: string; node: GraphNode | undefined }) {
       {node && Icon && (
         <span
           title={STATUS_STYLES[node.status].label}
-          className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-[3px] border-2 border-border text-ink"
+          className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-inset border-2 border-border text-ink"
           style={{ backgroundColor: STATUS_STYLES[node.status].fill }}
         >
           <Icon aria-hidden className="size-3" strokeWidth={3} />
@@ -264,40 +268,43 @@ function PendingSection({ data }: { data: AdrResponse }) {
   return (
     <section
       aria-labelledby="pending-heading"
-      className="hatch space-y-5 rounded-base border-4 border-dashed border-border bg-secondary-background p-5 sm:p-6"
+      className="overflow-hidden rounded-base border-2 border-dashed border-border bg-secondary-background"
     >
-      <div className="space-y-3">
-        <PendingBadge kind={pending.kind} />
-        <h2 id="pending-heading" className="text-2xl">
-          Pending in this checkout, not binding until merged
-        </h2>
-        {pending.kind === 'deleted' && (
-          <p className="max-w-[68ch]">
-            This checkout removes the decision. Until that removal is merged, the version on the default branch still
-            applies.
-          </p>
-        )}
-        {pending.kind === 'modified' && (
-          <p className="max-w-[68ch]">
-            This checkout edits the decision. The version above stays the one that applies until the edit is merged.
-          </p>
-        )}
-        {pending.kind === 'added' && (
-          <p className="max-w-[68ch]">
-            This decision exists only in this checkout. It is a proposal, whatever its status says, until it is merged
-            into the default branch.
-          </p>
+      <PendingBand />
+      <div className="space-y-5 p-5 sm:p-6">
+        <div className="space-y-3">
+          <PendingBadge kind={pending.kind} />
+          <h2 id="pending-heading" className="text-2xl">
+            Pending in this checkout, not binding until merged
+          </h2>
+          {pending.kind === 'deleted' && (
+            <p className="max-w-[68ch]">
+              This checkout removes the decision. Until that removal is merged, the version on the default branch still
+              applies.
+            </p>
+          )}
+          {pending.kind === 'modified' && (
+            <p className="max-w-[68ch]">
+              This checkout edits the decision. The version above stays the one that applies until the edit is merged.
+            </p>
+          )}
+          {pending.kind === 'added' && (
+            <p className="max-w-[68ch]">
+              This decision exists only in this checkout. It is a proposal, whatever its status says, until it is merged
+              into the default branch.
+            </p>
+          )}
+        </div>
+        {pending.kind === 'modified' && data.base && file && <Changes before={data.base.meta} after={file.meta} />}
+        {pending.kind === 'modified' && file && (
+          <details className="rounded-base border-2 border-border bg-secondary-background">
+            <summary className="cursor-pointer px-4 py-3 font-heading">Read the edited text</summary>
+            <div className="border-t border-rule px-4 py-4">
+              <AdrMarkdown source={file.body} resolveFile={resolveFile} />
+            </div>
+          </details>
         )}
       </div>
-      {pending.kind === 'modified' && data.base && file && <Changes before={data.base.meta} after={file.meta} />}
-      {pending.kind === 'modified' && file && (
-        <details className="rounded-base border-2 border-border bg-secondary-background">
-          <summary className="cursor-pointer px-4 py-3 font-heading">Read the edited text</summary>
-          <div className="border-t-2 border-border px-4 py-4">
-            <AdrMarkdown source={file.body} resolveFile={resolveFile} />
-          </div>
-        </details>
-      )}
     </section>
   );
 }
@@ -378,14 +385,14 @@ export function DecisionView() {
           <BindingBadge binding={binding} />
           {data.pending && <PendingBadge kind={data.pending.kind} />}
           {m.contested && (
-            <span className="inline-flex h-6 items-center gap-1.5 rounded-base border-2 border-border bg-secondary-background px-2 text-[0.8125rem] font-heading">
+            <span className="caption inline-flex items-center gap-2 rounded-inset border-2 border-border bg-secondary-background px-2 py-1 text-[0.8125rem] font-heading">
               <Swords aria-hidden className="size-3.5" strokeWidth={2.5} />
               Contested
             </span>
           )}
           {isReviewDue(m) && <DueBadge />}
         </div>
-        <h1 className="max-w-[24ch] text-3xl leading-[1.08] sm:text-5xl" style={{ fontStretch: '115%' }}>
+        <h1 className="display max-w-[24ch] text-3xl sm:text-5xl" style={{ fontStretch: '115%' }}>
           {m.title}
         </h1>
         {m.status === 'superseded' && m.superseded_by && (

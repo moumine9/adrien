@@ -24,7 +24,7 @@ export function StatusTally({
           {STATUS_ORDER.filter((s) => counts.byStatus[s]).map((s) => (
             <div
               key={s}
-              className="border-r-2 border-border last:border-r-0"
+              className="border-r border-border last:border-r-0"
               style={{ flexGrow: counts.byStatus[s], backgroundColor: STATUS_STYLES[s].fill }}
             />
           ))}
@@ -43,14 +43,14 @@ export function StatusTally({
                 aria-pressed={on}
                 onClick={() => onToggle(s)}
                 className={cn(
-                  'inline-flex h-10 items-center gap-2 rounded-base border-2 border-border pr-3 pl-1.5 font-heading',
+                  'inline-flex items-center gap-2 rounded-base border-2 border-border py-2 pr-4 pl-2 font-heading',
                   on ? 'text-ink shadow-shadow' : 'bg-secondary-background hover:bg-background',
                 )}
                 style={on ? { backgroundColor: STATUS_STYLES[s].fill } : undefined}
               >
                 <span
                   aria-hidden
-                  className="grid size-6 place-items-center rounded-[3px] border-2 border-border text-ink"
+                  className="grid size-6 place-items-center rounded-inset border-2 border-border text-ink"
                   style={{ backgroundColor: STATUS_STYLES[s].fill }}
                 >
                   <Icon className="size-3.5" strokeWidth={2.75} />

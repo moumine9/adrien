@@ -26,3 +26,19 @@ describe('Brand', () => {
     expect(mark?.querySelector('g')).toHaveAttribute('stroke', 'var(--border)');
   });
 });
+
+describe('Navigation icons', () => {
+  it('draws a nav icon lighter than its label, beside it', async () => {
+    renderApp('/');
+    const link = await screen.findByRole('link', { name: 'Decisions' });
+    const icon = link.querySelector('svg');
+    expect(icon).toHaveClass('opacity-70');
+    expect(icon).toHaveAttribute('stroke-width', '2');
+  });
+
+  it('keeps the theme toggle icon at full strength', async () => {
+    renderApp('/');
+    const toggle = await screen.findByRole('button', { name: /Use the (dark|light) theme/ });
+    expect(toggle.querySelector('svg')).not.toHaveClass('opacity-70');
+  });
+});

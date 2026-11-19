@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { STATUS_STYLES } from '@/lib/status.ts';
 import { BindingBadge, DueBadge, PendingBadge, StatusBadge } from './badges.tsx';
+import { Badge as UiBadge } from './ui/badge.tsx';
 
 describe('StatusBadge', () => {
   it('shows the status label on its status colour', () => {
@@ -46,6 +47,15 @@ describe('PendingBadge', () => {
   ] as const)('names a %s change', (kind, text) => {
     render(<PendingBadge kind={kind} />);
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+});
+
+describe('ui Badge', () => {
+  it('keeps its gap and its icon pointer-events rule as separate classes', () => {
+    render(<UiBadge>Tag</UiBadge>);
+    const badge = screen.getByText('Tag');
+    expect(badge).toHaveClass('gap-2', '[&>svg]:pointer-events-none');
+    expect(badge.className.split(' ')).not.toContain('gap-2[&>svg]:pointer-events-none');
   });
 });
 
