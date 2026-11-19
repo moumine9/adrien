@@ -1,63 +1,63 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getSettings, type ThemeSetting, useSettings } from './settings.ts';
 
+/** The theme in use. The stored setting may also be `system`, which resolves to one of these. */
 export type Theme = 'light' | 'dark';
-
-export const THEME_KEY = 'adrien-theme';
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
-function readStored(): Theme | null {
-  try {
-    const v = localStorage.getItem(THEME_KEY);
-    return v === 'light' || v === 'dark' ? v : null;
-  } catch {
-    return null;
-  }
+function systemPrefersDark(): boolean {
+  return typeof matchMedia === 'function' && matchMedia(DARK_QUERY).matches;
 }
 
-export function storeTheme(theme: Theme): void {
-  try {
-    localStorage.setItem(THEME_KEY, theme);
-  } catch {
-    // Storage can be unavailable (private mode, blocked site data); the choice then lasts for the page only.
-  }
+/** The theme a setting means: `system` follows the system preference. */
+export function resolveTheme(setting: ThemeSetting, systemDark: boolean): Theme {
+  if (setting === 'system') return systemDark ? 'dark' : 'light';
+  return setting;
 }
 
-function systemTheme(): Theme {
-  return typeof matchMedia === 'function' && matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
-}
-
-/** The stored choice, else the system preference. */
+/** The theme from the stored setting, else the system preference. */
 export function initialTheme(): Theme {
-  return readStored() ?? systemTheme();
+  return resolveTheme(getSettings().theme, systemPrefersDark());
 }
 
 export function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark');
 }
 
-/** The current theme and a setter that remembers the choice. Follows the system until the user picks one. */
-export function useTheme(): [Theme, (theme: Theme) => void] {
-  const [theme, setThemeState] = useState<Theme>(initialTheme);
-
-  useEffect(() => {
-    applyTheme(theme);
-  }, [theme]);
+/** Whether the system currently prefers dark, kept up to date while the page is open. */
+function useSystemDark(): boolean {
+  const [dark, setDark] = useState(systemPrefersDark);
 
   useEffect(() => {
     if (typeof matchMedia !== 'function') return;
     const media = matchMedia(DARK_QUERY);
-    const onChange = () => {
-      if (!readStored()) setThemeState(systemTheme());
-    };
+    const onChange = () => setDark(media.matches);
+    onChange();
     media.addEventListener?.('change', onChange);
     return () => media.removeEventListener?.('change', onChange);
   }, []);
 
-  const setTheme = useCallback((next: Theme) => {
-    storeTheme(next);
-    setThemeState(next);
-  }, []);
+  return dark;
+}
 
+/** Puts the resolved theme on <html>. Mount it once, at the top of the app. */
+export function useApplyTheme(): void {
+  const [settings] = useSettings();
+  const theme = resolveTheme(settings.theme, useSystemDark());
+
+  useEffect(() => {
+    applyTheme(theme);
+  }, [theme]);
+}
+
+/**
+ * The resolved theme and a setter that remembers an explicit choice. The header toggle and the Settings page
+ * both write the `theme` setting, so they cannot disagree.
+ */
+export function useTheme(): [Theme, (theme: Theme) => void] {
+  const [settings, update] = useSettings();
+  const theme = resolveTheme(settings.theme, useSystemDark());
+  const setTheme = useCallback((next: Theme) => update({ theme: next }), [update]);
   return [theme, setTheme];
 }

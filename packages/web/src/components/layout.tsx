@@ -6,6 +6,7 @@ import {
   HeartPulse,
   ListChecks,
   Moon,
+  Settings,
   Sun,
   TriangleAlert,
   Waypoints,
@@ -15,7 +16,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { Button } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { useMeta } from '@/lib/queries.ts';
-import { useTheme } from '@/lib/theme.ts';
+import { useApplyTheme, useTheme } from '@/lib/theme.ts';
 import { cn } from '@/lib/utils.ts';
 import { BrandMark } from './brand-mark.tsx';
 import { DemoBanner } from './demo-banner.tsx';
@@ -27,6 +28,7 @@ const NAV = [
   { to: '/graph', label: 'Graph', icon: Waypoints, end: false },
   { to: '/files', label: 'Files', icon: FolderTree, end: false },
   { to: '/check', label: 'Health', icon: HeartPulse, end: false },
+  { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ] as const;
 
 function ThemeToggle() {
@@ -114,6 +116,7 @@ export function Layout() {
   const meta = useMeta();
   const { pathname } = useLocation();
   useRouteFocus();
+  useApplyTheme();
   return (
     <div className="flex min-h-dvh flex-col">
       {/* A button, not an anchor: the router owns the hash, so `#main` would replace the current route with `/main`. */}
