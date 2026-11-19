@@ -207,6 +207,13 @@ can read them from one file. "Accepted" means what the default branch holds: an 
 under "Pending in this checkout" until it is merged. `--out <file>` writes it instead, with links relative to that file. The output is
 generated: regenerate it rather than editing it.
 
+## `adrien review`
+
+`adrien review [--base <ref>] [--head <ref>] [--files <paths...>]` writes the Markdown comment for a merge request: the
+decisions that govern the files it changes, with each `review_rule`. With no `--files`, it compares `--base` (default:
+the default branch) with `--head` (default: `HEAD`). It informs and never blocks: it exits `0` whatever it finds, and it
+posts nothing. [ci.md](ci.md) shows how a GitHub or GitLab job posts it and keeps one comment up to date.
+
 ## `adrien serve`
 
 `adrien serve [--port <n>] [--host <h>]` starts a read-only HTTP server on `127.0.0.1:4310` for the web visualizer,

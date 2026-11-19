@@ -1,8 +1,8 @@
 import { rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { gitToplevel, listFiles, readTreeAtRef } from '../src/git.ts';
+import { changedFiles, gitToplevel, listFiles, readTreeAtRef } from '../src/git.ts';
 import { tmpDir, writeFiles } from './helpers/fixtures.ts';
-import { git, initRepo } from './helpers/git.ts';
+import { commitAll, git, initRepo } from './helpers/git.ts';
 
 test('missing directories and plain directories have distinct listing behavior', async () => {
   const root = tmpDir();
@@ -53,4 +53,41 @@ test('a tracked directory replaced by a file is listed without its old paths, an
   writeFiles(root, { src: 'now a file\n' });
   // `git ls-files` still reports src/old.ts: lstat on it fails with ENOTDIR, which means the path is gone.
   expect(await listFiles(root)).toEqual(['src']);
+});
+
+test('changedFiles lists what a range changes, relative to the repo top; null for a bad ref; [] when nothing changed', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'src/a.ts': 'a\n', 'src/gone.ts': 'g\n' });
+  initRepo(root);
+  git(root, 'checkout', '-q', '-b', 'feature');
+  writeFiles(root, { 'src/a.ts': 'changed\n', 'src/new.ts': 'n\n' });
+  rmSync(join(root, 'src/gone.ts'));
+  commitAll(root, 'change');
+  expect(await changedFiles(root, 'main', 'HEAD')).toEqual(['src/a.ts', 'src/gone.ts', 'src/new.ts']);
+  expect(await changedFiles(root, 'no-such-ref', 'HEAD')).toBeNull();
+  expect(await changedFiles(root, 'HEAD', 'HEAD')).toEqual([]);
+});
+
+test('changedFiles lists both sides of a rename, so moving a file out of a governed place is still seen', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'billing/src/store.ts': 'export const store = 1;\n' });
+  initRepo(root);
+  git(root, 'checkout', '-q', '-b', 'feature');
+  git(root, 'mv', 'billing/src/store.ts', 'misc.ts');
+  commitAll(root, 'move');
+  expect(await changedFiles(root, 'main', 'HEAD')).toEqual(['billing/src/store.ts', 'misc.ts']);
+});
+
+test('changedFiles lists a file that changes type, such as a regular file replaced by a symlink', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'src/a.ts': 'export const a = 1;\n' });
+  initRepo(root);
+  git(root, 'checkout', '-q', '-b', 'feature');
+  // A symlink entry made with git's plumbing, so the test needs no symlink permission (Windows may refuse one).
+  writeFiles(root, { '.link-target': 'elsewhere.ts' });
+  const blob = git(root, 'hash-object', '-w', '.link-target').trim();
+  rmSync(join(root, '.link-target'));
+  git(root, 'update-index', '--add', '--cacheinfo', `120000,${blob},src/a.ts`);
+  git(root, 'commit', '-q', '-m', 'type change');
+  expect(await changedFiles(root, 'main', 'HEAD')).toEqual(['src/a.ts']);
 });

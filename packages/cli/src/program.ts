@@ -12,6 +12,7 @@ import { registerList } from './commands/list.ts';
 import { registerMcp } from './commands/mcp.ts';
 import { registerNew } from './commands/new.ts';
 import { registerRenumber } from './commands/renumber.ts';
+import { registerReview } from './commands/review.ts';
 import { registerSearch } from './commands/search.ts';
 import { registerServe } from './commands/serve.ts';
 import { registerShow } from './commands/show.ts';
@@ -51,6 +52,7 @@ export function buildProgram(cli: Cli): Command {
     registerShow,
     registerSearch,
     registerFor,
+    registerReview,
     registerCheck,
     registerLint,
     registerAccept,
