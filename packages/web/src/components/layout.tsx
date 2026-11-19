@@ -16,7 +16,7 @@ import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { Button } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { useMeta } from '@/lib/queries.ts';
-import { useTheme } from '@/lib/theme.ts';
+import { useApplyTheme, useTheme } from '@/lib/theme.ts';
 import { cn } from '@/lib/utils.ts';
 import { BrandMark } from './brand-mark.tsx';
 import { DemoBanner } from './demo-banner.tsx';
@@ -116,6 +116,7 @@ export function Layout() {
   const meta = useMeta();
   const { pathname } = useLocation();
   useRouteFocus();
+  useApplyTheme();
   return (
     <div className="flex min-h-dvh flex-col">
       {/* A button, not an anchor: the router owns the hash, so `#main` would replace the current route with `/main`. */}

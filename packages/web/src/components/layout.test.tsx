@@ -1,5 +1,6 @@
-import { screen, within } from '@testing-library/react';
+import { act, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { SETTINGS_KEY } from '@/lib/settings.ts';
 import { renderApp } from '@/test/render.tsx';
 
 describe('Skip link', () => {
@@ -24,6 +25,25 @@ describe('Brand', () => {
     expect(mark).toHaveAttribute('aria-hidden', 'true');
     // The strokes follow the border colour, so the mark stays visible in the dark theme.
     expect(mark?.querySelector('g')).toHaveAttribute('stroke', 'var(--border)');
+  });
+});
+
+describe('Theme across tabs', () => {
+  afterEach(() => {
+    localStorage.clear();
+    document.documentElement.className = '';
+  });
+
+  it('switches the page theme when another tab changes the setting', async () => {
+    renderApp('/');
+    await screen.findByRole('link', { name: 'Decisions' });
+    expect(document.documentElement.classList.contains('dark')).toBe(false);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'dark' }));
+    act(() => {
+      window.dispatchEvent(new StorageEvent('storage', { key: SETTINGS_KEY }));
+    });
+    expect(document.documentElement.classList.contains('dark')).toBe(true);
+    expect(screen.getByRole('button', { name: 'Use the light theme' })).toBeInTheDocument();
   });
 });
 

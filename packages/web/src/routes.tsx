@@ -6,11 +6,11 @@ import { DecisionsView } from './views/decisions-view.tsx';
 import { FilesView } from './views/files-view.tsx';
 import { HealthView } from './views/health-view.tsx';
 import { NotFoundView } from './views/not-found-view.tsx';
+import { SettingsView } from './views/settings-view.tsx';
 
 // The detail (Markdown) and graph (d3-force) views load on demand, keeping the first page light.
 const DecisionView = lazy(() => import('./views/decision-view.tsx').then((m) => ({ default: m.DecisionView })));
 const GraphView = lazy(() => import('./views/graph-view.tsx').then((m) => ({ default: m.GraphView })));
-const SettingsView = lazy(() => import('./views/settings-view.tsx').then((m) => ({ default: m.SettingsView })));
 
 export function AppRoutes() {
   return (
