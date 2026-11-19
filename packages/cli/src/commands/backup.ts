@@ -1,9 +1,22 @@
-import { type BackupVerification, createBackup, listBackups, restoreBackup, verifyBackup } from '@adrien/core';
+import {
+  assertWritable,
+  type BackupVerification,
+  createBackup,
+  listBackups,
+  restoreBackup,
+  verifyBackup,
+} from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, contextOf, type GlobalOptions, printJson } from '../cli.ts';
 import { VERSION } from '../version.ts';
 
 export const differs = (v: BackupVerification): boolean => v.changed.length + v.missing.length + v.added.length > 0;
+
+/** Names the entries that were not copied because they are links or other non-files. */
+export function skippedLine(skipped: string[]): string {
+  const n = skipped.length;
+  return `Skipped ${n} ${n === 1 ? 'entry' : 'entries'} that ${n === 1 ? 'is' : 'are'} not a regular file: ${skipped.join(', ')}\n`;
+}
 
 /** One line per kind of difference that has any files: `changed: a, b`. */
 export function changeLines(v: BackupVerification): string {
@@ -25,9 +38,11 @@ export function registerBackup(program: Command, cli: Cli): void {
     .action(async (opts: { reason: string }, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
       const ctx = await contextOf(cli, globals);
+      assertWritable(ctx);
       const made = createBackup(ctx.logRoot, ctx.config, opts.reason, VERSION);
       if (globals.json) return printJson(cli, made);
       cli.out(`Backed up ${made.fileCount} files to ${made.path}\n`);
+      if (made.skipped.length > 0) cli.out(skippedLine(made.skipped));
     });
 
   backup
@@ -39,7 +54,11 @@ export function registerBackup(program: Command, cli: Cli): void {
       const backups = listBackups(ctx.logRoot);
       if (globals.json) return printJson(cli, backups);
       if (backups.length === 0) return cli.out('No backups yet.\n');
-      for (const b of backups) cli.out(`${b.id}  ${b.createdAt}  ${b.fileCount} files  ${b.reason}\n`);
+      for (const b of backups) {
+        cli.out(
+          b.status === 'ok' ? `${b.id}  ${b.createdAt}  ${b.fileCount} files  ${b.reason}\n` : `${b.id}  damaged\n`,
+        );
+      }
     });
 
   backup
@@ -67,6 +86,7 @@ export function registerBackup(program: Command, cli: Cli): void {
     .action(async (id: string, _opts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
       const ctx = await contextOf(cli, globals);
+      assertWritable(ctx);
       const result = restoreBackup(ctx.logRoot, ctx.config, id, VERSION);
       if (globals.json) return printJson(cli, result);
       cli.out(

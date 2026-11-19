@@ -1,7 +1,8 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE } from '@adrien/core';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { initRepo } from '../../core/test/helpers/git.ts';
 import { runCli } from '../src/program.ts';
 
 const ADR = 'docs/adr/ADR-0001-storage.md';
@@ -83,6 +84,33 @@ test('backup commands outside a decision log fail with the usual message', async
   const result = await run(tmpDir(), ['backup', 'list']);
   expect(result.code).toBe(2);
   expect(result.stderr).toContain('No Adrien log found');
+});
+
+test.skipIf(process.platform === 'win32')('backup create says which links it skipped', async () => {
+  const root = logDir();
+  symlinkSync(tmpDir(), join(root, 'docs/adr/linked'));
+  const created = await run(root, ['backup', 'create']);
+  expect(created.stdout).toContain('Skipped 1 entry that is not a regular file: docs/adr/linked');
+});
+
+test('backup list marks a backup it cannot read as damaged', async () => {
+  const root = logDir();
+  await run(root, ['backup', 'create']);
+  writeFiles(root, { '.adrien/backups/broken/manifest.json': '{not json' });
+  expect((await run(root, ['backup', 'list'])).stdout).toContain('broken  damaged');
+  const backups = JSON.parse((await run(root, ['--json', 'backup', 'list'])).stdout) as Array<{ status: string }>;
+  expect(backups.filter((b) => b.status === 'damaged')).toHaveLength(1);
+});
+
+test('backup create and restore refuse a read-only clone of the log', async () => {
+  const root = logDir();
+  const { origin } = initRepo(root, { origin: true });
+  const args = ['--log', `file://${origin}`];
+  const created = await run(root, [...args, 'backup', 'create']);
+  expect(created.code).toBe(2);
+  expect(created.stderr).toContain('read-only cached clone');
+  const restored = await run(root, [...args, 'backup', 'restore', 'anything']);
+  expect(restored.stderr).toContain('read-only cached clone');
 });
 
 test('backup verify and restore refuse an unknown id', async () => {

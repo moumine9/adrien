@@ -1,11 +1,24 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { AdrienError, type Context, createBackup, resolveContext, verifyBackup } from '@adrien/core';
+import {
+  adrDirProblem,
+  AdrienError,
+  type BackupVerification,
+  CODE_CONFIG_FILE,
+  CONFIG_FILE,
+  type Context,
+  createBackup,
+  findUp,
+  isGitUrl,
+  loadCodeRepoConfig,
+  resolveContext,
+  verifyBackup,
+} from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, type GlobalOptions, printJson } from '../cli.ts';
 import { VERSION } from '../version.ts';
-import { changeLines, differs } from './backup.ts';
+import { changeLines, differs, skippedLine } from './backup.ts';
 
 const REGISTRY_URL = 'https://registry.npmjs.org/adrien/latest';
 const TIMEOUT_MS = 5000;
@@ -13,8 +26,8 @@ const INSTALL_ARGS = ['install', '-g', 'adrien@latest'];
 
 /** The decision-log side of a global update: finding the log, copying it before the install and checking it after. */
 export interface BackupDeps {
-  /** The log the working directory resolves to, or null when there is none. */
-  logAt: (cwd: string, log: string | undefined, env: NodeJS.ProcessEnv) => Promise<Context | null>;
+  /** The log the working directory resolves to; 'remote' for a remote clone (never cloned here); null when there is none. */
+  logAt: (cwd: string, log: string | undefined, env: NodeJS.ProcessEnv) => Promise<Context | 'remote' | null>;
   create: typeof createBackup;
   verify: typeof verifyBackup;
 }
@@ -30,11 +43,21 @@ export interface UpdateDeps {
   backup: BackupDeps;
 }
 
-/** The real decision-log side: a missing log is not an error here, a log that cannot be read is. */
+/**
+ * The real decision-log side. A remote log is recognised from its URL before resolving, because resolving would clone
+ * it. A missing log is not an error here; a log that cannot be read is.
+ */
 export const backupDefaults: BackupDeps = {
   logAt: async (cwd, log, env) => {
+    if (log !== undefined && isGitUrl(log)) return 'remote';
+    if (log === undefined && !findUp(cwd, CONFIG_FILE)) {
+      const dir = findUp(cwd, CODE_CONFIG_FILE);
+      const codeConfig = dir ? loadCodeRepoConfig(dir) : null;
+      if (codeConfig && isGitUrl(codeConfig.log)) return 'remote';
+    }
     try {
-      return await resolveContext({ cwd, log, env });
+      const ctx = await resolveContext({ cwd, log, env });
+      return ctx.readOnly ? 'remote' : ctx;
     } catch (e) {
       if (e instanceof AdrienError && e.code === 'CONFIG_NOT_FOUND') return null;
       throw e;
@@ -201,12 +224,20 @@ export function registerUpdate(program: Command, cli: Cli): void {
       // Before anything is installed, the decision files are copied: a failed copy stops the update.
       let backup: { id: string; root: string } | null = null;
       try {
-        const ctx = await deps.backup.logAt(cli.cwd, globals.log, cli.env);
-        if (ctx) {
-          const made = deps.backup.create(ctx.logRoot, ctx.config, `before-update-${deps.current}`, deps.current);
-          cli.out(`Backed up the decision files to ${made.path}\n`);
-          backup = { id: made.id, root: ctx.logRoot };
-        } else cli.out('No decision log here, nothing to back up.\n');
+        const found = await deps.backup.logAt(cli.cwd, globals.log, cli.env);
+        if (found === null) cli.out('No decision log here, nothing to back up.\n');
+        else if (found === 'remote') {
+          cli.out('Skipped: the log is a remote clone, so there are no local decision files to back up.\n');
+        } else {
+          const problem = adrDirProblem(found.config);
+          if (problem) cli.out(`Skipped: ${problem}\n`);
+          else {
+            const made = deps.backup.create(found.logRoot, found.config, `before-update-${deps.current}`, deps.current);
+            cli.out(`Backed up the decision files to ${made.path}\n`);
+            if (made.skipped.length > 0) cli.out(skippedLine(made.skipped));
+            backup = { id: made.id, root: found.logRoot };
+          }
+        }
       } catch (e) {
         cli.err(`adrien: could not back up the decision files, so nothing was installed: ${(e as Error).message}\n`);
         return cli.setCode(1);
@@ -225,7 +256,13 @@ export function registerUpdate(program: Command, cli: Cli): void {
       }
       cli.out(`Updated adrien ${deps.current} -> ${latest}.\n`);
       if (!backup) return;
-      const changes = deps.backup.verify(backup.root, backup.id);
+      let changes: BackupVerification;
+      try {
+        changes = deps.backup.verify(backup.root, backup.id);
+      } catch (e) {
+        cli.err(`adrien: could not check the decision files against backup ${backup.id}: ${(e as Error).message}\n`);
+        return cli.setCode(1);
+      }
       if (!differs(changes)) return cli.out('Decision files unchanged.\n');
       cli.out(`Decision files differ from backup ${backup.id}:\n${changeLines(changes)}`);
       cli.out(`Restore them with \`adrien backup restore ${backup.id}\`.\n`);

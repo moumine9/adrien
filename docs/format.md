@@ -202,11 +202,15 @@ change; the revision, below, protects a change that was planned on an older read
 `adrien.config.yaml`) into `.adrien/backups/<UTC time>-<reason>/`, with a `manifest.json` that records the SHA-256 of
 each file. The folder is git-ignored, like the locks and the index.
 
+Only the log the current directory belongs to is backed up. A remote log (a URL) is never cloned for a backup; `update`
+skips it, and `backup create` or `backup restore` refuse a read-only clone.
+
 Adrien makes a backup on its own in two cases:
 
 - **Before `adrien update` installs a new version** of a global install, with the reason `before-update-<version>`. If
   the backup fails, the update stops before npm runs. After the install, the files are compared with that backup. If
-  one of them differs, the update exits 1 and prints the `adrien backup restore` command to run.
+  one of them differs, the update exits 1 and prints the `adrien backup restore` command to run. A log whose ADR
+  directory cannot hold backups (for example `adr_dir: .`) is reported as skipped, and the update still installs.
 - **Before `adrien backup restore`**, with the reason `pre-restore`, so the restore can itself be undone.
 
 Only the 10 newest backups are kept. `adrien backup list` shows them, `adrien backup verify <id>` compares the current
