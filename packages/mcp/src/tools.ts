@@ -9,6 +9,7 @@ import {
   type LogView,
   loadLogView,
   resolveContext,
+  revisionOfAdr,
   STATUSES,
   unverifiedBaseNote,
   updateAdr,
@@ -157,15 +158,17 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
     'adr_get',
     {
       title: 'Read one decision',
-      description: 'The full ADR: the binding version on the default branch, and any pending change to it.',
+      description:
+        'The full ADR: the binding version on the default branch, and any pending change to it, with `revision`, the version of the working copy that adr_propose_change must be based on.',
       inputSchema: { id: z.string().min(1) },
     },
-    handler(opts, ({ id }: { id: string }, _ctx, view) => {
+    handler(opts, ({ id }: { id: string }, ctx, view) => {
       const base = view.base.find((a) => a.meta.id === id) ?? null;
       const change = view.pending.find((c) => c.id === id) ?? null;
       if (!base && !change) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
       return ok({
         id,
+        revision: revisionOfAdr(ctx, id),
         base: base && adrView(base),
         pending: change && {
           kind: change.kind,
@@ -255,9 +258,10 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
     {
       title: 'Propose a change to a decision',
       description:
-        'Edit an existing ADR in the working copy. The edit is pending until its merge request is approved; the default-branch version stays the binding one. You cannot change status.',
+        'Edit an existing ADR in the working copy. The edit is pending until its merge request is approved; the default-branch version stays the binding one. You cannot change status. Pass `base_revision`, the revision adr_get returned when you read the ADR: if the ADR changed since (by another agent, the CLI or an editor), the call fails with ADR_CONFLICT and nothing is written. Then read it again, redo your change on the latest version and retry, as after a rejected push.',
       inputSchema: {
         id: z.string().min(1),
+        base_revision: z.string().regex(/^[0-9a-f]{12}$/, 'Pass the revision that adr_get returned for this ADR'),
         patch: z.strictObject({
           title: z.string().min(1).optional(),
           tags: strings.optional(),
@@ -271,13 +275,17 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
         rationale: z.string().min(1),
       },
     },
-    handler(opts, (a: { id: string; patch: Record<string, unknown>; rationale: string }, ctx, view) => {
-      const updated = updateAdr(ctx, view, a.id, a.patch, {
-        note: a.rationale,
-        origin: 'agent',
-        today: opts.today?.(),
-      });
-      return ok({ id: updated.meta.id, path: updated.path, pending: true });
-    }),
+    handler(
+      opts,
+      (a: { id: string; base_revision: string; patch: Record<string, unknown>; rationale: string }, ctx, view) => {
+        const updated = updateAdr(ctx, view, a.id, a.patch, {
+          expectedRevision: a.base_revision,
+          note: a.rationale,
+          origin: 'agent',
+          today: opts.today?.(),
+        });
+        return ok({ id: updated.meta.id, path: updated.path, pending: true });
+      },
+    ),
   );
 }

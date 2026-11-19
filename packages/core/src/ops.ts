@@ -7,7 +7,7 @@ import { AdrienError } from './errors.ts';
 import { bodyTemplate } from './frontmatter.ts';
 import { formatId, nextIdNumber } from './ids.ts';
 import { type LockOptions, withAdrLocks } from './lock.ts';
-import { adrFilePath, readWorkingLog, reserveId, writeAdr } from './log.ts';
+import { adrFilePath, readWorkingLog, reserveId, revisionOf, writeAdr } from './log.ts';
 import type { Adr, AdrMeta, Origin, TemplateName } from './model.ts';
 import { slugify } from './slug.ts';
 import { type LogView, workingAdrs } from './view.ts';
@@ -36,6 +36,28 @@ export type AdrPatch = Partial<
 
 export interface OpOptions {
   today?: string;
+  /**
+   * The revision of the ADR the caller read (see `revisionOfAdr`). When it is given and the ADR has changed since, the
+   * change is refused with ADR_CONFLICT instead of being applied on top of a version the caller never saw.
+   */
+  expectedRevision?: string;
+}
+
+/** The revision of an ADR as it is in the working copy, or null when it is not there or its id is used by several files. */
+export function revisionOfAdr(ctx: Context, id: string): string | null {
+  const matches = readWorkingLog(ctx.logRoot, ctx.config).adrs.filter((a) => a.meta.id === id);
+  return matches.length === 1 ? revisionOf(ctx.logRoot, (matches[0] as Adr).path) : null;
+}
+
+/** Like a push after the base moved: a change based on an older version is refused, so the caller reads and redoes it. */
+function assertFresh(ctx: Context, adr: Adr, expected: string | undefined): void {
+  if (expected === undefined) return;
+  const current = revisionOf(ctx.logRoot, adr.path);
+  if (current === expected) return;
+  throw new AdrienError(
+    'ADR_CONFLICT',
+    `${adr.meta.id} changed since you read it (you based your change on revision ${expected}, it is now ${current}). Read it again, redo your change on the latest version, and retry.`,
+  );
 }
 
 const todayOf = (opts?: OpOptions) => opts?.today ?? new Date().toISOString().slice(0, 10);
@@ -191,6 +213,7 @@ export function updateAdr(
   validateInput(ctx, patch);
   return locked(ctx, [id], () => {
     const adr = findAdr(ctx, id);
+    assertFresh(ctx, adr, opts?.expectedRevision);
     const { body, ...metaPatch } = patch;
     let nextBody = body ?? adr.body;
     if (opts?.note) {
@@ -212,6 +235,7 @@ export function acceptAdr(ctx: Context, _view: LogView, id: string, opts?: OpOpt
   assertWritable(ctx);
   return locked(ctx, [id], () => {
     const adr = findAdr(ctx, id);
+    assertFresh(ctx, adr, opts?.expectedRevision);
     if (!adr.meta.review_rule?.trim()) {
       throw new AdrienError('INVALID_INPUT', `${id} needs a review_rule before it can be accepted`);
     }
@@ -224,12 +248,17 @@ export function setStatus(
   _view: LogView,
   id: string,
   status: 'proposed' | 'rejected' | 'deprecated',
+  opts?: OpOptions,
 ): Adr {
   assertWritable(ctx);
   if (!['proposed', 'rejected', 'deprecated'].includes(status)) {
     throw new AdrienError('INVALID_INPUT', `Use \`adrien accept\` or \`adrien supersede\` to set "${status}"`);
   }
-  return locked(ctx, [id], () => write(ctx, findAdr(ctx, id), { status }));
+  return locked(ctx, [id], () => {
+    const adr = findAdr(ctx, id);
+    assertFresh(ctx, adr, opts?.expectedRevision);
+    return write(ctx, adr, { status });
+  });
 }
 
 export function supersede(ctx: Context, _view: LogView, oldId: string, newId: string): { old: Adr; replacement: Adr } {

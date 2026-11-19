@@ -8,7 +8,7 @@ import { type Context, resolveContext } from '../src/context.ts';
 import { BODY_TEMPLATE } from '../src/frontmatter.ts';
 import { fetchOrigin } from '../src/git.ts';
 import { readWorkingLog } from '../src/log.ts';
-import { acceptAdr, createAdr, renumber, setStatus, supersede, updateAdr } from '../src/ops.ts';
+import { acceptAdr, createAdr, renumber, revisionOfAdr, setStatus, supersede, updateAdr } from '../src/ops.ts';
 import { type LogView, loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { commitAll, git, initRepo } from './helpers/git.ts';
@@ -345,5 +345,90 @@ describe('one writer per ADR', () => {
     expect(updateAdr(ctx, view, 'ADR-0001', { title: 'Works' }).meta.title).toBe('Works');
     const zero = await load(root, { ADRIEN_LOCK_TIMEOUT_MS: '-5' });
     expect(updateAdr(zero.ctx, zero.view, 'ADR-0001', { title: 'Still works' }).meta.title).toBe('Still works');
+  });
+});
+
+describe('a change based on a stale read is refused, like a push after the base moved', () => {
+  const ready = (id: string) => adrText({ id, title: `T ${id}`, review_rule: 'A rule.' });
+  const REVISION = /^[0-9a-f]{12}$/;
+
+  async function setup() {
+    const root = makeLog({ 'docs/adr/ADR-0001-a.md': ready('ADR-0001') });
+    const { ctx, view } = await load(root);
+    return { root, ctx, view, file: join(root, 'docs/adr/ADR-0001-a.md') };
+  }
+
+  test('revisionOfAdr is a short hash of the file that changes with its content and not otherwise', async () => {
+    const { ctx, view, file } = await setup();
+    const first = revisionOfAdr(ctx, 'ADR-0001');
+    expect(first).toMatch(REVISION);
+    expect(revisionOfAdr(ctx, 'ADR-0001')).toBe(first);
+    updateAdr(ctx, view, 'ADR-0001', { title: 'Another title' });
+    expect(revisionOfAdr(ctx, 'ADR-0001')).not.toBe(first);
+    writeFileSync(file, `${readFileSync(file, 'utf8')}\nedited by hand\n`);
+    expect(revisionOfAdr(ctx, 'ADR-0001')).toMatch(REVISION);
+  });
+
+  test('revisionOfAdr is null for an ADR that is not in the working copy, or whose id is used twice', async () => {
+    const root = makeLog({
+      'docs/adr/ADR-0001-a.md': ready('ADR-0001'),
+      'docs/adr/ADR-0002-b.md': ready('ADR-0002'),
+      'docs/adr/ADR-0002-dup.md': ready('ADR-0002'),
+    });
+    const { ctx } = await load(root);
+    expect(revisionOfAdr(ctx, 'ADR-0099')).toBeNull();
+    expect(revisionOfAdr(ctx, 'ADR-0002')).toBeNull();
+    expect(revisionOfAdr(ctx, 'ADR-0001')).toMatch(REVISION);
+  });
+
+  test('a change on the revision that was read goes through, and moves the revision on', async () => {
+    const { ctx, view } = await setup();
+    const read = revisionOfAdr(ctx, 'ADR-0001') as string;
+    updateAdr(ctx, view, 'ADR-0001', { title: 'Mine' }, { expectedRevision: read });
+    expect(revisionOfAdr(ctx, 'ADR-0001')).not.toBe(read);
+  });
+
+  test.each([
+    [
+      'updateAdr',
+      (c: Context, v: LogView, r: string) => updateAdr(c, v, 'ADR-0001', { title: 'Mine' }, { expectedRevision: r }),
+    ],
+    [
+      'acceptAdr',
+      (c: Context, v: LogView, r: string) => acceptAdr(c, v, 'ADR-0001', { today: TODAY, expectedRevision: r }),
+    ],
+    [
+      'setStatus',
+      (c: Context, v: LogView, r: string) => setStatus(c, v, 'ADR-0001', 'rejected', { expectedRevision: r }),
+    ],
+  ])('%s fails with ADR_CONFLICT when the ADR changed since it was read, and writes nothing', async (_name, run) => {
+    const { ctx, view, file } = await setup();
+    const read = revisionOfAdr(ctx, 'ADR-0001') as string;
+    // Someone else changes the same ADR by another means, right after we read it.
+    updateAdr(ctx, view, 'ADR-0001', { title: 'Theirs' });
+    const theirs = readFileSync(file, 'utf8');
+    const now = revisionOfAdr(ctx, 'ADR-0001');
+    expect(() => run(ctx, view, read)).toThrow(
+      expect.objectContaining({
+        code: 'ADR_CONFLICT',
+        message: expect.stringContaining(`you based your change on revision ${read}, it is now ${now}`),
+      }),
+    );
+    expect(readFileSync(file, 'utf8')).toBe(theirs);
+  });
+
+  test('a conflict says what to do, and releases the lock', async () => {
+    const { root, ctx, view } = await setup();
+    updateAdr(ctx, view, 'ADR-0001', { title: 'Theirs' });
+    expect(() => updateAdr(ctx, view, 'ADR-0001', { title: 'Mine' }, { expectedRevision: '000000000000' })).toThrow(
+      /Read it again, redo your change on the latest version, and retry/,
+    );
+    expect(readdirSync(join(root, '.adrien', 'locks'))).toEqual([]);
+  });
+
+  test('without an expected revision a change applies to the latest version, as before', async () => {
+    const { ctx, view } = await setup();
+    updateAdr(ctx, view, 'ADR-0001', { title: 'First' });
+    expect(updateAdr(ctx, view, 'ADR-0001', { title: 'Second' }).meta.title).toBe('Second');
   });
 });

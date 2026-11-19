@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import type { LogConfig } from './config.ts';
@@ -116,4 +117,10 @@ export function reserveId(logRoot: string, start: number): { number: number; rel
     const marker = join(dir, `create-${number}.lock`);
     if (tryWriteFile(marker, '', 'wx')) return { number, release: () => unlinkSync(marker) };
   }
+}
+
+/** A short hash of an ADR file as it is on disk, so a change can say which version it was based on, as a commit does. */
+export function revisionOf(logRoot: string, adrPath: string): string {
+  const text = readFileSync(join(logRoot, ...adrPath.split('/')));
+  return createHash('sha256').update(text).digest('hex').slice(0, 12);
 }

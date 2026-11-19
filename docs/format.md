@@ -179,13 +179,20 @@ The CLI, an MCP server and an editor can all touch the same log at once. Adrien 
 changes an ADR (`accept`, `status`, `supersede`, `renumber`, and the changes an agent proposes) first takes that ADR's
 lock, a small file under `.adrien/locks/` that git ignores, and holds it for the read, the change and the write. A second
 process waits for it, up to 5 seconds (set `ADRIEN_LOCK_TIMEOUT_MS` to change that), and then fails with `ADR_LOCKED`,
-naming the ADR and the holder. Nothing is written in that case, so it is safe to try again.
+naming the ADR and the holder. Nothing is written in that case, so it is safe to try again. The lock protects each
+change; the revision, below, protects a change that was planned on an older read.
 
 - `supersede` locks both ADRs, and `renumber` locks every ADR in the log, since it can rewrite the ones that refer to the
   one it moves. Locks are always taken in the same order, so two commands cannot wait on each other.
 - A lock whose process is gone (on this machine), or that has been held for 30 seconds, is taken over, so a crashed command
   never leaves an ADR stuck. Locks live in the working copy: a log is changed in one checkout at a time, and the merge
   request is where two checkouts meet.
+- **A change made on an old read is refused, like a rejected push.** Every read of an ADR gives its `revision`, a short
+  hash of the file (`adrien show <id> --json`, and the MCP tool `adr_get`). A change that names that revision is applied
+  only if the ADR still has it: `--expect <revision>` on `accept` and `status`, and `base_revision` on the MCP tool
+  `adr_propose_change`, which requires it. If someone changed the ADR in between, whether another agent, the CLI or an
+  editor, the change fails with `ADR_CONFLICT` and writes nothing. Read the ADR again, redo the change on the latest
+  version, and retry. Without a revision, a command applies to the latest version.
 - Creating an ADR needs no lock on an existing one: new ids are reserved with their own marker, so two processes never
   create the same id.
 
