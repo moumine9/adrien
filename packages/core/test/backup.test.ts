@@ -647,6 +647,9 @@ test('the pre-restore backup holds every existing file the restore overwrites, e
   expect(readFileSync(join(backupDirOf(root, result.preRestore), 'files', 'docs', 'guide.md'), 'utf8')).toBe(
     'edited since',
   );
+  // The undo works: restoring the pre-restore backup brings the edit back.
+  restoreBackup(root, null, result.preRestore, VERSION);
+  expect(read(root, 'docs/guide.md')).toBe('edited since');
 });
 
 test('an ADR directory written with a trailing slash backs up and restores', () => {
@@ -660,4 +663,14 @@ test('an ADR directory written with a trailing slash backs up and restores', () 
   writeFileSync(join(root, 'docs/adr/ADR-0001-storage.md'), 'damaged');
   restoreBackup(root, config, made.id, VERSION);
   expect(read(root, 'docs/adr/ADR-0001-storage.md')).toContain('Storage');
+});
+
+test('a manifest that lists an unusable extra ADR directory is refused before any write', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  const manifestFile = join(made.path, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  manifest.adrDirs = ['.adrien/backups'];
+  writeFileSync(manifestFile, JSON.stringify(manifest));
+  expect(() => restoreBackup(root, loadLogConfig(root), made.id, VERSION)).toThrow(/holds the backups/);
 });

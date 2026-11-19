@@ -90,6 +90,8 @@ const manifestSchema = z.object({
   files: z.array(z.object({ path: z.string().refine(safeRelPath), sha256: z.string() })),
   // Informational only: these names are shown, never used as paths, so they need not be plain.
   skipped: z.array(z.string()).default([]),
+  /** The ADR directories this backup covers when more than the one in its own config (a pre-restore of another layout). */
+  adrDirs: z.array(z.string()).default([]),
 });
 type Manifest = z.infer<typeof manifestSchema>;
 
@@ -179,8 +181,8 @@ function logPath(root: string, rel: string): string {
  * A restore writes only the config and paths under the ADR directory. `rel` has already passed `safeRelPath` (manifests
  * are validated when read), so the prefix test on its text is exact.
  */
-function restoreTarget(root: string, config: LogConfig, rel: string): string {
-  if (rel !== CONFIG_FILE && !rel.startsWith(`${adrRelOf(config)}/`)) {
+function restoreTarget(root: string, scopes: string[], rel: string): string {
+  if (rel !== CONFIG_FILE && !scopes.some((dir) => rel.startsWith(`${dir}/`))) {
     throw new AdrienError(
       'INVALID_INPUT',
       `The backup lists ${rel}, which a restore never writes (only the ADR directory and ${CONFIG_FILE}).`,
@@ -326,6 +328,7 @@ function snapshot(
       reason: slug,
       files: entries,
       skipped,
+      adrDirs: [...new Set([adrRelOf(config), ...(also ? [adrRelOf(also)] : [])])],
     };
     writeAtomic(join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
   } catch (e) {
@@ -460,8 +463,14 @@ export function restoreBackup(
   // Where the ADRs go is what the backup says, checked like every other file; the live config may be gone or have moved.
   const backed = backedUpConfig(dir, manifest, config, id);
   const live = config ?? backed;
+  // Every directory the backup covers: its config's, and any a pre-restore snapshot recorded. Each must be usable.
+  const scopes = [...new Set([adrRelOf(backed), ...manifest.adrDirs.map((d) => adrRelOf({ ...backed, adr_dir: d }))])];
+  for (const dir of scopes) {
+    const problem = adrDirProblem({ ...backed, adr_dir: dir });
+    if (problem) throw new AdrienError('INVALID_INPUT', problem);
+  }
   const staged = manifest.files.map(({ path, sha256: expected }) => {
-    const target = restoreTarget(root, backed, path);
+    const target = restoreTarget(root, scopes, path);
     const bytes = readFileSync(join(dir, FILES, ...path.split('/')));
     if (sha256(bytes) !== expected) {
       throw new AdrienError(
