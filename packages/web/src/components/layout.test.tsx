@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react';
+import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderApp } from '@/test/render.tsx';
 
@@ -24,6 +24,25 @@ describe('Brand', () => {
     expect(mark).toHaveAttribute('aria-hidden', 'true');
     // The strokes follow the border colour, so the mark stays visible in the dark theme.
     expect(mark?.querySelector('g')).toHaveAttribute('stroke', 'var(--border)');
+  });
+});
+
+describe('Settings link', () => {
+  it('is the last entry of the main navigation, with a gear icon beside its label', async () => {
+    renderApp('/');
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    const links = within(nav).getAllByRole('link');
+    const settings = links.at(-1);
+    expect(settings).toHaveTextContent('Settings');
+    expect(settings).toHaveAttribute('href', '/settings');
+    expect(settings?.querySelector('svg')).toHaveClass('opacity-70');
+  });
+
+  it('opens the settings page', async () => {
+    const { user } = renderApp('/');
+    await user.click(await screen.findByRole('link', { name: 'Settings' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Settings' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
   });
 });
 

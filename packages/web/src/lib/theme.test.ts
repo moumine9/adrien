@@ -1,4 +1,5 @@
-import { applyTheme, initialTheme, storeTheme, THEME_KEY } from './theme.ts';
+import { getSettings, SETTINGS_KEY, updateSettings } from './settings.ts';
+import { applyTheme, initialTheme, resolveTheme, storeTheme } from './theme.ts';
 
 function mockMatchMedia(dark: boolean) {
   vi.stubGlobal('matchMedia', (query: string) => ({
@@ -26,14 +27,29 @@ describe('theme', () => {
   it('prefers the stored choice', () => {
     mockMatchMedia(true);
     storeTheme('light');
-    expect(localStorage.getItem(THEME_KEY)).toBe('light');
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}')).toMatchObject({ theme: 'light' });
+    expect(initialTheme()).toBe('light');
+  });
+
+  it('stores the choice in the settings, where the Settings page reads it', () => {
+    storeTheme('dark');
+    expect(getSettings().theme).toBe('dark');
+    updateSettings({ theme: 'system' });
+    mockMatchMedia(false);
     expect(initialTheme()).toBe('light');
   });
 
   it('ignores a corrupt stored value', () => {
     mockMatchMedia(false);
-    localStorage.setItem(THEME_KEY, 'neon');
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'neon' }));
     expect(initialTheme()).toBe('light');
+  });
+
+  it('resolves the system setting against the system preference', () => {
+    expect(resolveTheme('system', true)).toBe('dark');
+    expect(resolveTheme('system', false)).toBe('light');
+    expect(resolveTheme('light', true)).toBe('light');
+    expect(resolveTheme('dark', false)).toBe('dark');
   });
 
   it('applies the theme as a class on <html>', () => {

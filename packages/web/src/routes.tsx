@@ -10,6 +10,7 @@ import { NotFoundView } from './views/not-found-view.tsx';
 // The detail (Markdown) and graph (d3-force) views load on demand, keeping the first page light.
 const DecisionView = lazy(() => import('./views/decision-view.tsx').then((m) => ({ default: m.DecisionView })));
 const GraphView = lazy(() => import('./views/graph-view.tsx').then((m) => ({ default: m.GraphView })));
+const SettingsView = lazy(() => import('./views/settings-view.tsx').then((m) => ({ default: m.SettingsView })));
 
 export function AppRoutes() {
   return (
@@ -21,6 +22,7 @@ export function AppRoutes() {
         <Route path="graph" element={<GraphView />} />
         <Route path="files" element={<FilesView />} />
         <Route path="check" element={<HealthView />} />
+        <Route path="settings" element={<SettingsView />} />
         <Route path="*" element={<NotFoundView />} />
       </Route>
     </Routes>

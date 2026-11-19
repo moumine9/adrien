@@ -1,63 +1,58 @@
 import { useCallback, useEffect, useState } from 'react';
+import { getSettings, type ThemeSetting, updateSettings, useSettings } from './settings.ts';
 
+/** The theme in use. The stored setting may also be `system`, which resolves to one of these. */
 export type Theme = 'light' | 'dark';
-
-export const THEME_KEY = 'adrien-theme';
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 
-function readStored(): Theme | null {
-  try {
-    const v = localStorage.getItem(THEME_KEY);
-    return v === 'light' || v === 'dark' ? v : null;
-  } catch {
-    return null;
-  }
+function systemPrefersDark(): boolean {
+  return typeof matchMedia === 'function' && matchMedia(DARK_QUERY).matches;
 }
 
+/** The theme a setting means: `system` follows the system preference. */
+export function resolveTheme(setting: ThemeSetting, systemDark: boolean): Theme {
+  if (setting === 'system') return systemDark ? 'dark' : 'light';
+  return setting;
+}
+
+/** Remembers an explicit light or dark choice in the shared settings. */
 export function storeTheme(theme: Theme): void {
-  try {
-    localStorage.setItem(THEME_KEY, theme);
-  } catch {
-    // Storage can be unavailable (private mode, blocked site data); the choice then lasts for the page only.
-  }
+  updateSettings({ theme });
 }
 
-function systemTheme(): Theme {
-  return typeof matchMedia === 'function' && matchMedia(DARK_QUERY).matches ? 'dark' : 'light';
-}
-
-/** The stored choice, else the system preference. */
+/** The theme from the stored setting, else the system preference. */
 export function initialTheme(): Theme {
-  return readStored() ?? systemTheme();
+  return resolveTheme(getSettings().theme, systemPrefersDark());
 }
 
 export function applyTheme(theme: Theme): void {
   document.documentElement.classList.toggle('dark', theme === 'dark');
 }
 
-/** The current theme and a setter that remembers the choice. Follows the system until the user picks one. */
+/**
+ * The resolved theme and a setter that remembers the choice. The header toggle and the Settings page both read
+ * and write the `theme` setting, so they cannot disagree.
+ */
 export function useTheme(): [Theme, (theme: Theme) => void] {
-  const [theme, setThemeState] = useState<Theme>(initialTheme);
+  const [settings, update] = useSettings();
+  const [systemDark, setSystemDark] = useState(systemPrefersDark);
+
+  useEffect(() => {
+    if (typeof matchMedia !== 'function') return;
+    const media = matchMedia(DARK_QUERY);
+    const onChange = () => setSystemDark(media.matches);
+    media.addEventListener?.('change', onChange);
+    return () => media.removeEventListener?.('change', onChange);
+  }, []);
+
+  const theme = resolveTheme(settings.theme, systemDark);
 
   useEffect(() => {
     applyTheme(theme);
   }, [theme]);
 
-  useEffect(() => {
-    if (typeof matchMedia !== 'function') return;
-    const media = matchMedia(DARK_QUERY);
-    const onChange = () => {
-      if (!readStored()) setThemeState(systemTheme());
-    };
-    media.addEventListener?.('change', onChange);
-    return () => media.removeEventListener?.('change', onChange);
-  }, []);
-
-  const setTheme = useCallback((next: Theme) => {
-    storeTheme(next);
-    setThemeState(next);
-  }, []);
+  const setTheme = useCallback((next: Theme) => update({ theme: next }), [update]);
 
   return [theme, setTheme];
 }

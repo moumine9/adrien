@@ -6,6 +6,7 @@ import {
   HeartPulse,
   ListChecks,
   Moon,
+  Settings,
   Sun,
   TriangleAlert,
   Waypoints,
@@ -27,6 +28,7 @@ const NAV = [
   { to: '/graph', label: 'Graph', icon: Waypoints, end: false },
   { to: '/files', label: 'Files', icon: FolderTree, end: false },
   { to: '/check', label: 'Health', icon: HeartPulse, end: false },
+  { to: '/settings', label: 'Settings', icon: Settings, end: false },
 ] as const;
 
 function ThemeToggle() {
