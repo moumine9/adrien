@@ -1,5 +1,6 @@
-import { mkdirSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DOC_PAGES, renderDocs } from '../../../scripts/site/docs.mjs';
 import { tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 
@@ -37,10 +38,10 @@ const REPO = {
   'docs/releasing.md': '# Releasing\n\nTag a version.\n',
 };
 
-/** Renders the fixture repository into a fresh output folder and returns the folder. */
-function render(): string {
+/** Renders the fixture repository into a fresh output folder and returns the folder. `extra` adds or replaces files. */
+function render(extra: Record<string, string> = {}): string {
   const root = tmpDir();
-  writeFiles(root, REPO);
+  writeFiles(root, { ...REPO, ...extra });
   mkdirSync(join(root, 'docs', 'decisions'), { recursive: true });
   const out = join(tmpDir(), 'docs');
   renderDocs({ sourceRoot: root, outDir: out });
@@ -100,4 +101,70 @@ test('headings carry ids, so anchors resolve', () => {
   const out = render();
   expect(read(out, 'format.html')).toContain('<h2 id="anchors">Anchors</h2>');
   expect(read(out, 'api.html')).toContain('<h2 id="endpoints">Endpoints</h2>');
+});
+
+test('every source in DOC_PAGES exists in the repository and renders to a page with a title', () => {
+  const repo = fileURLToPath(new URL('../../../', import.meta.url));
+  const missing = DOC_PAGES.filter((page) => !existsSync(join(repo, page.source))).map((page) => page.source);
+  expect(missing).toEqual([]);
+  const out = join(tmpDir(), 'docs');
+  renderDocs({ sourceRoot: repo, outDir: out });
+  for (const page of DOC_PAGES) {
+    expect(read(out, page.out)).toMatch(/<title>[^<]+<\/title>/);
+  }
+});
+
+// Links and images with schemes that run code, in every form Markdown has: inline, reference and autolink.
+const HOSTILE_DOC = [
+  '# Releasing',
+  '',
+  'Plain: [click](javascript:alert(1)), [data](data:text/html;base64,PGgxPmhpPC9oMT4=) and [vb](vbscript:msgbox(1)).',
+  'Case and entities: [mixed](JaVaScRiPt:alert(2)) and [encoded](java&#115;cript:alert(3)).',
+  'Images: ![pic](javascript:alert(4)), ![doc](data:text/html;base64,PHNjcmlwdD4=) and ![vb](vbscript:msgbox(5)).',
+  'Autolink: <javascript:alert(6)>.',
+  'Reference: [ref link][r1], [ref data][r2], [ref vb][r3] and ![ref pic][r4].',
+  'Positive control: [ok](https://example.com/ok) and ![ok image](https://example.com/ok.png).',
+  '',
+  '[r1]: javascript:alert(7)',
+  '[r2]: data:text/html;base64,PHNjcmlwdD4=',
+  '[r3]: vbscript:msgbox(8)',
+  '[r4]: javascript:alert(9)',
+  '',
+].join('\n');
+
+test('javascript:, data:text/html and vbscript: links and images never become href or src', () => {
+  const page = read(render({ 'docs/releasing.md': HOSTILE_DOC }), 'releasing.html');
+  // The safe links of the same page do render, so the check below cannot pass by rendering nothing.
+  expect(page).toContain('href="https://example.com/ok"');
+  expect(page).toContain('src="https://example.com/ok.png"');
+  // Every href and src is a fragment, an http(s) URL or a relative path: no other scheme.
+  const urls = [...page.matchAll(/\s(?:href|src)="([^"]*)"/g)].map((match) => match[1] ?? '');
+  for (const url of urls) {
+    expect(url).toMatch(/^(?:#|https?:\/\/|[^:]*$)/);
+  }
+});
+
+// A lone <img> line is dropped outside code. Inside a fence (also one nested in a list) it is code, so it stays.
+const FENCE_DOC = [
+  '# Releasing',
+  '',
+  '<img src="outside.png" alt="Outside" width="64">',
+  '',
+  '```html',
+  '<img src="inside.png" alt="Inside" width="64">',
+  '```',
+  '',
+  '- A list item with a fence:',
+  '',
+  '  ```html',
+  '  <img src="nested.png" alt="Nested">',
+  '  ```',
+  '',
+].join('\n');
+
+test('a lone <img> line inside a code block stays as code, and the same line outside one is removed', () => {
+  const page = read(render({ 'docs/releasing.md': FENCE_DOC }), 'releasing.html');
+  expect(page).toContain('&lt;img src=&quot;inside.png&quot; alt=&quot;Inside&quot; width=&quot;64&quot;&gt;');
+  expect(page).toContain('&lt;img src=&quot;nested.png&quot; alt=&quot;Nested&quot;&gt;');
+  expect(page).not.toContain('outside.png');
 });
