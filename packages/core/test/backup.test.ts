@@ -13,7 +13,7 @@ import {
 import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach } from 'vitest';
-import { BACKUP_KEEP, createBackup, listBackups, restoreBackup, verifyBackup } from '../src/backup.ts';
+import { BACKUP_KEEP, createBackup, findBackupRoot, listBackups, restoreBackup, verifyBackup } from '../src/backup.ts';
 import { CONFIG_FILE, loadLogConfig } from '../src/config.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { git, initRepo } from './helpers/git.ts';
@@ -519,4 +519,115 @@ test.each([
   expect(listBackups(root)).toContainEqual({ id: made.id, status: 'damaged' });
   expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow('damaged');
   expect(read(root, 'docs/adr/ADR-0001-storage.md')).toBe(adrText({ id: 'ADR-0001', title: 'Storage' }));
+});
+
+test('a restore validates the backed-up files against the backed-up ADR directory, even when the live config moved it', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'before', VERSION);
+  // The live config now points elsewhere; the backup still holds docs/adr and the config that says so.
+  writeFileSync(join(root, CONFIG_FILE), configYaml({ adr_dir: 'decisions' }));
+  rmSync(join(root, 'docs'), { recursive: true });
+
+  const result = restoreBackup(root, loadLogConfig(root), made.id, VERSION);
+
+  expect(read(root, CONFIG_FILE)).toBe(configYaml());
+  expect(existsSync(join(root, 'docs/adr/ADR-0001-storage.md'))).toBe(true);
+  expect(result.restored.sort()).toEqual([CONFIG_FILE, 'docs/adr/ADR-0001-storage.md']);
+});
+
+test('a restore with no live config reads the ADR directory from the backed-up config', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'before', VERSION);
+  rmSync(join(root, CONFIG_FILE));
+  rmSync(join(root, 'docs'), { recursive: true });
+
+  const result = restoreBackup(root, null, made.id, VERSION);
+
+  expect(read(root, CONFIG_FILE)).toBe(configYaml());
+  expect(existsSync(join(root, 'docs/adr/ADR-0001-storage.md'))).toBe(true);
+  expect(result.leftover).toEqual([]);
+  expect(listBackups(root).some((b) => b.id === result.preRestore)).toBe(true);
+});
+
+test('a restore with no live config and no config in the backup is refused', () => {
+  const root = logRoot();
+  const config = loadLogConfig(root);
+  rmSync(join(root, CONFIG_FILE));
+  const made = createBackup(root, config, 'noconfig', VERSION);
+  expect(() => restoreBackup(root, null, made.id, VERSION)).toThrow(/usable configuration/i);
+});
+
+test('a backed-up config whose ADR directory cannot be used is refused before any write', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  const evil = configYaml({ adr_dir: '.adrien/backups' });
+  const bytes = Buffer.from(evil);
+  const file = join(made.path, 'files', CONFIG_FILE);
+  writeFileSync(file, bytes);
+  const manifestFile = join(made.path, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  for (const f of manifest.files) {
+    if (f.path === CONFIG_FILE) f.sha256 = createHash('sha256').update(bytes).digest('hex');
+  }
+  writeFileSync(manifestFile, JSON.stringify(manifest));
+  expect(() => restoreBackup(root, loadLogConfig(root), made.id, VERSION)).toThrow(/holds the backups/);
+});
+
+test('a nested checkout or a name the manifest cannot hold is skipped, and the backup stays readable and restorable', () => {
+  const root = logRoot();
+  writeFiles(root, { 'docs/adr/sub/.git/config': 'nested', 'docs/adr/sub/ADR-0002-x.md': 'x' });
+  const made = createBackup(root, loadLogConfig(root), 'nested', VERSION);
+  expect(made.skipped).toContain('docs/adr/sub/.git');
+  expect(listBackups(root).find((b) => b.id === made.id)).toMatchObject({ status: 'ok' });
+  expect(() => restoreBackup(root, loadLogConfig(root), made.id, VERSION)).not.toThrow();
+});
+
+test.skipIf(!POSIX)('a file whose name holds a backslash is skipped on POSIX instead of poisoning the backup', () => {
+  const root = logRoot();
+  writeFileSync(join(root, 'docs/adr/odd\\name.md'), 'x');
+  const made = createBackup(root, loadLogConfig(root), 'odd', VERSION);
+  expect(made.skipped).toContain('docs/adr/odd\\name.md');
+  expect(made.fileCount).toBe(2);
+  expect(listBackups(root).find((b) => b.id === made.id)).toMatchObject({ status: 'ok' });
+});
+
+test('findBackupRoot takes the folder --log names, never a remote, else the nearest folder holding backups', () => {
+  const root = logRoot();
+  createBackup(root, loadLogConfig(root), 'x', VERSION);
+  mkdirSync(join(root, 'docs', 'deep'), { recursive: true });
+  expect(findBackupRoot(join(root, 'docs', 'deep'))).toBe(root);
+  expect(findBackupRoot(tmpDir(), root)).toBe(root);
+  expect(findBackupRoot(root, 'https://example.com/acme/log.git')).toBeNull();
+  expect(findBackupRoot(tmpDir())).toBeNull();
+});
+
+test('a backed-up config that no longer matches its manifest is damaged, and nothing is restored', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  writeFileSync(join(made.path, 'files', CONFIG_FILE), 'tampered');
+  writeFileSync(join(root, 'docs/adr/ADR-0001-storage.md'), 'changed since');
+  expect(() => restoreBackup(root, loadLogConfig(root), made.id, VERSION)).toThrow(/damaged.*Nothing was restored/);
+  expect(read(root, 'docs/adr/ADR-0001-storage.md')).toBe('changed since');
+});
+
+test('a backed-up config that cannot be read falls back to the live one for where the ADRs go', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  const bytes = Buffer.from('product: [broken');
+  writeFileSync(join(made.path, 'files', CONFIG_FILE), bytes);
+  const manifestFile = join(made.path, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  for (const f of manifest.files) {
+    if (f.path === CONFIG_FILE) f.sha256 = createHash('sha256').update(bytes).digest('hex');
+  }
+  writeFileSync(manifestFile, JSON.stringify(manifest));
+  writeFileSync(join(root, 'docs/adr/ADR-0001-storage.md'), 'changed since');
+  restoreBackup(root, loadLogConfig(root), made.id, VERSION);
+  expect(read(root, 'docs/adr/ADR-0001-storage.md')).toContain('Storage');
+});
+
+test('an ADR directory with a name a backup cannot hold is refused', () => {
+  const root = logRoot();
+  const config = { ...loadLogConfig(root), adr_dir: 'docs/.git/adr' };
+  expect(() => createBackup(root, config, 'x', VERSION)).toThrow(/a name a backup cannot hold/);
 });

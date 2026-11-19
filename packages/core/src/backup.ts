@@ -9,12 +9,14 @@ import {
   rmSync,
   writeFileSync,
 } from 'node:fs';
-import { dirname, join, posix } from 'node:path';
+import { dirname, join, posix, resolve } from 'node:path';
 import { z } from 'zod';
-import { CONFIG_FILE, type LogConfig, loadLogConfig } from './config.ts';
+import { CONFIG_FILE, findUp, type LogConfig, loadLogConfig, parseLogConfigText } from './config.ts';
 import { AdrienError } from './errors.ts';
 import { type LockOptions, withAdrLocks } from './lock.ts';
 import { assertInsideLog, parseLogFiles, toPosix } from './log.ts';
+import { canonicalPath } from './paths.ts';
+import { isGitUrl } from './repo-url.ts';
 import { slugify } from './slug.ts';
 
 /** How many backups a log keeps; the oldest are deleted once a new one is made. */
@@ -86,7 +88,8 @@ const manifestSchema = z.object({
   adrienVersion: z.string(),
   reason: z.string(),
   files: z.array(z.object({ path: z.string().refine(safeRelPath), sha256: z.string() })),
-  skipped: z.array(z.string().refine(safeRelPath)).default([]),
+  // Informational only: these names are shown, never used as paths, so they need not be plain.
+  skipped: z.array(z.string()).default([]),
 });
 type Manifest = z.infer<typeof manifestSchema>;
 
@@ -161,6 +164,7 @@ export function adrDirProblem(config: LogConfig): string | null {
   if (rel === '.adrien' || rel.startsWith('.adrien/')) {
     return `The ADR directory ${config.adr_dir} holds the backups. Choose another one.`;
   }
+  if (!safeRelPath(rel)) return `The ADR directory ${config.adr_dir} has a name a backup cannot hold.`;
   return null;
 }
 
@@ -190,6 +194,11 @@ function walk(dir: string, rel: string, files: string[], skipped: string[]): voi
   for (const name of readdirSync(dir)) {
     const full = join(dir, name);
     const childRel = posix.join(rel, name);
+    // A name the manifest could not hold (a nested `.git`, a backslash) would make the whole backup unreadable.
+    if (!safeRelPath(childRel)) {
+      skipped.push(childRel);
+      continue;
+    }
     const st = lstatSync(full);
     if (st.isDirectory()) walk(full, childRel, files, skipped);
     else if (st.isFile()) files.push(childRel);
@@ -391,6 +400,39 @@ export function verifyBackup(root: string, id: string): BackupVerification {
 }
 
 /**
+ * The config a restore works to: the one the backup holds (after its checksum), else the live one. A backed-up config that
+ * cannot be read falls back to the live one, and a restore with neither is refused. Its ADR directory must be usable.
+ */
+function backedUpConfig(dir: string, manifest: Manifest, live: LogConfig | null, id: string): LogConfig {
+  const entry = manifest.files.find((f) => f.path === CONFIG_FILE);
+  let found: LogConfig | null = null;
+  if (entry) {
+    const bytes = readFileSync(join(dir, FILES, CONFIG_FILE));
+    if (sha256(bytes) !== entry.sha256) {
+      throw new AdrienError(
+        'INVALID_INPUT',
+        `Backup ${id} is damaged: ${CONFIG_FILE} no longer matches its manifest. Nothing was restored.`,
+      );
+    }
+    try {
+      found = parseLogConfigText(bytes.toString('utf8'), `${id}/${CONFIG_FILE}`);
+    } catch {
+      found = null;
+    }
+  }
+  const config = found ?? live;
+  if (!config) {
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `Neither the log nor backup ${id} holds a usable configuration (${CONFIG_FILE}), so a restore cannot tell where the ADRs go.`,
+    );
+  }
+  const problem = adrDirProblem(config);
+  if (problem) throw new AdrienError('INVALID_INPUT', problem);
+  return config;
+}
+
+/**
  * Puts the decision files of a backup back. Every file is checked against its manifest before anything is written.
  * The state being replaced is backed up (`pre-restore`) and the restore writes under the same locks as that backup,
  * so nothing can change between the snapshot and the writes. Files the backup does not hold are reported as `leftover`
@@ -398,15 +440,18 @@ export function verifyBackup(root: string, id: string): BackupVerification {
  */
 export function restoreBackup(
   root: string,
-  config: LogConfig,
+  config: LogConfig | null,
   id: string,
   adrienVersion: string,
   env: NodeJS.ProcessEnv = process.env,
 ): RestoreResult {
   refuseLinkedBackups(root);
   const { dir, manifest } = openBackup(root, id);
+  // Where the ADRs go is what the backup says, checked like every other file; the live config may be gone or have moved.
+  const backed = backedUpConfig(dir, manifest, config, id);
+  const live = config ?? backed;
   const staged = manifest.files.map(({ path, sha256: expected }) => {
-    const target = restoreTarget(root, config, path);
+    const target = restoreTarget(root, backed, path);
     const bytes = readFileSync(join(dir, FILES, ...path.split('/')));
     if (sha256(bytes) !== expected) {
       throw new AdrienError(
@@ -418,21 +463,31 @@ export function restoreBackup(
   });
   const backedIds = parseLogFiles(
     staged.map((s) => ({ path: s.path, text: s.bytes.toString('utf8') })),
-    config,
+    backed,
   ).adrs.map((a) => a.meta.id);
   const paths = manifest.files.map((f) => f.path);
   refuseLinked(root, paths);
-  return underLocks(root, config, backedIds, env, () => {
+  return underLocks(root, live, backedIds, env, () => {
     // Checked again under the locks: a link made after the first check must still stop the restore before any write.
     refuseLinked(root, paths);
-    const snap = snapshot(root, config, 'pre-restore', adrienVersion, [id]);
+    const snap = snapshot(root, live, 'pre-restore', adrienVersion, [id]);
     for (const s of staged) writeAtomic(s.target, s.bytes);
     const listed = new Set(manifest.files.map((f) => f.path));
     return {
       id,
       preRestore: snap.id,
       restored: staged.map((s) => s.path),
-      leftover: logFiles(root, config).files.filter((p) => !listed.has(p)),
+      leftover: logFiles(root, backed).files.filter((p) => !listed.has(p)),
     };
   });
+}
+
+/**
+ * The log a restore works on when its config may be gone: the folder `log` names (never a remote clone), else the nearest
+ * folder above `cwd` that holds backups. Null when there is none.
+ */
+export function findBackupRoot(cwd: string, log?: string): string | null {
+  if (log) return isGitUrl(log) ? null : canonicalPath(resolve(cwd, log));
+  const found = findUp(cwd, join('.adrien', 'backups'));
+  return found ? canonicalPath(found) : null;
 }

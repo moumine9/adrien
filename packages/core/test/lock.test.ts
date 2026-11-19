@@ -262,11 +262,12 @@ describe('taking over a stale lock', () => {
         .trim()
         .split('\n')
         .map((line) => {
-          const [pid, what, at] = line.split(' ');
-          return { pid, what, at: Number(at) };
-        })
-        .sort((a, b) => a.at - b.at);
-      // Every enter must be followed by the same process's exit before anyone else enters.
+          const [pid, what] = line.split(' ');
+          return { pid, what };
+        });
+      // Appends happen inside the lock, so the file is in the real order (each process has its own clock, so timestamps
+      // from different processes cannot be compared). Every enter must be followed by the same process's exit.
+
       expect(events).toHaveLength(16);
       for (let i = 0; i < events.length; i += 2) {
         expect(events[i]?.what).toBe('enter');

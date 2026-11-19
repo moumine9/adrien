@@ -1,4 +1,4 @@
-import { readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE } from '@adrien/core';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
@@ -117,4 +117,25 @@ test('backup verify and restore refuse an unknown id', async () => {
   const root = logDir();
   expect(await run(root, ['backup', 'verify', 'nope'])).toMatchObject({ code: 2 });
   expect((await run(root, ['backup', 'restore', 'nope'])).stderr).toContain('No backup "nope"');
+});
+
+test('backup restore brings back a config that was deleted, from the folder or by naming it with --log', async () => {
+  const root = logDir();
+  const id = JSON.parse((await run(root, ['--json', 'backup', 'create'])).stdout).id as string;
+
+  rmSync(join(root, CONFIG_FILE));
+  const found = await run(root, ['backup', 'restore', id]);
+  expect(found).toMatchObject({ code: 0, stderr: '' });
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toBe(configYaml());
+
+  writeFileSync(join(root, CONFIG_FILE), 'product: [broken');
+  const named = await run(tmpDir(), ['--log', root, 'backup', 'restore', id]);
+  expect(named).toMatchObject({ code: 0, stderr: '' });
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toBe(configYaml());
+});
+
+test('backup restore outside any log still says there is no log', async () => {
+  const result = await run(tmpDir(), ['backup', 'restore', 'x']);
+  expect(result.code).toBe(2);
+  expect(result.stderr).toContain('No Adrien log found');
 });

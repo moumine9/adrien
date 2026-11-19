@@ -1,7 +1,10 @@
 import {
+  AdrienError,
   assertWritable,
   type BackupVerification,
   createBackup,
+  findBackupRoot,
+  type LogConfig,
   listBackups,
   restoreBackup,
   verifyBackup,
@@ -85,9 +88,20 @@ export function registerBackup(program: Command, cli: Cli): void {
     .argument('<id>', 'the backup to restore')
     .action(async (id: string, _opts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
-      const ctx = await contextOf(cli, globals);
-      assertWritable(ctx);
-      const result = restoreBackup(ctx.logRoot, ctx.config, id, VERSION, ctx.env);
+      // The config is one of the files a backup holds, so a restore must still work when it is gone or unreadable.
+      let root: string;
+      let config: LogConfig | null = null;
+      let env = cli.env;
+      try {
+        const ctx = await contextOf(cli, globals);
+        assertWritable(ctx);
+        ({ logRoot: root, config, env } = ctx);
+      } catch (e) {
+        const found = e instanceof AdrienError && /^CONFIG_/.test(e.code) ? findBackupRoot(cli.cwd, globals.log) : null;
+        if (!found) throw e;
+        root = found;
+      }
+      const result = restoreBackup(root, config, id, VERSION, env);
       if (globals.json) return printJson(cli, result);
       cli.out(
         `Restored ${result.restored.length} files from ${id}. The files before the restore are in ${result.preRestore}.\n`,
