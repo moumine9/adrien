@@ -1,6 +1,6 @@
 {
   "name": "adrien",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "AI-native Architecture Decision Records: a CLI and MCP server that tells developers and AI agents which decisions govern their code, and why.",
   "type": "module",
   "bin": {
