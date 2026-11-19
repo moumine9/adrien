@@ -78,7 +78,7 @@ function FileResult({ entry, hasNotes }: { entry: FileDecisions; hasNotes: boole
           <FileCode aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
           <h2 className="min-w-0 flex-1 font-mono text-base font-semibold break-all">{entry.file}</h2>
         </div>
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-8">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-7">
           {entry.component && (
             <Chip icon={Box} className="bg-secondary-background">
               {entry.component}

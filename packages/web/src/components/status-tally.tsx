@@ -24,7 +24,7 @@ export function StatusTally({
           {STATUS_ORDER.filter((s) => counts.byStatus[s]).map((s) => (
             <div
               key={s}
-              className="border-r border-rule last:border-r-0"
+              className="border-r border-border last:border-r-0"
               style={{ flexGrow: counts.byStatus[s], backgroundColor: STATUS_STYLES[s].fill }}
             />
           ))}

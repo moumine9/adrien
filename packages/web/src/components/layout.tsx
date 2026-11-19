@@ -143,7 +143,7 @@ export function Layout() {
                     end={end}
                     className={({ isActive }) =>
                       cn(
-                        'inline-flex items-center gap-2 rounded-base border-2 px-4 py-2 font-heading whitespace-nowrap',
+                        'inline-flex h-10 items-center gap-2 rounded-base border-2 px-4 font-heading whitespace-nowrap',
                         isActive || (to === '/' && pathname.startsWith('/adr/'))
                           ? 'border-border bg-main text-main-foreground shadow-shadow'
                           : 'border-transparent hover:border-border hover:bg-background',

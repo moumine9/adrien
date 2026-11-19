@@ -150,12 +150,15 @@
 /* Type tokens. Display is 48 px and up: tighter tracking and leading. */
 @utility display {
   letter-spacing: -0.02em;
+  /* Set --tw-leading too, so a size utility such as sm:text-5xl keeps 1.1 instead of its own line-height. */
+  --tw-leading: 1.1;
   line-height: 1.1;
 }
 
 /* Text under 14 px (badges, chips, captions): slightly open tracking and leading, so small text reads cleanly. */
 @utility caption {
   letter-spacing: 0.01em;
+  --tw-leading: 1.4;
   line-height: 1.4;
 }
 

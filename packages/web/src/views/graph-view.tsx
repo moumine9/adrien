@@ -136,7 +136,9 @@ function GraphCanvas({ layout, titleId }: { layout: GraphLayout; titleId: string
                 strokeWidth="2.5"
                 strokeDasharray={node.pending ? '7 5' : undefined}
               />
-              {node.pending && <rect x={left} y={top} width={NODE_W} height={NODE_H} rx="4" fill="url(#adr-hatch)" />}
+              {node.pending && (
+                <rect x={left + 1.5} y={top + 1.5} width={NODE_W - 3} height={8} fill="url(#adr-hatch)" />
+              )}
               <rect
                 x={left - 6}
                 y={top - 6}

@@ -37,6 +37,15 @@ describe('Decision view', () => {
     expect(screen.queryByText('Pending in this checkout, not binding until merged')).toBeNull();
   });
 
+  it('hatches only a band on the top of the rule block of a pending decision', async () => {
+    renderApp('/adr/ADR-0013');
+    await screen.findByRole('heading', { name: 'Move product search to a dedicated index' });
+    const rule = document.getElementById('rule-heading')?.closest('section') as HTMLElement;
+    expect(rule.firstElementChild).toHaveClass('hatch');
+    expect(rule.firstElementChild).toHaveAttribute('aria-hidden', 'true');
+    expect(rule.querySelectorAll('.hatch')).toHaveLength(1);
+  });
+
   it('does not flag a review date still ahead', async () => {
     renderApp('/adr/ADR-0010');
     await heading('Log in structured JSON with a request id');
