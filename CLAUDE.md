@@ -19,5 +19,4 @@ person's explicit word; merging is the watcher's, under the rules in `AGENTS.md`
 
 Start one with the Agent tool: `model: "haiku"`, `run_in_background: true`. Tell it to run the local script
 (`.local/pr-watch/pr-watch.mjs` in the main checkout: untracked, so a branch switch does not change it), to hand back on
-every event except `timeout`, and to wait for your instructions. Resume it with `SendMessage` to give it a fix to implement or the word to continue. Its merge
-step is the only merge an agent may do (see `AGENTS.md`).
+every event except `timeout`, and to wait for your instructions. Resume it with `SendMessage` to give it a fix to implement or the word to continue. It reports `ready`; the orchestrator merges when the owner says so (see `AGENTS.md`).
