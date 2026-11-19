@@ -3,6 +3,7 @@ import { Anchor, Box, FileCode, Info, Lightbulb } from 'lucide-react';
 import { type FormEvent, useEffect, useId, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { BindingBadge, Chip, PendingBadge, StatusBadge } from '@/components/badges.tsx';
+import { PendingBand } from '@/components/pending-band.tsx';
 import { ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert.tsx';
 import { Button } from '@/components/ui/button.tsx';
@@ -10,18 +11,17 @@ import { Textarea } from '@/components/ui/textarea.tsx';
 import { parsePaths } from '@/lib/filters.ts';
 import { useFor } from '@/lib/queries.ts';
 import { fileBindingOf } from '@/lib/status.ts';
-import { cn } from '@/lib/utils.ts';
 
 type Decision = FileDecisions['decisions'][number];
 
 function MatchNote({ d }: { d: Decision }) {
   return d.match === 'anchor' ? (
-    <span className="inline-flex flex-wrap items-center gap-1.5 text-sm">
+    <span className="inline-flex flex-wrap items-center gap-2 text-sm">
       <Anchor aria-hidden className="size-3.5" strokeWidth={2.5} />
       Matched by the anchor <code className="font-mono break-all">{d.anchor}</code>
     </span>
   ) : (
-    <span className="inline-flex items-center gap-1.5 text-sm">
+    <span className="inline-flex items-center gap-2 text-sm">
       <Box aria-hidden className="size-3.5" strokeWidth={2.5} />
       Matched by its component
     </span>
@@ -31,13 +31,14 @@ function MatchNote({ d }: { d: Decision }) {
 function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean }) {
   const binding = fileBindingOf(d, hasNotes);
   return (
-    <li className={cn('space-y-2 px-5 py-4', d.layer === 'pending' && 'hatch')}>
+    <li className="space-y-2 px-5 py-4">
+      {d.layer === 'pending' && <PendingBand className="-mx-5 -mt-4" />}
       <div className="flex flex-wrap items-center gap-2">
         <BindingBadge binding={binding} />
         {binding === 'not-binding' && (
           <span
             title="Not accepted on the default branch: worth knowing, not a rule."
-            className="inline-flex h-6 items-center gap-1.5 rounded-base border-2 border-border bg-secondary-background px-2 text-[0.8125rem] leading-none font-heading"
+            className="caption inline-flex items-center gap-2 rounded-inset border-2 border-border bg-secondary-background px-2 py-1 text-[0.8125rem] font-heading"
           >
             <Lightbulb aria-hidden className="size-3.5" strokeWidth={2.5} />
             Hint only
@@ -72,12 +73,12 @@ function FileResult({ entry, hasNotes }: { entry: FileDecisions; hasNotes: boole
       aria-label={entry.file}
       className="overflow-hidden rounded-base border-2 border-border bg-secondary-background shadow-shadow"
     >
-      <header className="space-y-2 border-b-2 border-border bg-background px-5 py-3">
-        <div className="flex items-start gap-2.5">
+      <header className="space-y-2 border-b border-rule bg-background px-5 py-3">
+        <div className="flex items-start gap-2">
           <FileCode aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
           <h2 className="min-w-0 flex-1 font-mono text-base font-semibold break-all">{entry.file}</h2>
         </div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-7.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pl-8">
           {entry.component && (
             <Chip icon={Box} className="bg-secondary-background">
               {entry.component}
@@ -97,7 +98,7 @@ function FileResult({ entry, hasNotes }: { entry: FileDecisions; hasNotes: boole
             : 'This file is outside every declared component, so no decision applies to it.'}
         </p>
       ) : (
-        <ul className="divide-y-2 divide-border">
+        <ul className="divide-y divide-rule">
           {entry.decisions.map((d) => (
             <DecisionRow key={`${d.layer}:${d.id}`} d={d} hasNotes={hasNotes} />
           ))}

@@ -33,8 +33,11 @@
   --ink: #14161c;
   --hatch: rgb(20 22 28 / 0.16);
   --caution: #ffd43a;
+  /* Quiet 1 px dividers inside an object: about a quarter ink, so the full-ink edge stays the only loud line. */
+  --rule: rgb(20 22 28 / 0.25);
 
-  --border-radius: 5px;
+  /* Objects get 8 px; anything inset by 4 px inside one gets 4 px, so the two nest. */
+  --border-radius: 8px;
   --box-shadow-x: 4px;
   --box-shadow-y: 4px;
   --reverse-box-shadow-x: -4px;
@@ -57,6 +60,7 @@
   --border: #e3e6ee;
   --ring: #ffd43a;
   --hatch: rgb(238 240 245 / 0.14);
+  --rule: rgb(238 240 245 / 0.25);
   --shadow-color: #7d8597;
   color-scheme: dark;
 }
@@ -73,6 +77,7 @@
   --color-ring: var(--ring);
   --color-ink: var(--ink);
   --color-caution: var(--caution);
+  --color-rule: var(--rule);
 
   --spacing-boxShadowX: var(--box-shadow-x);
   --spacing-boxShadowY: var(--box-shadow-y);
@@ -80,6 +85,7 @@
   --spacing-reverseBoxShadowY: var(--reverse-box-shadow-y);
 
   --radius-base: var(--border-radius);
+  --radius-inset: 4px;
   --shadow-shadow: var(--shadow);
 
   --font-weight-base: var(--base-font-weight);
@@ -110,6 +116,11 @@
     line-height: 1.15;
   }
 
+  /* Level-2 headings at 24 px and up sit at 1.25; the display size is set by the `display` utility. */
+  h2 {
+    line-height: 1.25;
+  }
+
   :focus-visible {
     outline: 3px solid var(--ring);
     outline-offset: 2px;
@@ -131,9 +142,21 @@
   }
 }
 
-/* Diagonal hatching: work in progress, not poured yet. Used only for pending, never-binding content. */
+/* Diagonal hatching: work in progress, not poured yet. Used only for a band along the top of a pending object, never under text. */
 @utility hatch {
   background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 2px, transparent 2px 9px);
+}
+
+/* Type tokens. Display is 48 px and up: tighter tracking and leading. */
+@utility display {
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+}
+
+/* Text under 14 px (badges, chips, captions): slightly open tracking and leading, so small text reads cleanly. */
+@utility caption {
+  letter-spacing: 0.01em;
+  line-height: 1.4;
 }
 
 /* Caution tape, for the banner that says statuses are not verified. */
@@ -192,8 +215,8 @@
     font-family: var(--font-mono);
     font-size: 0.875em;
     padding: 0.1em 0.35em;
-    border: 1.5px solid var(--border);
-    border-radius: 4px;
+    border: 1px solid var(--rule);
+    border-radius: var(--radius-inset);
     background: var(--background);
   }
   & pre {
@@ -223,7 +246,7 @@
   }
   & th,
   & td {
-    border: 2px solid var(--border);
+    border: 1px solid var(--rule);
     padding: 0.4rem 0.75rem;
     text-align: left;
     vertical-align: top;
@@ -234,6 +257,6 @@
   }
   & hr {
     border: 0;
-    border-top: 2px solid var(--border);
+    border-top: 1px solid var(--rule);
   }
 }
