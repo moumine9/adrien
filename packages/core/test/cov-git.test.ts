@@ -77,3 +77,17 @@ test('changedFiles lists both sides of a rename, so moving a file out of a gover
   commitAll(root, 'move');
   expect(await changedFiles(root, 'main', 'HEAD')).toEqual(['billing/src/store.ts', 'misc.ts']);
 });
+
+test('changedFiles lists a file that changes type, such as a regular file replaced by a symlink', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'src/a.ts': 'export const a = 1;\n' });
+  initRepo(root);
+  git(root, 'checkout', '-q', '-b', 'feature');
+  // A symlink entry made with git's plumbing, so the test needs no symlink permission (Windows may refuse one).
+  writeFiles(root, { '.link-target': 'elsewhere.ts' });
+  const blob = git(root, 'hash-object', '-w', '.link-target').trim();
+  rmSync(join(root, '.link-target'));
+  git(root, 'update-index', '--add', '--cacheinfo', `120000,${blob},src/a.ts`);
+  git(root, 'commit', '-q', '-m', 'type change');
+  expect(await changedFiles(root, 'main', 'HEAD')).toEqual(['src/a.ts']);
+});

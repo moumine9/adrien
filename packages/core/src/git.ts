@@ -98,7 +98,7 @@ export async function changedFiles(repoDir: string, base: string, head: string):
     '--name-only',
     // Without renames a moved file shows only its new path, and moving a file out of a governed place goes unseen.
     '--no-renames',
-    '--diff-filter=ACDMR',
+    '--diff-filter=ACDMRT',
     '-z',
     '--end-of-options',
     `${base}...${head}`,
