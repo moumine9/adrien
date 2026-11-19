@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { AdrienError } from '@adrien/core';
 import { Command, CommanderError, Option } from 'commander';
 import type { Cli } from './cli.ts';
@@ -19,12 +18,16 @@ import { registerShow } from './commands/show.ts';
 import { registerStatus } from './commands/status.ts';
 import { registerSupersede } from './commands/supersede.ts';
 import { registerSync } from './commands/sync.ts';
+import { registerUpdate, type UpdateDeps } from './commands/update.ts';
+import { VERSION } from './version.ts';
 
-export const VERSION: string = createRequire(import.meta.url)('../package.json').version;
+export { VERSION };
 
 export interface CliIO {
   cwd: string;
   env?: NodeJS.ProcessEnv;
+  /** Replaces the registry lookup and the installer (tests only). */
+  update?: Partial<UpdateDeps>;
 }
 
 export interface CliResult {
@@ -63,6 +66,7 @@ export function buildProgram(cli: Cli): Command {
     registerExport,
     registerMcp,
     registerServe,
+    registerUpdate,
   ]) {
     register(program, cli);
   }
@@ -87,6 +91,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<CliResult> {
     setCode: (c) => {
       code = c;
     },
+    update: io.update,
   };
   try {
     await buildProgram(cli).parseAsync(argv, { from: 'user' });

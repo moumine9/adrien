@@ -7,7 +7,8 @@ export type AdrienErrorCode =
   | 'ADR_LOCKED'
   | 'ADR_CONFLICT'
   | 'INVALID_INPUT'
-  | 'PARSE_ERROR';
+  | 'PARSE_ERROR'
+  | 'NETWORK';
 
 /** An expected failure: the CLI prints its message without a stack trace. */
 export class AdrienError extends Error {
