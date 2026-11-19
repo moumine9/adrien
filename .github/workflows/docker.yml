@@ -5,6 +5,7 @@ on:
     paths:
       - Dockerfile
       - .dockerignore
+      - scripts/docker-smoke.sh
       - .github/workflows/docker.yml
   workflow_dispatch:
   push:
