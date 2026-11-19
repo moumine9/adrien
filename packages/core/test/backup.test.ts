@@ -227,21 +227,25 @@ test('restoring a backup that retention would delete keeps it, along with the pr
   expect(idsOf(root)).toContain(result.preRestore);
 });
 
-test('a backup that fails while copying leaves no folder behind', () => {
-  const root = logRoot();
-  // Not an ADR, so the ids are read fine and the failure happens inside the copy, after the folder is made.
-  writeFiles(root, { 'docs/adr/notes.txt': 'unreadable' });
-  const file = join(root, 'docs/adr/notes.txt');
-  chmodSync(file, 0o000);
-  try {
-    expect(() => createBackup(root, loadLogConfig(root), 'x', VERSION)).toThrow(
-      expect.objectContaining({ code: 'EACCES' }),
-    );
-  } finally {
-    chmodSync(file, 0o644);
-  }
-  expect(listBackups(root)).toEqual([]);
-});
+// File modes are not enforced on Windows, and root reads anything: the copy only fails where chmod 000 is honoured.
+test.skipIf(process.platform === 'win32' || process.getuid?.() === 0)(
+  'a backup that fails while copying leaves no folder behind',
+  () => {
+    const root = logRoot();
+    // Not an ADR, so the ids are read fine and the failure happens inside the copy, after the folder is made.
+    writeFiles(root, { 'docs/adr/notes.txt': 'unreadable' });
+    const file = join(root, 'docs/adr/notes.txt');
+    chmodSync(file, 0o000);
+    try {
+      expect(() => createBackup(root, loadLogConfig(root), 'x', VERSION)).toThrow(
+        expect.objectContaining({ code: 'EACCES' }),
+      );
+    } finally {
+      chmodSync(file, 0o644);
+    }
+    expect(listBackups(root)).toEqual([]);
+  },
+);
 
 test.skipIf(!POSIX)('links are never followed: a linked file or folder outside the log copies nothing', () => {
   const root = logRoot();

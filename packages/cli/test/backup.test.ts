@@ -22,7 +22,7 @@ test('backup create copies the decision files and reports the folder; list shows
   const root = logDir();
   const created = await run(root, ['backup', 'create', '--reason', 'before upgrade']);
   expect(created).toMatchObject({ code: 0, stderr: '' });
-  expect(created.stdout).toMatch(/^Backed up 2 files to .*\.adrien\/backups\/\d{8}-\d{6}-before-upgrade/);
+  expect(created.stdout).toMatch(/^Backed up 2 files to .*\.adrien[\\/]backups[\\/]\d{8}-\d{6}-before-upgrade/);
 
   const listed = await run(root, ['--json', 'backup', 'list']);
   const backups = JSON.parse(listed.stdout) as Array<{ reason: string; fileCount: number }>;

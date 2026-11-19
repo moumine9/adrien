@@ -221,7 +221,7 @@ test('a global update backs up the decision files before npm runs and confirms t
   const [backup] = listBackups(root);
   expect(backupsAtInstall).toEqual([1]);
   expect(backup).toMatchObject({ reason: 'before-update-0-6-0' });
-  expect(result.stdout).toMatch(/Backed up the decision files to .*\.adrien\/backups\//);
+  expect(result.stdout).toMatch(/Backed up the decision files to .*\.adrien[\\/]backups[\\/]/);
   expect(result.stdout).toContain('Decision files unchanged.');
   expect(result).toMatchObject({ code: 0, stderr: '' });
 });
