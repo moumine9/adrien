@@ -1,14 +1,15 @@
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AdrienError } from '../src/errors.ts';
-import { withAdrLocks } from '../src/lock.ts';
+import { ageOfFile, staleAfter, takeOver, withAdrLocks } from '../src/lock.ts';
 import { tmpDir } from './helpers/fixtures.ts';
 
 const holder = fileURLToPath(new URL('./helpers/hold-lock.mjs', import.meta.url));
-const lockFile = (root: string, name: string) => join(root, '.adrien', 'locks', `${name}.lock`);
+const racer = fileURLToPath(new URL('./helpers/race-lock.mjs', import.meta.url));
+const lockFile = (root: string, name: string) => join(root, '.adrien', 'locks', `${name.toLowerCase()}.lock`);
 const owner = (pid: number, at: number, host = hostname()) => JSON.stringify({ pid, host, at });
 
 /** Plants a lock as another process would have left it. */
@@ -44,7 +45,7 @@ test('releases the lock when the function throws, and rethrows', () => {
 test('several ids are locked together, once each, and all released', () => {
   const root = tmpDir();
   withAdrLocks(root, ['ADR-0002', 'ADR-0001', 'ADR-0002'], () => {
-    expect(readdirSync(join(root, '.adrien', 'locks')).sort()).toEqual(['ADR-0001.lock', 'ADR-0002.lock']);
+    expect(readdirSync(join(root, '.adrien', 'locks')).sort()).toEqual(['adr-0001.lock', 'adr-0002.lock']);
   });
   expect(readdirSync(join(root, '.adrien', 'locks'))).toEqual([]);
 });
@@ -67,6 +68,8 @@ test('another process holding the lock is waited for, never overlapped', async (
   for (let i = 0; i < 200 && !(existsSync(out) && readFileSync(out, 'utf8').includes('enter')); i++) {
     await new Promise((r) => setTimeout(r, 25));
   }
+  // The child really holds the lock before we ask for it (otherwise this test would prove nothing).
+  expect(readFileSync(out, 'utf8')).toContain('enter');
   const entered = withAdrLocks(root, ['ADR-0001'], () => Date.now());
   await exited;
   const exit = Number(/exit (\d+)/.exec(readFileSync(out, 'utf8'))?.[1]);
@@ -106,14 +109,38 @@ test('a lock from another machine is never judged by its pid, only by its age', 
   expect(withAdrLocks(root, ['ADR-0002'], () => 'taken', { timeoutMs: 80 })).toBe('taken');
 });
 
-test('a lock with no readable owner is left alone while it is young and taken over once it has waited staleMs', () => {
+/** Sets a planted file's modification time to `ageMs` ago. */
+const age = (file: string, ageMs: number) =>
+  utimesSync(file, new Date(Date.now() - ageMs), new Date(Date.now() - ageMs));
+
+test('a lock with no readable owner is left alone while its file is young, and taken over once it is older than staleMs, with the default options', () => {
   const root = tmpDir();
-  plant(root, 'ADR-0001', '');
-  expect(() => withAdrLocks(root, ['ADR-0001'], () => 1, { timeoutMs: 80, staleMs: 10_000 })).toThrow(/being changed/);
-  plant(root, 'ADR-0002', 'not json');
-  expect(withAdrLocks(root, ['ADR-0002'], () => 'taken', { timeoutMs: 400, staleMs: 100 })).toBe('taken');
-  plant(root, 'ADR-0003', '{}');
-  expect(withAdrLocks(root, ['ADR-0003'], () => 'taken', { timeoutMs: 400, staleMs: 100 })).toBe('taken');
+  const young = plant(root, 'ADR-0001', '');
+  expect(() => withAdrLocks(root, ['ADR-0001'], () => 1, { timeoutMs: 80 })).toThrow(/being changed/);
+  // An empty file is what a writer that crashed between creating the lock and writing its owner leaves behind.
+  age(young, 60_000);
+  expect(withAdrLocks(root, ['ADR-0001'], () => 'taken', { timeoutMs: 80 })).toBe('taken');
+  for (const [name, content] of [
+    ['ADR-0002', 'not json'],
+    ['ADR-0003', '{}'],
+  ] as const) {
+    age(plant(root, name, content), 60_000);
+    expect(withAdrLocks(root, [name], () => 'taken', { timeoutMs: 80 })).toBe('taken');
+  }
+});
+
+test('the time a lock may be held grows with how long a waiter is willing to wait, so a waiter never creates a lock that is already stale', () => {
+  expect(staleAfter(5_000)).toBe(30_000);
+  expect(staleAfter(20_000)).toBe(40_000);
+  expect(staleAfter(120_000)).toBe(240_000);
+});
+
+test('ageOfFile is the age of a file, and zero for one that is gone', () => {
+  const root = tmpDir();
+  const file = plant(root, 'ADR-0001', '');
+  age(file, 5_000);
+  expect(ageOfFile(file)).toBeGreaterThanOrEqual(5_000);
+  expect(ageOfFile(join(root, 'nothing'))).toBe(0);
 });
 
 test('a pid that exists but belongs to another user is treated as alive', () => {
@@ -136,4 +163,98 @@ test('an id with characters that are unsafe in a file name gets a safe lock name
     expect(names).toHaveLength(1);
     expect(names[0]).toMatch(/^[A-Za-z0-9._~-]+\.lock$/);
   });
+});
+
+describe('taking over a stale lock', () => {
+  const staleOwner = () => owner(deadPid(), Date.now());
+
+  test('a lock that was replaced by a live one after it was judged stale is not removed', () => {
+    const root = tmpDir();
+    // B judged this lock stale; before B acts, A removed it and took the lock with a live owner.
+    const file = plant(root, 'ADR-0001', staleOwner());
+    const judgedStale = readFileSync(file, 'utf8');
+    expect(judgedStale).toContain('"pid"');
+    writeFileSync(file, owner(process.pid, Date.now()));
+    expect(takeOver(file, 30_000)).toBe(false);
+    expect(readFileSync(file, 'utf8')).toContain(`"pid":${process.pid}`);
+    expect(existsSync(`${file}.takeover`)).toBe(false);
+  });
+
+  test('a lock that is still stale under the guard is removed, and the guard is released', () => {
+    const root = tmpDir();
+    const file = plant(root, 'ADR-0001', staleOwner());
+    expect(takeOver(file, 30_000)).toBe(true);
+    expect(existsSync(file)).toBe(false);
+    expect(existsSync(`${file}.takeover`)).toBe(false);
+  });
+
+  test('while another process holds the guard nothing is removed', () => {
+    const root = tmpDir();
+    const file = plant(root, 'ADR-0001', staleOwner());
+    writeFileSync(`${file}.takeover`, '1');
+    expect(takeOver(file, 30_000)).toBe(false);
+    expect(existsSync(file)).toBe(true);
+  });
+
+  test('a guard left behind by a crashed taker is removed once it is old, so the lock can be taken over next time', () => {
+    const root = tmpDir();
+    const file = plant(root, 'ADR-0001', staleOwner());
+    writeFileSync(`${file}.takeover`, '1');
+    age(`${file}.takeover`, 60_000);
+    expect(takeOver(file, 30_000)).toBe(false);
+    expect(existsSync(`${file}.takeover`)).toBe(false);
+    expect(takeOver(file, 30_000)).toBe(true);
+  });
+
+  test('several processes racing for a lock left by a dead process never hold it together', async () => {
+    for (let round = 0; round < 3; round++) {
+      const root = tmpDir();
+      const out = join(tmpDir(), 'times.txt');
+      plant(root, 'ADR-0001', staleOwner());
+      await Promise.all(
+        Array.from(
+          { length: 8 },
+          () =>
+            new Promise<void>((resolve) => {
+              const child = spawn(process.execPath, ['--experimental-strip-types', racer, root, 'ADR-0001', out], {
+                stdio: 'ignore',
+              });
+              child.on('exit', () => resolve());
+            }),
+        ),
+      );
+      const events = readFileSync(out, 'utf8')
+        .trim()
+        .split('\n')
+        .map((line) => {
+          const [pid, what, at] = line.split(' ');
+          return { pid, what, at: Number(at) };
+        })
+        .sort((a, b) => a.at - b.at);
+      // Every enter must be followed by the same process's exit before anyone else enters.
+      expect(events).toHaveLength(16);
+      for (let i = 0; i < events.length; i += 2) {
+        expect(events[i]?.what).toBe('enter');
+        expect(events[i + 1]).toMatchObject({ what: 'exit', pid: events[i]?.pid });
+      }
+    }
+  }, 60_000);
+});
+
+test('a lock that was taken from us while we held it is left alone on release, and a vanished or odd one does not stop the other locks being released', () => {
+  const root = tmpDir();
+  const lockDir = join(root, '.adrien', 'locks');
+  withAdrLocks(root, ['ADR-0001', 'ADR-0002', 'ADR-0003'], () => {
+    // ADR-0001: someone else took the lock after a takeover. ADR-0002: it vanished. ADR-0003 stays ours.
+    rmSync(lockFile(root, 'ADR-0001'));
+    writeFileSync(lockFile(root, 'ADR-0001'), owner(process.pid + 1, Date.now()));
+    rmSync(lockFile(root, 'ADR-0002'));
+  });
+  expect(readdirSync(lockDir).sort()).toEqual(['adr-0001.lock']);
+  expect(readFileSync(lockFile(root, 'ADR-0001'), 'utf8')).toContain(`"pid":${process.pid + 1}`);
+});
+
+test('ids that differ only by letter case share a lock, so a process never waits on itself', () => {
+  const root = tmpDir();
+  expect(withAdrLocks(root, ['ADR-0001', 'adr-0001'], () => 'ok', { timeoutMs: 100 })).toBe('ok');
 });

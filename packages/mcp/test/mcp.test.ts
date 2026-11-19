@@ -262,7 +262,8 @@ test('adr_propose_change needs the revision that was read: without it the call i
     rationale: 'A reason.',
   });
   expect(result.isError).toBe(true);
-  expect(result.text).toContain('base_revision');
+  expect(result.text).toContain('Call adr_get first');
+  expect(result.text).toMatch(/^INVALID_INPUT: Call adr_get first and pass its `revision` as base_revision/);
 });
 
 test('adr_propose_change on a stale revision fails with ADR_CONFLICT and writes nothing; reading again and redoing it works', async () => {

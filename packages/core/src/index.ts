@@ -11,7 +11,7 @@ export * from './git.ts';
 export * from './ids.ts';
 export * from './index-db.ts';
 export * from './lint.ts';
-export * from './lock.ts';
+export { type LockOptions, withAdrLocks } from './lock.ts';
 export * from './log.ts';
 export * from './model.ts';
 export * from './ops.ts';

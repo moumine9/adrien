@@ -7,9 +7,9 @@ import { CODE_CONFIG_FILE, CONFIG_FILE } from '../src/config.ts';
 import { type Context, resolveContext } from '../src/context.ts';
 import { BODY_TEMPLATE } from '../src/frontmatter.ts';
 import { fetchOrigin } from '../src/git.ts';
-import { readWorkingLog } from '../src/log.ts';
-import { acceptAdr, createAdr, renumber, revisionOfAdr, setStatus, supersede, updateAdr } from '../src/ops.ts';
-import { type LogView, loadLogView } from '../src/view.ts';
+import { readWorkingLog, revisionOf, revisionOfText } from '../src/log.ts';
+import { acceptAdr, createAdr, renumber, setStatus, supersede, updateAdr } from '../src/ops.ts';
+import { type LogView, loadLogView, workingRevision } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { commitAll, git, initRepo } from './helpers/git.ts';
 
@@ -178,6 +178,27 @@ test('renumber fixes a base/pending collision and rewrites pending references on
   expect(log.find((a) => a.path === 'docs/adr/ADR-0001-a.md')?.meta.title).toBe('A');
 });
 
+test('renumber rewrites the references from what is on disk now, not from the stale view, and picks an id nobody took since', async () => {
+  const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  initRepo(root, { origin: true });
+  writeFiles(root, {
+    'docs/adr/ADR-0001-dup.md': adrText({ id: 'ADR-0001', title: 'Dup' }),
+    'docs/adr/ADR-0002-c.md': adrText({ id: 'ADR-0002', title: 'C', related: ['ADR-0001'] }),
+  });
+  const { ctx, view } = await load(root);
+  // After the view was built, another process edited ADR-0002 and created ADR-0003.
+  writeFiles(root, {
+    'docs/adr/ADR-0002-c.md': adrText({ id: 'ADR-0002', title: 'C, edited since', related: ['ADR-0001'] }),
+    'docs/adr/ADR-0003-new.md': adrText({ id: 'ADR-0003', title: 'Created since' }),
+  });
+  expect(renumber(ctx, view, 'ADR-0001').to).toBe('ADR-0004');
+  const log = readWorkingLog(root, ctx.config).adrs;
+  const referencing = log.find((a) => a.meta.id === 'ADR-0002');
+  expect(referencing?.meta.title).toBe('C, edited since');
+  expect(referencing?.meta.related).toEqual(['ADR-0004']);
+  expect(log.find((a) => a.meta.id === 'ADR-0003')?.meta.title).toBe('Created since');
+});
+
 test('updateAdr appends a dated note and rejects a status key', async () => {
   const root = makeLog({
     'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }, '\n## Decision\n\nDo A.\n'),
@@ -289,7 +310,7 @@ test('createAdr retries a number published after its initial scan', async () => 
 });
 
 describe('one writer per ADR', () => {
-  const lockFile = (root: string, id: string) => join(root, '.adrien', 'locks', `${id}.lock`);
+  const lockFile = (root: string, id: string) => join(root, '.adrien', 'locks', `${id.toLowerCase()}.lock`);
   /** Holds an ADR as a live process of this machine would. */
   function hold(root: string, id: string): void {
     mkdirSync(join(root, '.adrien', 'locks'), { recursive: true });
@@ -358,34 +379,45 @@ describe('a change based on a stale read is refused, like a push after the base 
     return { root, ctx, view, file: join(root, 'docs/adr/ADR-0001-a.md') };
   }
 
-  test('revisionOfAdr is a short hash of the file that changes with its content and not otherwise', async () => {
-    const { ctx, view, file } = await setup();
-    const first = revisionOfAdr(ctx, 'ADR-0001');
+  /** The revision a reader gets today: from a view built now. */
+  const revisionNow = async (root: string, id: string) => workingRevision((await load(root)).view, id);
+
+  test('workingRevision is a short hash of the file that changes with its content and not otherwise', async () => {
+    const { root, ctx, view, file } = await setup();
+    const first = await revisionNow(root, 'ADR-0001');
     expect(first).toMatch(REVISION);
-    expect(revisionOfAdr(ctx, 'ADR-0001')).toBe(first);
+    expect(await revisionNow(root, 'ADR-0001')).toBe(first);
     updateAdr(ctx, view, 'ADR-0001', { title: 'Another title' });
-    expect(revisionOfAdr(ctx, 'ADR-0001')).not.toBe(first);
+    expect(await revisionNow(root, 'ADR-0001')).not.toBe(first);
     writeFileSync(file, `${readFileSync(file, 'utf8')}\nedited by hand\n`);
-    expect(revisionOfAdr(ctx, 'ADR-0001')).toMatch(REVISION);
+    expect(await revisionNow(root, 'ADR-0001')).toMatch(REVISION);
   });
 
-  test('revisionOfAdr is null for an ADR that is not in the working copy, or whose id is used twice', async () => {
+  test('workingRevision is null for an ADR that is not in the working copy, or whose id is used twice', async () => {
     const root = makeLog({
       'docs/adr/ADR-0001-a.md': ready('ADR-0001'),
       'docs/adr/ADR-0002-b.md': ready('ADR-0002'),
       'docs/adr/ADR-0002-dup.md': ready('ADR-0002'),
     });
-    const { ctx } = await load(root);
-    expect(revisionOfAdr(ctx, 'ADR-0099')).toBeNull();
-    expect(revisionOfAdr(ctx, 'ADR-0002')).toBeNull();
-    expect(revisionOfAdr(ctx, 'ADR-0001')).toMatch(REVISION);
+    expect(await revisionNow(root, 'ADR-0099')).toBeNull();
+    expect(await revisionNow(root, 'ADR-0002')).toBeNull();
+    expect(await revisionNow(root, 'ADR-0001')).toMatch(REVISION);
+  });
+
+  test('the revision a view gives is never newer than the content the view holds, even if the file changes after it was read', async () => {
+    const { root, view, file } = await setup();
+    const heldText = readFileSync(file, 'utf8');
+    // Another process writes the ADR after the view was built, as one can while the view waits on git.
+    writeFileSync(file, heldText.replace('title: T ADR-0001', 'title: Written after'));
+    expect(workingRevision(view, 'ADR-0001')).toBe(revisionOfText(heldText));
+    expect(workingRevision(view, 'ADR-0001')).not.toBe(revisionOf(root, 'docs/adr/ADR-0001-a.md'));
   });
 
   test('a change on the revision that was read goes through, and moves the revision on', async () => {
-    const { ctx, view } = await setup();
-    const read = revisionOfAdr(ctx, 'ADR-0001') as string;
+    const { root, ctx, view } = await setup();
+    const read = (await revisionNow(root, 'ADR-0001')) as string;
     updateAdr(ctx, view, 'ADR-0001', { title: 'Mine' }, { expectedRevision: read });
-    expect(revisionOfAdr(ctx, 'ADR-0001')).not.toBe(read);
+    expect(await revisionNow(root, 'ADR-0001')).not.toBe(read);
   });
 
   test.each([
@@ -402,12 +434,12 @@ describe('a change based on a stale read is refused, like a push after the base 
       (c: Context, v: LogView, r: string) => setStatus(c, v, 'ADR-0001', 'rejected', { expectedRevision: r }),
     ],
   ])('%s fails with ADR_CONFLICT when the ADR changed since it was read, and writes nothing', async (_name, run) => {
-    const { ctx, view, file } = await setup();
-    const read = revisionOfAdr(ctx, 'ADR-0001') as string;
+    const { root, ctx, view, file } = await setup();
+    const read = (await revisionNow(root, 'ADR-0001')) as string;
     // Someone else changes the same ADR by another means, right after we read it.
     updateAdr(ctx, view, 'ADR-0001', { title: 'Theirs' });
     const theirs = readFileSync(file, 'utf8');
-    const now = revisionOfAdr(ctx, 'ADR-0001');
+    const now = await revisionNow(root, 'ADR-0001');
     expect(() => run(ctx, view, read)).toThrow(
       expect.objectContaining({
         code: 'ADR_CONFLICT',

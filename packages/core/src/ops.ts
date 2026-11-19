@@ -43,12 +43,6 @@ export interface OpOptions {
   expectedRevision?: string;
 }
 
-/** The revision of an ADR as it is in the working copy, or null when it is not there or its id is used by several files. */
-export function revisionOfAdr(ctx: Context, id: string): string | null {
-  const matches = readWorkingLog(ctx.logRoot, ctx.config).adrs.filter((a) => a.meta.id === id);
-  return matches.length === 1 ? revisionOf(ctx.logRoot, (matches[0] as Adr).path) : null;
-}
-
 /** Like a push after the base moved: a change based on an older version is refused, so the caller reads and redoes it. */
 function assertFresh(ctx: Context, adr: Adr, expected: string | undefined): void {
   if (expected === undefined) return;
@@ -280,7 +274,9 @@ function renumberUnlocked(
   id: string,
   opts?: { path?: string },
 ): { from: string; to: string; path: string } {
-  const candidates = readWorkingLog(ctx.logRoot, ctx.config).adrs.filter((a) => a.meta.id === id);
+  // Read now, under the lock: the view may be older than other processes' changes to the working copy.
+  const working = readWorkingLog(ctx.logRoot, ctx.config).adrs;
+  const candidates = working.filter((a) => a.meta.id === id);
   if (candidates.length === 0) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
   const basePaths = new Set(view.base.filter((a) => a.meta.id === id).map((a) => a.path));
   const notInBase = candidates.filter((a) => !basePaths.has(a.path));
@@ -296,7 +292,8 @@ function renumberUnlocked(
     );
   }
 
-  const to = formatId(nextIdNumber(allIds(view), ctx.config.id_format), ctx.config.id_format);
+  const taken = [...view.base, ...working].map((a) => a.meta.id);
+  const to = formatId(nextIdNumber(taken, ctx.config.id_format), ctx.config.id_format);
   const path = posix.join(posix.dirname(target.path), `${to}-${slugify(target.meta.title)}.md`);
   // The file may already be named for the new id (then it is rewritten in place); anywhere else it must be free, so a
   // file the view could not parse is never replaced.
@@ -305,9 +302,11 @@ function renumberUnlocked(
   if (!inPlace) unlinkSync(join(ctx.logRoot, ...target.path.split('/')));
 
   const swap = (ids: string[]) => ids.map((x) => (x === id ? to : x));
-  for (const change of view.pending) {
-    const adr = change.current;
-    if (!adr || adr === target) continue;
+  // The ADRs this checkout changed or added follow the new id; they are rewritten from their text on disk now.
+  const everyBasePath = new Set(view.base.map((a) => a.path));
+  const pendingPaths = new Set(view.pending.flatMap((c) => (c.current ? [c.current.path] : [])));
+  for (const adr of working) {
+    if (adr === target || (everyBasePath.has(adr.path) && !pendingPaths.has(adr.path))) continue;
     const { supersedes, related, superseded_by } = adr.meta;
     if (![...supersedes, ...related, superseded_by].includes(id)) continue;
     write(ctx, adr, {

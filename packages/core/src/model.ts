@@ -37,6 +37,8 @@ export interface Adr {
   body: string;
   /** Posix path relative to the log root. */
   path: string;
+  /** A short hash of the text this ADR was parsed from, to base a change on. Set when an ADR is loaded from a file. */
+  revision?: string;
 }
 
 /** The frontmatter keys Adrien owns, in the order they are written. */

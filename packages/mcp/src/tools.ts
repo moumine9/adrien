@@ -9,10 +9,10 @@ import {
   type LogView,
   loadLogView,
   resolveContext,
-  revisionOfAdr,
   STATUSES,
   unverifiedBaseNote,
   updateAdr,
+  workingRevision,
 } from '@adrien/core';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
@@ -162,13 +162,13 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
         'The full ADR: the binding version on the default branch, and any pending change to it, with `revision`, the version of the working copy that adr_propose_change must be based on.',
       inputSchema: { id: z.string().min(1) },
     },
-    handler(opts, ({ id }: { id: string }, ctx, view) => {
+    handler(opts, ({ id }: { id: string }, _ctx, view) => {
       const base = view.base.find((a) => a.meta.id === id) ?? null;
       const change = view.pending.find((c) => c.id === id) ?? null;
       if (!base && !change) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
       return ok({
         id,
-        revision: revisionOfAdr(ctx, id),
+        revision: workingRevision(view, id),
         base: base && adrView(base),
         pending: change && {
           kind: change.kind,
@@ -261,7 +261,12 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
         'Edit an existing ADR in the working copy. The edit is pending until its merge request is approved; the default-branch version stays the binding one. You cannot change status. Pass `base_revision`, the revision adr_get returned when you read the ADR: if the ADR changed since (by another agent, the CLI or an editor), the call fails with ADR_CONFLICT and nothing is written. Then read it again, redo your change on the latest version and retry, as after a rejected push.',
       inputSchema: {
         id: z.string().min(1),
-        base_revision: z.string().regex(/^[0-9a-f]{12}$/, 'Pass the revision that adr_get returned for this ADR'),
+        // Optional in the schema so that a missing one gets a clear message from the handler, not the SDK's generic one.
+        base_revision: z
+          .string()
+          .regex(/^[0-9a-f]{12}$/, 'Pass the `revision` that adr_get returned for this ADR as base_revision')
+          .optional()
+          .describe('REQUIRED: the `revision` that adr_get returned when you read this ADR.'),
         patch: z.strictObject({
           title: z.string().min(1).optional(),
           tags: strings.optional(),
@@ -277,7 +282,13 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
     },
     handler(
       opts,
-      (a: { id: string; base_revision: string; patch: Record<string, unknown>; rationale: string }, ctx, view) => {
+      (a: { id: string; base_revision?: string; patch: Record<string, unknown>; rationale: string }, ctx, view) => {
+        if (a.base_revision === undefined) {
+          throw new AdrienError(
+            'INVALID_INPUT',
+            'Call adr_get first and pass its `revision` as base_revision: a change must say which version of the ADR it is based on.',
+          );
+        }
         const updated = updateAdr(ctx, view, a.id, a.patch, {
           expectedRevision: a.base_revision,
           note: a.rationale,
