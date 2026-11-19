@@ -90,6 +90,14 @@ function generations(dir: string): { newest: number; done: Set<number>; live: nu
   return { newest: Math.max(0, ...live), done, live };
 }
 
+function bestEffort(fn: () => unknown): void {
+  try {
+    fn();
+  } catch {
+    // The next holder cleans up what this one could not.
+  }
+}
+
 /**
  * Runs `fn` holding the guard of a lock. Every removal of a lock happens under its guard: creating a lock needs no
  * guard (it cannot succeed while the file exists), so whoever holds the guard removes exactly the file it judged, never
@@ -104,6 +112,8 @@ function underGuard<T>(file: string, wait: boolean, fn: () => T): T | undefined 
   const dir = `${file}.guard`;
   mkdirSync(dir, { recursive: true });
   const guard = (n: number, suffix = '') => join(dir, `g${n}${suffix}`);
+  // A guard is held for milliseconds; never wait for one forever (a persistent fault would hang a release).
+  const giveUp = Date.now() + 2 * GUARD_MS;
   for (;;) {
     const { newest, done } = generations(dir);
     const free = newest === 0 || done.has(newest) || ageOfFile(guard(newest)) > GUARD_MS;
@@ -114,16 +124,18 @@ function underGuard<T>(file: string, wait: boolean, fn: () => T): T | undefined 
       try {
         if (real) return fn();
       } finally {
-        tryWriteFile(guard(mine, '.done'), '', 'w');
+        // Best effort: on Windows a file the next holder is deleting at the same moment fails with EPERM.
+        bestEffort(() => tryWriteFile(guard(mine, '.done'), '', 'w'));
         if (real) {
           for (const k of generations(dir).live.filter((n) => n < mine)) {
-            rmSync(guard(k), { force: true });
-            rmSync(guard(k, '.done'), { force: true });
+            bestEffort(() => rmSync(guard(k), { force: true }));
+            bestEffort(() => rmSync(guard(k, '.done'), { force: true }));
           }
         }
       }
     } else {
       if (!wait) return undefined;
+      if (Date.now() > giveUp) throw new AdrienError('ADR_LOCKED', `Could not get the guard of ${file}.`);
       pause(1);
     }
   }
@@ -148,10 +160,7 @@ function tryCreate(file: string, content: string): boolean {
   try {
     return tryWriteFile(file, content, 'wx');
   } catch (e) {
-    if (
-      process.platform === 'win32' &&
-      ['EPERM', 'EACCES', 'EBUSY'].includes(String((e as NodeJS.ErrnoException).code))
-    ) {
+    if (process.platform === 'win32' && ['EPERM', 'EBUSY'].includes(String((e as NodeJS.ErrnoException).code))) {
       return false;
     }
     throw e;
