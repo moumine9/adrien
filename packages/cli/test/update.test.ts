@@ -236,3 +236,34 @@ test('a copy that cannot be placed prints the global command and runs nothing', 
   expect(result.stdout).toContain('npm install -g adrien@latest');
   expect(install.calls).toEqual([]);
 });
+
+describe("looking up npm's global root", () => {
+  const calls: Array<{ file: string; args: string[]; shell: unknown }> = [];
+
+  beforeEach(() => {
+    calls.length = 0;
+    vi.resetModules();
+    vi.doMock('node:child_process', async (importOriginal) => ({
+      ...(await importOriginal<typeof import('node:child_process')>()),
+      execFileSync: (file: string, args: string[], options: { shell?: unknown }) => {
+        calls.push({ file, args, shell: options.shell });
+        return `${process.cwd()}\n`;
+      },
+    }));
+  });
+
+  afterEach(() => {
+    vi.doUnmock('node:child_process');
+    vi.restoreAllMocks();
+  });
+
+  test.each([
+    ['win32', true],
+    ['linux', false],
+  ])('on %s the lookup uses a shell: %s (npm is npm.cmd on Windows)', async (platform, shell) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue(platform as NodeJS.Platform);
+    const { npmGlobalRoot } = await import('../src/commands/update.ts');
+    expect(npmGlobalRoot()).toBeTruthy();
+    expect(calls).toEqual([{ file: 'npm', args: ['root', '-g'], shell }]);
+  });
+});

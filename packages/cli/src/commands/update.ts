@@ -74,9 +74,11 @@ export function detectInstall(path: string, globalRoot: string | null): InstallK
 }
 
 /** The folder `npm install -g` writes to, resolved through symlinks; null when npm is missing or fails. */
-function npmGlobalRoot(): string | null {
+export function npmGlobalRoot(): string | null {
   try {
-    return realpathSync(execFileSync('npm', ['root', '-g'], { encoding: 'utf8', timeout: TIMEOUT_MS }).trim());
+    // On Windows npm is npm.cmd, which only a shell can start (the arguments are constants).
+    const options = { encoding: 'utf8', timeout: TIMEOUT_MS, shell: process.platform === 'win32' } as const;
+    return realpathSync(execFileSync('npm', ['root', '-g'], options).trim());
   } catch {
     return null;
   }
