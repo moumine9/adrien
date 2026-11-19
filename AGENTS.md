@@ -54,8 +54,14 @@ Tokens are limited, so work is routed by how hard it is.
 - Brief prompts: the goal, the files in scope, the commands, the acceptance test, and "report in under 150 words".
 - Do not poll background work; it reports when it finishes. Do not paste logs; quote the failing line.
 - Run workers in parallel only on disjoint files, each in its own worktree. Do not read a file a cheaper agent can summarise.
-- The loop for a task: spec, worker (test first, in a worktree), orchestrator verifies and commits, sage reviews, pull
-  request, Codex review comments on GitHub, fixes, the orchestrator merges on the owner's go-ahead once Codex approves, and the person decides releases.
+- **Review gates, in this order (the owner's rule, 2026-11-19).** The implementer finishes first. The sage then reviews
+  every change, and its must-fixes are applied. Only then is a branch pushed or a pull request opened. When Codex
+  comments on the pull request, the fix is implemented, the sage reviews that fix, and only then is it pushed and Codex
+  asked again. Nothing is pushed on a state the sage has not finished reviewing, a documentation change included.
+- The loop for a task: spec, worker (test first, in a worktree), orchestrator verifies and commits locally, sage reviews
+  (nothing is pushed or opened until it has finished and its must-fixes are applied), pull request, Codex review
+  comments on GitHub, each fix implemented and reviewed by the sage before it is pushed, the orchestrator merges on the
+  owner's go-ahead once Codex approves, and the person decides releases.
 
 ## The pull request loop
 
