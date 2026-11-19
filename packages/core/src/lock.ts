@@ -108,7 +108,7 @@ function underGuard<T>(file: string, wait: boolean, fn: () => T): T | undefined 
     const { newest, done } = generations(dir);
     const free = newest === 0 || done.has(newest) || ageOfFile(guard(newest)) > GUARD_MS;
     const mine = newest + 1;
-    if (free && tryWriteFile(guard(mine), String(process.pid), 'wx')) {
+    if (free && tryCreate(guard(mine), String(process.pid))) {
       // A view older than a cleanup can re-create a number that is gone; only the newest generation is a real guard.
       const real = generations(dir).newest === mine;
       try {
@@ -140,6 +140,24 @@ export function takeOver(file: string, staleMs: number): boolean {
   );
 }
 
+/**
+ * Creates a lock or guard file exclusively. On Windows, creating a file another process is deleting fails with EPERM,
+ * EACCES or EBUSY instead of EEXIST: that is contention, not a fault, so the caller waits and tries again.
+ */
+function tryCreate(file: string, content: string): boolean {
+  try {
+    return tryWriteFile(file, content, 'wx');
+  } catch (e) {
+    if (
+      process.platform === 'win32' &&
+      ['EPERM', 'EACCES', 'EBUSY'].includes(String((e as NodeJS.ErrnoException).code))
+    ) {
+      return false;
+    }
+    throw e;
+  }
+}
+
 /** Takes the lock, and returns the content that identifies it as ours. */
 function acquire(file: string, id: string, timeoutMs: number, staleMs: number): string {
   const deadline = Date.now() + timeoutMs;
@@ -147,7 +165,7 @@ function acquire(file: string, id: string, timeoutMs: number, staleMs: number): 
     // Stamped on every attempt: a long wait must not leave us holding a lock that is already stale.
     const mine = JSON.stringify({ pid: process.pid, host: hostname(), at: Date.now() } satisfies Owner);
     // Creating the file with its owner in it is one atomic step: exactly one process gets it.
-    if (tryWriteFile(file, mine, 'wx')) return mine;
+    if (tryCreate(file, mine)) return mine;
     const owner = readOwner(file);
     if (isStale(owner, file, staleMs) && takeOver(file, staleMs)) continue;
     if (Date.now() >= deadline) {
