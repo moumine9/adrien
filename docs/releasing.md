@@ -17,7 +17,8 @@ workflow, with provenance, when the tag is pushed.
 6. Fetch, then tag the merge commit on `main` and push the tag:
    `git fetch origin && git tag vX.Y.Z origin/main && git push origin vX.Y.Z`. Without the fetch, `origin/main` is still the
    commit before the merge, and the release workflow rejects a tag that does not match the package version.
-7. Check that the release workflow succeeded and that `npm view adrien version` shows the new version.
+7. Check that the release workflow succeeded and that `npm view adrien version` shows the new version. The workflow also
+   creates the GitHub Release, with that version's `CHANGELOG.md` entry as its notes.
 
 ## The changelog rule
 
