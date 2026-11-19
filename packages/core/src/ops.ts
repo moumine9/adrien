@@ -6,7 +6,8 @@ import { type DuplicateHit, findDuplicates } from './duplicates.ts';
 import { AdrienError } from './errors.ts';
 import { bodyTemplate } from './frontmatter.ts';
 import { formatId, nextIdNumber } from './ids.ts';
-import { adrFilePath, readWorkingLog, reserveId, writeAdr } from './log.ts';
+import { type LockOptions, withAdrLocks } from './lock.ts';
+import { adrFilePath, readWorkingLog, reserveId, revisionOf, writeAdr } from './log.ts';
 import type { Adr, AdrMeta, Origin, TemplateName } from './model.ts';
 import { slugify } from './slug.ts';
 import { type LogView, workingAdrs } from './view.ts';
@@ -35,9 +36,35 @@ export type AdrPatch = Partial<
 
 export interface OpOptions {
   today?: string;
+  /**
+   * The revision of the ADR the caller read (see `workingRevision`). When it is given and the ADR has changed since, the
+   * change is refused with ADR_CONFLICT instead of being applied on top of a version the caller never saw.
+   */
+  expectedRevision?: string;
+}
+
+/** Like a push after the base moved: a change based on an older version is refused, so the caller reads and redoes it. */
+function assertFresh(ctx: Context, adr: Adr, expected: string | undefined): void {
+  if (expected === undefined) return;
+  const current = revisionOf(ctx.logRoot, adr.path);
+  if (current === expected) return;
+  throw new AdrienError(
+    'ADR_CONFLICT',
+    `${adr.meta.id} changed since you read it (you based your change on revision ${expected}, it is now ${current}). Read it again, redo your change on the latest version, and retry.`,
+  );
 }
 
 const todayOf = (opts?: OpOptions) => opts?.today ?? new Date().toISOString().slice(0, 10);
+
+/** `ADRIEN_LOCK_TIMEOUT_MS` sets how long a change waits for another process to let go of an ADR; anything else keeps the default. */
+function lockOptions(env: NodeJS.ProcessEnv): LockOptions {
+  const timeoutMs = Number(env.ADRIEN_LOCK_TIMEOUT_MS);
+  return Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {};
+}
+
+/** Runs a change while holding the lock of every ADR it touches: one writer per ADR, across the CLI, the MCP server and anything else. */
+const locked = <T>(ctx: Context, ids: string[], fn: () => T): T =>
+  withAdrLocks(ctx.logRoot, ids, fn, lockOptions(ctx.env));
 
 export function assertWritable(ctx: Context): void {
   if (ctx.readOnly) {
@@ -178,30 +205,38 @@ export function updateAdr(
     );
   }
   validateInput(ctx, patch);
-  const adr = findAdr(ctx, id);
-  const { body, ...metaPatch } = patch;
-  let nextBody = body ?? adr.body;
-  if (opts?.note) {
-    nextBody = `${nextBody.replace(/\n*$/, '\n')}\n> Proposed change (${opts.origin ?? 'agent'}, ${todayOf(opts)}): ${opts.note}\n`;
-  }
-  const updated: Adr = { ...adr, body: nextBody, meta: { ...adr.meta, ...metaPatch } };
-  writeAdr(ctx.logRoot, updated);
-  return updated;
+  return locked(ctx, [id], () => {
+    const adr = findAdr(ctx, id);
+    assertFresh(ctx, adr, opts?.expectedRevision);
+    const { body, ...metaPatch } = patch;
+    let nextBody = body ?? adr.body;
+    if (opts?.note) {
+      nextBody = `${nextBody.replace(/\n*$/, '\n')}\n> Proposed change (${opts.origin ?? 'agent'}, ${todayOf(opts)}): ${opts.note}\n`;
+    }
+    return persist(ctx, { ...adr, body: nextBody, meta: { ...adr.meta, ...metaPatch } });
+  });
+}
+
+/** Writes an ADR and returns it with the revision of the text just written, which a caller can pass as its next base. */
+function persist(ctx: Context, adr: Adr): Adr {
+  writeAdr(ctx.logRoot, adr);
+  return { ...adr, revision: revisionOf(ctx.logRoot, adr.path) };
 }
 
 function write(ctx: Context, adr: Adr, meta: Partial<AdrMeta>): Adr {
-  const updated = { ...adr, meta: { ...adr.meta, ...meta } };
-  writeAdr(ctx.logRoot, updated);
-  return updated;
+  return persist(ctx, { ...adr, meta: { ...adr.meta, ...meta } });
 }
 
 export function acceptAdr(ctx: Context, _view: LogView, id: string, opts?: OpOptions): Adr {
   assertWritable(ctx);
-  const adr = findAdr(ctx, id);
-  if (!adr.meta.review_rule?.trim()) {
-    throw new AdrienError('INVALID_INPUT', `${id} needs a review_rule before it can be accepted`);
-  }
-  return write(ctx, adr, { status: 'accepted', date: adr.meta.date ?? todayOf(opts) });
+  return locked(ctx, [id], () => {
+    const adr = findAdr(ctx, id);
+    assertFresh(ctx, adr, opts?.expectedRevision);
+    if (!adr.meta.review_rule?.trim()) {
+      throw new AdrienError('INVALID_INPUT', `${id} needs a review_rule before it can be accepted`);
+    }
+    return write(ctx, adr, { status: 'accepted', date: adr.meta.date ?? todayOf(opts) });
+  });
 }
 
 export function setStatus(
@@ -209,34 +244,40 @@ export function setStatus(
   _view: LogView,
   id: string,
   status: 'proposed' | 'rejected' | 'deprecated',
+  opts?: OpOptions,
 ): Adr {
   assertWritable(ctx);
   if (!['proposed', 'rejected', 'deprecated'].includes(status)) {
     throw new AdrienError('INVALID_INPUT', `Use \`adrien accept\` or \`adrien supersede\` to set "${status}"`);
   }
-  return write(ctx, findAdr(ctx, id), { status });
+  return locked(ctx, [id], () => {
+    const adr = findAdr(ctx, id);
+    assertFresh(ctx, adr, opts?.expectedRevision);
+    return write(ctx, adr, { status });
+  });
 }
 
 export function supersede(ctx: Context, _view: LogView, oldId: string, newId: string): { old: Adr; replacement: Adr } {
   assertWritable(ctx);
   if (oldId === newId) throw new AdrienError('INVALID_INPUT', `${oldId} cannot supersede itself`);
-  const oldAdr = findAdr(ctx, oldId);
-  const newAdr = findAdr(ctx, newId);
-  return {
-    old: write(ctx, oldAdr, { status: 'superseded', superseded_by: newId }),
-    replacement: write(ctx, newAdr, { supersedes: [...new Set([...newAdr.meta.supersedes, oldId])] }),
-  };
+  return locked(ctx, [oldId, newId], () => {
+    const oldAdr = findAdr(ctx, oldId);
+    const newAdr = findAdr(ctx, newId);
+    return {
+      old: write(ctx, oldAdr, { status: 'superseded', superseded_by: newId }),
+      replacement: write(ctx, newAdr, { supersedes: [...new Set([...newAdr.meta.supersedes, oldId])] }),
+    };
+  });
 }
 
-/** Gives a colliding ADR the next free id; references in other pending ADRs follow it, base ADRs are never touched. */
-export function renumber(
+function renumberUnlocked(
   ctx: Context,
   view: LogView,
   id: string,
+  working: Adr[],
   opts?: { path?: string },
 ): { from: string; to: string; path: string } {
-  assertWritable(ctx);
-  const candidates = readWorkingLog(ctx.logRoot, ctx.config).adrs.filter((a) => a.meta.id === id);
+  const candidates = working.filter((a) => a.meta.id === id);
   if (candidates.length === 0) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
   const basePaths = new Set(view.base.filter((a) => a.meta.id === id).map((a) => a.path));
   const notInBase = candidates.filter((a) => !basePaths.has(a.path));
@@ -252,18 +293,40 @@ export function renumber(
     );
   }
 
-  const to = formatId(nextIdNumber(allIds(view), ctx.config.id_format), ctx.config.id_format);
-  const path = posix.join(posix.dirname(target.path), `${to}-${slugify(target.meta.title)}.md`);
-  // The file may already be named for the new id (then it is rewritten in place); anywhere else it must be free, so a
-  // file the view could not parse is never replaced.
-  const inPlace = path === target.path;
-  writeAdr(ctx.logRoot, { ...target, path, meta: { ...target.meta, id: to } }, { exclusive: !inPlace });
-  if (!inPlace) unlinkSync(join(ctx.logRoot, ...target.path.split('/')));
+  // Allocate the way `createAdr` does: reserve the number, then re-read the log, so a concurrent create cannot take it.
+  let next = nextIdNumber(
+    [...view.base, ...working].map((a) => a.meta.id),
+    ctx.config.id_format,
+  );
+  let to: string;
+  let path: string;
+  for (;;) {
+    const reservation = reserveId(ctx.logRoot, next);
+    try {
+      to = formatId(reservation.number, ctx.config.id_format);
+      const fresh = readWorkingLog(ctx.logRoot, ctx.config).adrs.map((a) => a.meta.id);
+      if (fresh.includes(to)) {
+        next = nextIdNumber([...fresh, ...view.base.map((a) => a.meta.id)], ctx.config.id_format);
+        continue;
+      }
+      path = posix.join(posix.dirname(target.path), `${to}-${slugify(target.meta.title)}.md`);
+      // The file may already be named for the new id (then it is rewritten in place); anywhere else it must be free, so
+      // a file the view could not parse is never replaced.
+      const inPlace = path === target.path;
+      writeAdr(ctx.logRoot, { ...target, path, meta: { ...target.meta, id: to } }, { exclusive: !inPlace });
+      if (!inPlace) unlinkSync(join(ctx.logRoot, ...target.path.split('/')));
+      break;
+    } finally {
+      reservation.release();
+    }
+  }
 
   const swap = (ids: string[]) => ids.map((x) => (x === id ? to : x));
-  for (const change of view.pending) {
-    const adr = change.current;
-    if (!adr || adr === target) continue;
+  // The ADRs this checkout changed or added follow the new id; they are rewritten from their text on disk now.
+  const everyBasePath = new Set(view.base.map((a) => a.path));
+  const pendingPaths = new Set(view.pending.flatMap((c) => (c.current ? [c.current.path] : [])));
+  for (const adr of working) {
+    if (adr === target || (everyBasePath.has(adr.path) && !pendingPaths.has(adr.path))) continue;
     const { supersedes, related, superseded_by } = adr.meta;
     if (![...supersedes, ...related, superseded_by].includes(id)) continue;
     write(ctx, adr, {
@@ -273,4 +336,36 @@ export function renumber(
     });
   }
   return { from: id, to, path };
+}
+
+/**
+ * Gives a colliding ADR the next free id; references in other pending ADRs follow it, base ADRs are never touched. It
+ * can rewrite any ADR that refers to the one it moves, so it holds the lock of every ADR in the log while it works.
+ */
+export function renumber(
+  ctx: Context,
+  view: LogView,
+  id: string,
+  opts?: { path?: string },
+): { from: string; to: string; path: string } {
+  assertWritable(ctx);
+  let ids = readWorkingLog(ctx.logRoot, ctx.config).adrs.map((a) => a.meta.id);
+  for (;;) {
+    // Read under the locks: an ADR created while we waited for them may refer to this one, and it is rewritten below, so
+    // its lock must be held too. If one is missing, take the wider set and look again.
+    const outcome = locked<{ unlocked: string[] } | { done: { from: string; to: string; path: string } }>(
+      ctx,
+      ids,
+      () => {
+        const working = readWorkingLog(ctx.logRoot, ctx.config).adrs;
+        const unlocked = working
+          .filter((a) => [...a.meta.supersedes, ...a.meta.related, a.meta.superseded_by].includes(id))
+          .map((a) => a.meta.id)
+          .filter((other) => !ids.includes(other));
+        return unlocked.length ? { unlocked } : { done: renumberUnlocked(ctx, view, id, working, opts) };
+      },
+    );
+    if ('done' in outcome) return outcome.done;
+    ids = [...ids, ...outcome.unlocked];
+  }
 }

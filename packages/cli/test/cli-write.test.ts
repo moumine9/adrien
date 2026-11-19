@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CODE_CONFIG_FILE, CONFIG_FILE } from '@adrien/core';
@@ -213,4 +213,48 @@ test('check --mr diagnoses a failed fetch despite a cached base', async () => {
     ]);
     expect(result.code).toBe(strict ? 1 : 0);
   }
+});
+
+describe('a change based on a stale read is refused', () => {
+  const REVISION = /^[0-9a-f]{12}$/;
+  const readRevision = async (run: (...a: string[]) => ReturnType<typeof runCli>, id: string) => {
+    const shown = await run('show', id, '--json');
+    return (JSON.parse(shown.stdout) as { revision: string }).revision;
+  };
+
+  test('show --json gives the revision to base a change on', async () => {
+    const { run } = log({ 'docs/adr/ADR-0001-a.md': ready('ADR-0001', 'A') });
+    expect(await readRevision(run, 'ADR-0001')).toMatch(REVISION);
+  });
+
+  test('accept --expect goes through on the revision that was read', async () => {
+    const { run } = log({ 'docs/adr/ADR-0001-a.md': ready('ADR-0001', 'A') });
+    const result = await run('accept', 'ADR-0001', '--expect', await readRevision(run, 'ADR-0001'));
+    expect(result.code).toBe(0);
+  });
+
+  test.each([
+    ['accept', ['accept', 'ADR-0001']],
+    ['status', ['status', 'ADR-0001', 'rejected']],
+    ['status accepted', ['status', 'ADR-0001', 'accepted']],
+  ])(
+    '%s --expect is refused with exit 2 when the ADR changed since it was read, and changes nothing',
+    async (_n, argv) => {
+      const { root, run } = log({ 'docs/adr/ADR-0001-a.md': ready('ADR-0001', 'A') });
+      const read = await readRevision(run, 'ADR-0001');
+      const file = join(root, 'docs/adr/ADR-0001-a.md');
+      writeFileSync(file, readFileSync(file, 'utf8').replace('title: A', 'title: Changed by someone else'));
+      const before = readFileSync(file, 'utf8');
+      const result = await run(...argv, '--expect', read);
+      expect(result.code).toBe(2);
+      expect(result.stderr).toContain(`you based your change on revision ${read}`);
+      expect(result.stderr).toContain('Read it again, redo your change on the latest version, and retry');
+      expect(readFileSync(file, 'utf8')).toBe(before);
+    },
+  );
+
+  test('without --expect a command applies to the latest version, as before', async () => {
+    const { run } = log({ 'docs/adr/ADR-0001-a.md': ready('ADR-0001', 'A') });
+    expect((await run('accept', 'ADR-0001')).code).toBe(0);
+  });
 });

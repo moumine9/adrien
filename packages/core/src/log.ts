@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import type { LogConfig } from './config.ts';
@@ -26,7 +27,8 @@ export function parseLogFiles(files: Array<{ path: string; text: string }>, conf
   for (const { path, text } of files) {
     if (!isAdrFile(text, posix.basename(path))) continue;
     try {
-      adrs.push(parseAdr(text, path, { idFormat: config.id_format }));
+      // The revision comes from the very text that is parsed, so it can never be newer than the content it describes.
+      adrs.push({ ...parseAdr(text, path, { idFormat: config.id_format }), revision: revisionOfText(text) });
     } catch (e) {
       if (!(e instanceof AdrienError) || e.code !== 'PARSE_ERROR') throw e;
       problems.push({ path, message: e.message });
@@ -69,7 +71,7 @@ export function adrFilePath(config: LogConfig, id: string, title: string, subdir
 }
 
 /** Refuses a destination that leaves the log, lexically or through a symlink (whether the file or a folder above it). */
-function assertInsideLog(logRoot: string, file: string, adrPath: string): void {
+export function assertInsideLog(logRoot: string, file: string, adrPath: string): void {
   const root = canonicalPath(logRoot);
   const outside = (where: string) =>
     new AdrienError('INVALID_INPUT', `${adrPath} resolves outside the log (${where}); refusing to write it.`);
@@ -96,7 +98,7 @@ export function writeAdr(logRoot: string, adr: Adr, opts: { exclusive?: boolean 
   }
 }
 
-function tryWriteFile(file: string, content: string, flag: 'wx' | 'w'): boolean {
+export function tryWriteFile(file: string, content: string, flag: 'wx' | 'w'): boolean {
   try {
     writeFileSync(file, content, { flag });
     return true;
@@ -117,3 +119,10 @@ export function reserveId(logRoot: string, start: number): { number: number; rel
     if (tryWriteFile(marker, '', 'wx')) return { number, release: () => unlinkSync(marker) };
   }
 }
+
+/** A short hash of the text of an ADR file, so a change can say which version it was based on, as a commit does. */
+export const revisionOfText = (text: string): string => createHash('sha256').update(text).digest('hex').slice(0, 12);
+
+/** The revision of an ADR file as it is on disk right now. */
+export const revisionOf = (logRoot: string, adrPath: string): string =>
+  revisionOfText(readFileSync(join(logRoot, ...adrPath.split('/')), 'utf8'));

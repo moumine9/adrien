@@ -13,15 +13,16 @@ export function registerStatus(program: Command, cli: Cli): void {
     .description('Set an ADR status (accepted and superseded have their own commands)')
     .argument('<id>', 'ADR id')
     .argument('<status>', STATUSES.join(' | '))
-    .action(async (id: string, status: string, _opts: unknown, cmd: Command) => {
+    .option('--expect <revision>', 'refuse if the ADR changed since this revision (from `show --json`)')
+    .action(async (id: string, status: string, opts: { expect?: string }, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
-      if (status === 'accepted') return accept(cli, globals, id);
+      if (status === 'accepted') return accept(cli, globals, id, opts.expect);
       if (status === 'superseded') throw new AdrienError('INVALID_INPUT', 'Use `adrien supersede <old> --by <new>`.');
       if (!SETTABLE.includes(status as Settable)) {
         throw new AdrienError('INVALID_INPUT', `Unknown status "${status}". Use one of: ${STATUSES.join(', ')}`);
       }
       const { ctx, view } = await open(cli, globals);
-      const adr = setStatus(ctx, view, id, status as Settable);
+      const adr = setStatus(ctx, view, id, status as Settable, { expectedRevision: opts.expect });
       if (globals.json) return printJson(cli, adr);
       cli.out(`${id} ${status}\n`);
     });

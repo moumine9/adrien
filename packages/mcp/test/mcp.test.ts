@@ -53,6 +53,10 @@ async function call(client: Client, name: string, args: Record<string, unknown> 
   return { isError: result.isError === true, structured: result.structuredContent as any, text };
 }
 
+/** The revision an agent gets from adr_get before it changes an ADR. */
+const revisionOf = async (client: Client, id: string) =>
+  (await call(client, 'adr_get', { id })).structured.revision as string;
+
 test('lists exactly the six tools', async () => {
   const client = await connect({ cwd: monorepo() });
   const { tools } = await client.listTools();
@@ -172,6 +176,7 @@ test('what adr_propose and adr_propose_change write lints clean', async () => {
   await call(client, 'adr_propose', { ...proposal, options: 'Redis\nMemcached', consequences: 'One more service.' });
   await call(client, 'adr_propose_change', {
     id: 'ADR-0001',
+    base_revision: await revisionOf(client, 'ADR-0001'),
     patch: { review_rule: 'Use Intl.DateTimeFormat.' },
     rationale: 'The helper was removed.',
   });
@@ -200,6 +205,7 @@ test("after adr_propose_change, adr_for_files shows base binding:true and the ag
   const client = await connect({ cwd: root });
   const changed = await call(client, 'adr_propose_change', {
     id: 'ADR-0001',
+    base_revision: await revisionOf(client, 'ADR-0001'),
     patch: { review_rule: 'Always use Intl.DateTimeFormat.' },
     rationale: 'The locale helper was removed.',
   });
@@ -219,6 +225,7 @@ test('adr_propose_change rejects a status in the patch', async () => {
   const client = await connect({ cwd: monorepo() });
   const result = await call(client, 'adr_propose_change', {
     id: 'ADR-0001',
+    base_revision: await revisionOf(client, 'ADR-0001'),
     patch: { status: 'deprecated' },
     rationale: 'trying to sneak in a status',
   });
@@ -240,4 +247,55 @@ test('read-only cached log → isError READ_ONLY_LOG', async () => {
   expect(result.isError).toBe(true);
   expect(result.text).toMatch(/^READ_ONLY_LOG: /);
   expect((await call(client, 'adr_list')).structured.results).toHaveLength(1);
+});
+
+test('adr_get returns the revision of the working copy, to base a change on', async () => {
+  const client = await connect({ cwd: monorepo() });
+  expect(await revisionOf(client, 'ADR-0001')).toMatch(/^[0-9a-f]{12}$/);
+});
+
+test('adr_propose_change needs the revision that was read: without it the call is refused, naming adr_get', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const result = await call(client, 'adr_propose_change', {
+    id: 'ADR-0001',
+    patch: { review_rule: 'Use the helper.' },
+    rationale: 'A reason.',
+  });
+  expect(result.isError).toBe(true);
+  expect(result.text).toContain('Call adr_get first');
+  expect(result.text).toMatch(/^INVALID_INPUT: Call adr_get first and pass its `revision` as base_revision/);
+});
+
+test('adr_propose_change on a stale revision fails with ADR_CONFLICT and writes nothing; reading again and redoing it works', async () => {
+  const root = monorepo();
+  const client = await connect({ cwd: root });
+  const stale = await revisionOf(client, 'ADR-0001');
+  // Another agent, or the CLI, changes the same ADR first.
+  const first = await call(client, 'adr_propose_change', {
+    id: 'ADR-0001',
+    base_revision: stale,
+    patch: { tags: ['backend'] },
+    rationale: 'First change.',
+  });
+  expect(first.isError).toBe(false);
+  const afterFirst = readFileSync(join(root, 'docs/adr/ADR-0001-dates.md'), 'utf8');
+
+  const late = await call(client, 'adr_propose_change', {
+    id: 'ADR-0001',
+    base_revision: stale,
+    patch: { review_rule: 'Based on what I read before.' },
+    rationale: 'A late change.',
+  });
+  expect(late.isError).toBe(true);
+  expect(late.text).toMatch(/^ADR_CONFLICT: ADR-0001 changed since you read it/);
+  expect(late.text).toContain('Read it again');
+  expect(readFileSync(join(root, 'docs/adr/ADR-0001-dates.md'), 'utf8')).toBe(afterFirst);
+
+  const redo = await call(client, 'adr_propose_change', {
+    id: 'ADR-0001',
+    base_revision: await revisionOf(client, 'ADR-0001'),
+    patch: { review_rule: 'Based on the latest version.' },
+    rationale: 'Redone.',
+  });
+  expect(redo.isError).toBe(false);
 });
