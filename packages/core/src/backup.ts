@@ -73,9 +73,13 @@ function walk(dir: string, rel: string, out: string[]): void {
 function logFiles(root: string, config: LogConfig): string[] {
   const adrRel = posix.normalize(toPosix(config.adr_dir));
   const adrDir = join(root, adrRel);
-  if (!isInside(adrDir, root)) throw new AdrienError('INVALID_INPUT', `The ADR directory ${config.adr_dir} leaves the log.`);
+  if (!isInside(adrDir, root))
+    throw new AdrienError('INVALID_INPUT', `The ADR directory ${config.adr_dir} leaves the log.`);
   if (isInside(backupsRoot(root), adrDir)) {
-    throw new AdrienError('INVALID_INPUT', `The ADR directory ${config.adr_dir} holds the backups. Choose another one.`);
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `The ADR directory ${config.adr_dir} holds the backups. Choose another one.`,
+    );
   }
   const out: string[] = [];
   if (existsSync(adrDir)) walk(adrDir, adrRel, out);
@@ -188,7 +192,10 @@ export function restoreBackup(root: string, config: LogConfig, id: string, adrie
     const target = logPath(root, path);
     const bytes = readFileSync(join(dir, FILES, ...path.split('/')));
     if (sha256(bytes) !== expected) {
-      throw new AdrienError('INVALID_INPUT', `Backup ${id} is damaged: ${path} no longer matches its manifest. Nothing was restored.`);
+      throw new AdrienError(
+        'INVALID_INPUT',
+        `Backup ${id} is damaged: ${path} no longer matches its manifest. Nothing was restored.`,
+      );
     }
     return { path, target, bytes };
   });

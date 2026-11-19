@@ -1,10 +1,4 @@
-import {
-  type BackupVerification,
-  createBackup,
-  listBackups,
-  restoreBackup,
-  verifyBackup,
-} from '@adrien/core';
+import { type BackupVerification, createBackup, listBackups, restoreBackup, verifyBackup } from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, contextOf, type GlobalOptions, printJson } from '../cli.ts';
 import { VERSION } from '../version.ts';
@@ -59,7 +53,9 @@ export function registerBackup(program: Command, cli: Cli): void {
       if (globals.json) printJson(cli, result);
       else
         cli.out(
-          differs(result) ? `Decision files differ from backup ${id}:\n${changeLines(result)}` : 'Decision files unchanged.\n',
+          differs(result)
+            ? `Decision files differ from backup ${id}:\n${changeLines(result)}`
+            : 'Decision files unchanged.\n',
         );
       if (differs(result)) cli.setCode(1);
     });

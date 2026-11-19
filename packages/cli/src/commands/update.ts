@@ -4,8 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { AdrienError, type Context, createBackup, resolveContext, verifyBackup } from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, type GlobalOptions, printJson } from '../cli.ts';
-import { changeLines, differs } from './backup.ts';
 import { VERSION } from '../version.ts';
+import { changeLines, differs } from './backup.ts';
 
 const REGISTRY_URL = 'https://registry.npmjs.org/adrien/latest';
 const TIMEOUT_MS = 5000;

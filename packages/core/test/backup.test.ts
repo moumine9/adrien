@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach } from 'vitest';
 import { BACKUP_KEEP, createBackup, listBackups, restoreBackup, verifyBackup } from '../src/backup.ts';

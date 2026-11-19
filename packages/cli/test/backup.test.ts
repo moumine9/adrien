@@ -34,7 +34,7 @@ test('backup create defaults its reason to manual, and list says so when there i
   await run(root, ['backup', 'create']);
   const [backup] = JSON.parse((await run(root, ['--json', 'backup', 'list'])).stdout) as Array<{ reason: string }>;
   expect(backup?.reason).toBe('manual');
-  expect((await run(root, ['backup', 'list'])).stdout).toMatch(/^\d{8}-\d{6}-manual  .* 2 files  manual\n$/);
+  expect((await run(root, ['backup', 'list'])).stdout).toMatch(/^\d{8}-\d{6}-manual {2}.* 2 files {2}manual\n$/);
 });
 
 test('backup verify says the files are unchanged, then lists what changed and exits 1', async () => {
