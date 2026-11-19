@@ -648,8 +648,12 @@ test('the pre-restore backup holds every existing file the restore overwrites, e
     'edited since',
   );
   // The undo works: restoring the pre-restore backup brings the edit back.
-  restoreBackup(root, null, result.preRestore, VERSION);
+  const undone = restoreBackup(root, null, result.preRestore, VERSION);
   expect(read(root, 'docs/guide.md')).toBe('edited since');
+  // Undoing the undo is possible too: its snapshot holds what the undo overwrote.
+  expect(readFileSync(join(backupDirOf(root, undone.preRestore), 'files', 'docs', 'guide.md'), 'utf8')).toBe(
+    'old guide',
+  );
 });
 
 test('an ADR directory written with a trailing slash backs up and restores', () => {

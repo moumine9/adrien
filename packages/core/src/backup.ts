@@ -90,7 +90,7 @@ const manifestSchema = z.object({
   files: z.array(z.object({ path: z.string().refine(safeRelPath), sha256: z.string() })),
   // Informational only: these names are shown, never used as paths, so they need not be plain.
   skipped: z.array(z.string()).default([]),
-  /** The ADR directories this backup covers when more than the one in its own config (a pre-restore of another layout). */
+  /** The ADR directories this backup covers: its config's, and any other a pre-restore snapshot had to hold. */
   adrDirs: z.array(z.string()).default([]),
 });
 type Manifest = z.infer<typeof manifestSchema>;
@@ -230,13 +230,13 @@ function logFiles(root: string, config: LogConfig): LogFiles {
   return { files: files.sort(), skipped: skipped.sort() };
 }
 
-/** The files of two configs' ADR directories together: a restore may replace files under either. */
-function unionFiles(root: string, config: LogConfig, other: LogConfig | null): LogFiles {
-  const first = logFiles(root, config);
-  if (!other) return first;
-  const second = logFiles(root, other);
-  const merge = (a: string[], b: string[]) => [...new Set([...a, ...b])].sort();
-  return { files: merge(first.files, second.files), skipped: merge(first.skipped, second.skipped) };
+const inDir = (config: LogConfig, adr_dir: string): LogConfig => ({ ...config, adr_dir });
+
+/** The files of the config's ADR directory and of `dirs` together: a restore may replace files under any of them. */
+function unionFiles(root: string, config: LogConfig, dirs: string[]): LogFiles {
+  const all = [logFiles(root, config), ...dirs.map((d) => logFiles(root, inDir(config, d)))];
+  const merge = (lists: string[][]) => [...new Set(lists.flat())].sort();
+  return { files: merge(all.map((a) => a.files)), skipped: merge(all.map((a) => a.skipped)) };
 }
 
 /**
@@ -307,9 +307,9 @@ function snapshot(
   reason: string,
   adrienVersion: string,
   protect: string[],
-  also: LogConfig | null = null,
+  dirs: string[] = [],
 ): BackupCreated {
-  const { files, skipped } = unionFiles(root, config, also);
+  const { files, skipped } = unionFiles(root, config, dirs);
   // Strictly later than the newest backup, so the newest-first order never depends on a tie.
   const newest = okBackups(root)[0];
   const createdAt = new Date(Math.max(Date.now(), newest ? Date.parse(newest.createdAt) + 1 : 0));
@@ -328,7 +328,7 @@ function snapshot(
       reason: slug,
       files: entries,
       skipped,
-      adrDirs: [...new Set([adrRelOf(config), ...(also ? [adrRelOf(also)] : [])])],
+      adrDirs: [...new Set([adrRelOf(config), ...dirs])],
     };
     writeAtomic(join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
   } catch (e) {
@@ -486,18 +486,18 @@ export function restoreBackup(
   ).adrs.map((a) => a.meta.id);
   const paths = manifest.files.map((f) => f.path);
   refuseLinked(root, paths);
-  const lockIds = [...backedIds, ...currentIds(root, backed)];
+  const lockIds = [...backedIds, ...scopes.flatMap((d) => currentIds(root, inDir(backed, d)))];
   return underLocks(root, live, lockIds, env, () => {
     // Checked again under the locks: a link made after the first check must still stop the restore before any write.
     refuseLinked(root, paths);
-    const snap = snapshot(root, live, 'pre-restore', adrienVersion, [id], backed);
+    const snap = snapshot(root, live, 'pre-restore', adrienVersion, [id], scopes);
     for (const s of staged) writeAtomic(s.target, s.bytes);
     const listed = new Set(manifest.files.map((f) => f.path));
     return {
       id,
       preRestore: snap.id,
       restored: staged.map((s) => s.path),
-      leftover: logFiles(root, backed).files.filter((p) => !listed.has(p)),
+      leftover: unionFiles(root, backed, scopes).files.filter((p) => !listed.has(p)),
     };
   });
 }
