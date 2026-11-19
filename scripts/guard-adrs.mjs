@@ -10,8 +10,10 @@
 // script and never runs code from the pull request. A pull request that adds the workflow therefore finds it absent (the
 // workflow comes from main, and there is none until it is merged): that is expected until then.
 //
-// Inputs: GUARD_BASE (the base ref), GUARD_HEAD (the head to check, default HEAD), LABELS_JSON (the pull request's label
-// names as a JSON array; the `adr` label must match exactly).
+// Inputs: GUARD_BASE (the base tip), GUARD_HEAD (the merge result to check, default HEAD), PR_HEAD_SHA (the pull request
+// head, which the merge result must have as its second parent), LABELS_JSON (the label names as a JSON array; the `adr`
+// label must match exactly). The merge result is judged against the base tip, not the branch point, so an ADR that the
+// base accepted after the branch point stays frozen.
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { parseCodeRepoConfigText, parseLogConfigText } from '../packages/core/src/config.ts';
@@ -141,19 +143,28 @@ function fileAt(ref, path) {
 }
 
 /**
- * The changes under docs/decisions and the config files, from the merge base of `base` and `head` to `head`. The
+ * The head must be the merge result that GitHub made of the pull request and the base: a merge commit whose second
+ * parent is the pull request head. A merge ref that is older than the head (a push after GitHub's merge) is refused.
+ */
+function checkMergeResult(head, prHeadSha) {
+  if (!prHeadSha) return;
+  const run = git(['rev-list', '--parents', '-n', '1', head]);
+  if (run.status !== 0) throw new Error(`cannot read ${head}: ${run.stderr.trim()}`);
+  const parents = run.stdout.trim().split(' ').slice(1);
+  if (parents[1] !== prHeadSha) throw new Error('The merge ref is stale, push again or reopen');
+}
+
+/**
+ * The changes under docs/decisions and the config files, from the base tip to `head` (the merge result). The
  * pathspecs ignore case, the config files match by basename at any depth, and `-z` keeps names as they are (no
  * quoting), so a non-ASCII file name is read with its real path.
  */
 function changesSince(base, head) {
-  const mergeBase = git(['merge-base', base, head]);
-  if (mergeBase.status !== 0) throw new Error(`cannot find a merge base with ${base}: ${mergeBase.stderr.trim()}`);
-  const mergeBaseSha = mergeBase.stdout.trim();
   const diff = git([
     'diff',
     '-z',
     '--name-status',
-    mergeBaseSha,
+    base,
     head,
     '--',
     `:(icase)${LOG}`,
@@ -170,14 +181,14 @@ function changesSince(base, head) {
       const oldPath = tokens[i];
       const path = tokens[i + 1];
       i += 2;
-      changes.push({ status, oldPath, path, base: fileAt(mergeBaseSha, oldPath), head: fileAt(head, path) });
+      changes.push({ status, oldPath, path, base: fileAt(base, oldPath), head: fileAt(head, path) });
     } else {
       const path = tokens[i];
       i += 1;
       changes.push({
         status,
         path,
-        base: status === 'A' ? null : fileAt(mergeBaseSha, path),
+        base: status === 'A' ? null : fileAt(base, path),
         head: status === 'D' ? null : fileAt(head, path),
       });
     }
@@ -193,6 +204,7 @@ function main() {
     // The label is compared exactly: GitHub's own `contains` ignores case, so the label names come in as JSON.
     const labels = JSON.parse(process.env.LABELS_JSON || '[]');
     const adrLabel = Array.isArray(labels) && labels.includes('adr');
+    checkMergeResult(head, process.env.PR_HEAD_SHA);
     failures = guardChanges({ adrLabel, changes: changesSince(base, head) });
   } catch (error) {
     console.error(`adrien: ${error.message}`);

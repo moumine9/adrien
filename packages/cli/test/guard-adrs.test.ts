@@ -367,3 +367,42 @@ test('a nested .adrien.yaml is found by git at any depth, and its components are
   expect(labelled.status).toBe(1);
   expect(labelled.stderr).toContain('packages/x/.adrien.yaml: components cannot change');
 });
+
+/**
+ * An ADR proposed at the branch point, accepted on main afterwards, and edited by the pull request. The merge result
+ * (main merged with the pull request) is what the guard judges, against the base tip, not the branch point.
+ */
+function mergeResult() {
+  const proposed = ACCEPTED.replace('status: accepted', 'status: proposed');
+  const { root, git, run } = repo({ [ADR]: proposed }, { [ADR]: proposed.replace('Text.', 'Edited.') });
+  const sha = (ref: string) => spawnSync('git', ['rev-parse', ref], { cwd: root, encoding: 'utf8' }).stdout.trim();
+  const prHead = sha('feature');
+  git('checkout', '-q', 'main');
+  writeFiles(root, { [ADR]: ACCEPTED });
+  git('add', '-A');
+  git('commit', '-qm', 'accept');
+  const baseTip = sha('main');
+  git('merge', '-q', '--no-edit', 'feature');
+  return { run, baseTip, prHead };
+}
+
+test('the guard judges the merge result against the base tip: an ADR accepted on main stays frozen', () => {
+  const { run, baseTip, prHead } = mergeResult();
+  const result = run('["adr"]', { GUARD_BASE: baseTip, GUARD_HEAD: 'HEAD', PR_HEAD_SHA: prHead });
+  expect(result.status).toBe(1);
+  expect(result.stderr).toContain(FROZEN);
+});
+
+test('the branch head alone is refused: judging it against the branch point would hide an accepted ADR', () => {
+  const { run, baseTip, prHead } = mergeResult();
+  const branchHead = run('["adr"]', { GUARD_BASE: baseTip, GUARD_HEAD: prHead, PR_HEAD_SHA: prHead });
+  expect(branchHead.status).toBe(1);
+  expect(branchHead.stderr).toContain('The merge ref is stale, push again or reopen');
+});
+
+test('the merge result must have the pull request head as its second parent, or the guard refuses', () => {
+  const { run, baseTip } = mergeResult();
+  const stale = run('["adr"]', { GUARD_BASE: baseTip, GUARD_HEAD: 'HEAD', PR_HEAD_SHA: 'a'.repeat(40) });
+  expect(stale.status).toBe(1);
+  expect(stale.stderr).toContain('The merge ref is stale, push again or reopen');
+});

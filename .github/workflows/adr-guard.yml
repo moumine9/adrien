@@ -6,7 +6,7 @@ name: ADR guard
 # The check reruns when labels change.
 on:
   pull_request_target:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, edited, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -30,14 +30,21 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      # The head commits are fetched as data (no checkout, no install) for the guard to read with git show and diff.
-      - name: Fetch the pull request head as data
+      # The merge result GitHub made of the pull request and the base is fetched as data (no checkout, no install). The
+      # guard judges it against the base tip, so an ADR that the base accepted after the branch point stays frozen.
+      # Without a merge ref, the pull request has conflicts.
+      - name: Fetch the merge result as data
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head:refs/guard/head"
+        run: |
+          git fetch --no-tags origin "refs/pull/${PR_NUMBER}/merge:refs/guard/head" || {
+            echo "This pull request has merge conflicts; resolve them so it can be checked" >&2
+            exit 1
+          }
       - name: Run the guard
         env:
           GUARD_BASE: origin/${{ github.base_ref }}
           GUARD_HEAD: refs/guard/head
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
         run: node scripts/guard-adrs.mjs
