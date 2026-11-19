@@ -406,8 +406,9 @@ export function verifyBackup(root: string, id: string): BackupVerification {
   } catch {
     live = null;
   }
-  const backed = backedUpConfig(dir, manifest, live, id);
-  const current = new Set(unionFiles(root, live ?? backed, scopesOf(backed, manifest)).files);
+  // The backup's own copy of the config is only opened when the live one cannot say where to look.
+  const base = live ?? backedUpConfig(dir, manifest, null, id);
+  const current = new Set(unionFiles(root, base, scopesOf(base, manifest)).files);
   const listed = new Map(manifest.files.map((f) => [f.path, f.sha256]));
   const changed: string[] = [];
   const missing: string[] = [];
@@ -438,7 +439,12 @@ function backedUpConfig(dir: string, manifest: Manifest, live: LogConfig | null,
   const entry = manifest.files.find((f) => f.path === CONFIG_FILE);
   let found: LogConfig | null = null;
   if (entry) {
-    const bytes = readFileSync(join(dir, FILES, CONFIG_FILE));
+    let bytes: Buffer;
+    try {
+      bytes = readFileSync(join(dir, FILES, CONFIG_FILE));
+    } catch {
+      throw new AdrienError('INVALID_INPUT', `Backup ${id} is damaged: its copy of ${CONFIG_FILE} cannot be read.`);
+    }
     if (sha256(bytes) !== entry.sha256) {
       throw new AdrienError(
         'INVALID_INPUT',
