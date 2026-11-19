@@ -232,7 +232,13 @@ export function registerUpdate(program: Command, cli: Cli): void {
           const problem = adrDirProblem(found.config);
           if (problem) cli.out(`Skipped: ${problem}\n`);
           else {
-            const made = deps.backup.create(found.logRoot, found.config, `before-update-${deps.current}`, deps.current);
+            const made = deps.backup.create(
+              found.logRoot,
+              found.config,
+              `before-update-${deps.current}`,
+              deps.current,
+              cli.env,
+            );
             cli.out(`Backed up the decision files to ${made.path}\n`);
             if (made.skipped.length > 0) cli.out(skippedLine(made.skipped));
             backup = { id: made.id, root: found.logRoot };

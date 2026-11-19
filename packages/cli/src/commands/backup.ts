@@ -39,7 +39,7 @@ export function registerBackup(program: Command, cli: Cli): void {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
       const ctx = await contextOf(cli, globals);
       assertWritable(ctx);
-      const made = createBackup(ctx.logRoot, ctx.config, opts.reason, VERSION);
+      const made = createBackup(ctx.logRoot, ctx.config, opts.reason, VERSION, ctx.env);
       if (globals.json) return printJson(cli, made);
       cli.out(`Backed up ${made.fileCount} files to ${made.path}\n`);
       if (made.skipped.length > 0) cli.out(skippedLine(made.skipped));
@@ -87,7 +87,7 @@ export function registerBackup(program: Command, cli: Cli): void {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
       const ctx = await contextOf(cli, globals);
       assertWritable(ctx);
-      const result = restoreBackup(ctx.logRoot, ctx.config, id, VERSION);
+      const result = restoreBackup(ctx.logRoot, ctx.config, id, VERSION, ctx.env);
       if (globals.json) return printJson(cli, result);
       cli.out(
         `Restored ${result.restored.length} files from ${id}. The files before the restore are in ${result.preRestore}.\n`,

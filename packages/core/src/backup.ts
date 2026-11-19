@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import {
   existsSync,
   lstatSync,
@@ -13,7 +13,7 @@ import { dirname, join, posix } from 'node:path';
 import { z } from 'zod';
 import { CONFIG_FILE, type LogConfig, loadLogConfig } from './config.ts';
 import { AdrienError } from './errors.ts';
-import { withAdrLocks } from './lock.ts';
+import { type LockOptions, withAdrLocks } from './lock.ts';
 import { assertInsideLog, parseLogFiles, toPosix } from './log.ts';
 import { slugify } from './slug.ts';
 
@@ -77,6 +77,60 @@ type Manifest = z.infer<typeof manifestSchema>;
 const backupsRoot = (root: string): string => join(root, '.adrien', 'backups');
 const sha256 = (bytes: Buffer | string): string => createHash('sha256').update(bytes).digest('hex');
 const toFile = (root: string, rel: string): string => join(root, ...rel.split('/'));
+
+/**
+ * The first segment of `rel`, from the log root down, that is a link or is not the right kind of entry: a folder for every
+ * segment above the last, and for the last one a file (`last: 'file'`) or a folder (`last: 'dir'`). Absent segments are
+ * fine. Every link is refused here, never followed: `lstat` only inspects the final segment, so each one is checked.
+ */
+function unsafeOn(root: string, rel: string, last: 'file' | 'dir'): string | null {
+  const parts = rel.split('/');
+  for (let i = 1; i <= parts.length; i++) {
+    const at = parts.slice(0, i).join('/');
+    const st = lstatSync(join(root, at), { throwIfNoEntry: false });
+    if (!st) return null;
+    const wanted = i === parts.length ? last : 'dir';
+    const plain = wanted === 'file' ? st.isFile() : st.isDirectory();
+    if (st.isSymbolicLink() || !plain) return at;
+  }
+  return null;
+}
+
+/** Refuses a restore that would write through a link (or a non-file) before a single byte is written. */
+function refuseLinked(root: string, paths: string[]): void {
+  const linked = paths.filter((p) => unsafeOn(root, p, 'file') !== null);
+  if (linked.length > 0) {
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `Restore refused: these paths go through a link or are not plain files, so nothing was written: ${linked.join(', ')}`,
+    );
+  }
+}
+
+/** The backups folder itself must be plain: a link there would send backups and locks outside the log. */
+function refuseLinkedBackups(root: string): void {
+  const bad = unsafeOn(root, '.adrien/backups', 'dir');
+  if (bad) {
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `The backups folder goes through a link or is not a folder (${bad}). Nothing was written.`,
+    );
+  }
+}
+
+/** Writes through a temp file in the same folder and renames it into place: an existing file is replaced, never opened in place. */
+function writeAtomic(file: string, bytes: Buffer | string): void {
+  mkdirSync(dirname(file), { recursive: true });
+  const tmp = `${file}.${randomBytes(6).toString('hex')}.tmp`;
+  writeFileSync(tmp, bytes, { flag: 'wx' });
+  renameSync(tmp, file);
+}
+
+/** `ADRIEN_LOCK_TIMEOUT_MS` sets how long a backup waits for another process to let go of an ADR, as in `ops.ts`. */
+function lockOptionsOf(env: NodeJS.ProcessEnv): LockOptions {
+  const timeoutMs = Number(env.ADRIEN_LOCK_TIMEOUT_MS);
+  return Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {};
+}
 const adrRelOf = (config: LogConfig): string => posix.normalize(toPosix(config.adr_dir));
 
 /** Why the ADR directory cannot be backed up, or null when it can. Pure: it only looks at the config. */
@@ -136,20 +190,15 @@ function logFiles(root: string, config: LogConfig): LogFiles {
   const problem = adrDirProblem(config);
   if (problem) throw new AdrienError('INVALID_INPUT', problem);
   const adrRel = adrRelOf(config);
-  const adrDir = join(root, adrRel);
-  const link = lstatSync(adrDir, { throwIfNoEntry: false });
-  if (link?.isSymbolicLink()) {
-    throw new AdrienError(
-      'INVALID_INPUT',
-      `The ADR directory ${config.adr_dir} is a symbolic link. Backups never follow links.`,
-    );
-  }
   const files: string[] = [];
   const skipped: string[] = [];
-  if (link?.isDirectory()) walk(adrDir, adrRel, files, skipped);
-  const configEntry = lstatSync(join(root, CONFIG_FILE), { throwIfNoEntry: false });
-  if (configEntry?.isFile()) files.push(CONFIG_FILE);
-  else if (configEntry) skipped.push(CONFIG_FILE);
+  // A link anywhere on the way to the ADR directory (or the directory itself) is skipped whole: nothing beneath it is read.
+  if (unsafeOn(root, adrRel, 'dir')) skipped.push(adrRel);
+  else if (lstatSync(join(root, adrRel), { throwIfNoEntry: false })?.isDirectory()) {
+    walk(join(root, adrRel), adrRel, files, skipped);
+  }
+  if (unsafeOn(root, CONFIG_FILE, 'file')) skipped.push(CONFIG_FILE);
+  else if (existsSync(join(root, CONFIG_FILE))) files.push(CONFIG_FILE);
   return { files: files.sort(), skipped: skipped.sort() };
 }
 
@@ -232,9 +281,7 @@ function snapshot(
   try {
     const entries = files.map((rel) => {
       const bytes = readFileSync(toFile(root, rel));
-      const dest = join(dir, FILES, ...rel.split('/'));
-      mkdirSync(dirname(dest), { recursive: true });
-      writeFileSync(dest, bytes);
+      writeAtomic(join(dir, FILES, ...rel.split('/')), bytes);
       return { path: rel, sha256: sha256(bytes) };
     });
     const manifest: Manifest = {
@@ -244,9 +291,7 @@ function snapshot(
       files: entries,
       skipped,
     };
-    const tmp = join(dir, `${MANIFEST}.tmp`);
-    writeFileSync(tmp, `${JSON.stringify(manifest, null, 2)}\n`);
-    renameSync(tmp, join(dir, MANIFEST));
+    writeAtomic(join(dir, MANIFEST), `${JSON.stringify(manifest, null, 2)}\n`);
   } catch (e) {
     rmSync(dir, { recursive: true, force: true });
     throw e;
@@ -261,13 +306,18 @@ type Attempt<T> = { unlocked: string[] } | { value: T };
  * Runs `fn` while holding the lock of every ADR in the log, plus `extra` ids. An ADR that appears while the locks are
  * being taken is locked too, and the attempt is repeated, so `fn` always runs with the whole working set locked.
  */
-function underLocks<T>(root: string, config: LogConfig, extra: string[], fn: () => T): T {
+function underLocks<T>(root: string, config: LogConfig, extra: string[], env: NodeJS.ProcessEnv, fn: () => T): T {
   let ids = [...new Set([...currentIds(root, config), ...extra])];
   for (;;) {
-    const outcome = withAdrLocks<Attempt<T>>(root, ids, () => {
-      const unlocked = [...new Set(currentIds(root, config).filter((id) => !ids.includes(id)))];
-      return unlocked.length > 0 ? { unlocked } : { value: fn() };
-    });
+    const outcome = withAdrLocks<Attempt<T>>(
+      root,
+      ids,
+      () => {
+        const unlocked = [...new Set(currentIds(root, config).filter((id) => !ids.includes(id)))];
+        return unlocked.length > 0 ? { unlocked } : { value: fn() };
+      },
+      lockOptionsOf(env),
+    );
     if ('value' in outcome) return outcome.value;
     ids = [...ids, ...outcome.unlocked];
   }
@@ -278,8 +328,15 @@ function underLocks<T>(root: string, config: LogConfig, extra: string[], fn: () 
  * with a manifest of the SHA-256 of each file. Links and other non-files are listed as `skipped`, never followed.
  * The copy holds the lock of every ADR, so no write is half-copied. Only the newest `BACKUP_KEEP` are kept.
  */
-export function createBackup(root: string, config: LogConfig, reason: string, adrienVersion: string): BackupCreated {
-  return underLocks(root, config, [], () => snapshot(root, config, reason, adrienVersion, []));
+export function createBackup(
+  root: string,
+  config: LogConfig,
+  reason: string,
+  adrienVersion: string,
+  env: NodeJS.ProcessEnv = process.env,
+): BackupCreated {
+  refuseLinkedBackups(root);
+  return underLocks(root, config, [], env, () => snapshot(root, config, reason, adrienVersion, []));
 }
 
 /** The backups of a log, newest first; folders whose manifest cannot be read come last, marked damaged. */
@@ -322,7 +379,14 @@ export function verifyBackup(root: string, id: string): BackupVerification {
  * so nothing can change between the snapshot and the writes. Files the backup does not hold are reported as `leftover`
  * and never deleted.
  */
-export function restoreBackup(root: string, config: LogConfig, id: string, adrienVersion: string): RestoreResult {
+export function restoreBackup(
+  root: string,
+  config: LogConfig,
+  id: string,
+  adrienVersion: string,
+  env: NodeJS.ProcessEnv = process.env,
+): RestoreResult {
+  refuseLinkedBackups(root);
   const { dir, manifest } = openBackup(root, id);
   const staged = manifest.files.map(({ path, sha256: expected }) => {
     const target = restoreTarget(root, config, path);
@@ -339,12 +403,13 @@ export function restoreBackup(root: string, config: LogConfig, id: string, adrie
     staged.map((s) => ({ path: s.path, text: s.bytes.toString('utf8') })),
     config,
   ).adrs.map((a) => a.meta.id);
-  return underLocks(root, config, backedIds, () => {
+  const paths = manifest.files.map((f) => f.path);
+  refuseLinked(root, paths);
+  return underLocks(root, config, backedIds, env, () => {
+    // Checked again under the locks: a link made after the first check must still stop the restore before any write.
+    refuseLinked(root, paths);
     const snap = snapshot(root, config, 'pre-restore', adrienVersion, [id]);
-    for (const s of staged) {
-      mkdirSync(dirname(s.target), { recursive: true });
-      writeFileSync(s.target, s.bytes);
-    }
+    for (const s of staged) writeAtomic(s.target, s.bytes);
     const listed = new Set(manifest.files.map((f) => f.path));
     return {
       id,

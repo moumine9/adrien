@@ -1,6 +1,17 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { createHash } from 'node:crypto';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
+import { hostname } from 'node:os';
+import { dirname, join } from 'node:path';
 import { afterEach } from 'vitest';
 import { BACKUP_KEEP, createBackup, listBackups, restoreBackup, verifyBackup } from '../src/backup.ts';
 import { CONFIG_FILE, loadLogConfig } from '../src/config.ts';
@@ -136,12 +147,15 @@ test.skipIf(!POSIX)('a config that is a link is skipped, and the backup still ha
   expect(made.fileCount).toBe(1);
 });
 
-test('an ADR directory that is itself a link is refused, never followed', () => {
+test.skipIf(!POSIX)('an ADR directory that is itself a link is skipped, never followed', () => {
   const root = logRoot();
   const outside = tmpDir();
+  writeFileSync(join(outside, 'ADR-0009-outside.md'), adrText({ id: 'ADR-0009', title: 'Outside' }));
   rmSync(join(root, 'docs/adr'), { recursive: true });
   symlinkSync(outside, join(root, 'docs/adr'));
-  expect(() => createBackup(root, loadLogConfig(root), 'x', VERSION)).toThrow('is a symbolic link');
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  expect(made.skipped).toEqual(['docs/adr']);
+  expect(made.fileCount).toBe(1);
 });
 
 test('listBackups returns the newest first and reports damaged folders instead of hiding them', () => {
@@ -370,4 +384,93 @@ test('an ADR that appears while the locks are being taken is locked too, and the
   expect(lockSpy.calls[1]).toEqual(expect.arrayContaining(['ADR-0001', 'ADR-0003']));
   const snapshot = JSON.parse(readFileSync(join(backupDirOf(root, result.preRestore), 'manifest.json'), 'utf8'));
   expect(snapshot.files.map((f: { path: string }) => f.path)).toContain('docs/adr/ADR-0003-late.md');
+});
+
+/** Adds an entry to a backup's manifest, with its bytes in files/: the shape of a backup a restore would write through a link. */
+function addEntry(backupPath: string, rel: string, text: string): void {
+  const dest = join(backupPath, 'files', ...rel.split('/'));
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, text);
+  const manifestFile = join(backupPath, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  manifest.files.push({ path: rel, sha256: createHash('sha256').update(text).digest('hex') });
+  writeFileSync(manifestFile, JSON.stringify(manifest));
+}
+
+test.skipIf(!POSIX)('restore refuses a path that goes through a link into .git, and writes nothing', () => {
+  const root = logRoot();
+  mkdirSync(join(root, '.git', 'hooks'), { recursive: true });
+  writeFileSync(join(root, '.git', 'config'), 'original config');
+  const config = loadLogConfig(root);
+  const made = createBackup(root, config, 'x', VERSION);
+  addEntry(made.path, 'docs/adr/sub/hooks/pre-commit', 'evil hook');
+  symlinkSync('../../.git', join(root, 'docs/adr/sub'));
+
+  expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow('through a link');
+  expect(existsSync(join(root, '.git/hooks/pre-commit'))).toBe(false);
+  expect(read(root, '.git/config')).toBe('original config');
+});
+
+test.skipIf(!POSIX)('restore refuses an ADR file that is a link to a file outside the log', () => {
+  const root = logRoot();
+  mkdirSync(join(root, '.git'));
+  writeFileSync(join(root, '.git/config'), 'original config');
+  const config = loadLogConfig(root);
+  const made = createBackup(root, config, 'x', VERSION);
+  rmSync(join(root, 'docs/adr/ADR-0001-storage.md'));
+  symlinkSync('../../.git/config', join(root, 'docs/adr/ADR-0001-storage.md'));
+
+  expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow('through a link');
+  expect(read(root, '.git/config')).toBe('original config');
+});
+
+test.skipIf(!POSIX)('restore refuses an adrien.config.yaml that is a link, and changes no decision file', () => {
+  const root = logRoot();
+  const config = loadLogConfig(root);
+  const made = createBackup(root, config, 'x', VERSION);
+  writeFileSync(join(root, 'real-config.yaml'), 'changed elsewhere');
+  writeFileSync(join(root, 'docs/adr/ADR-0001-storage.md'), 'edited');
+  rmSync(join(root, CONFIG_FILE));
+  symlinkSync('real-config.yaml', join(root, CONFIG_FILE));
+
+  expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow('through a link');
+  expect(read(root, 'real-config.yaml')).toBe('changed elsewhere');
+  expect(read(root, 'docs/adr/ADR-0001-storage.md')).toBe('edited');
+});
+
+test.skipIf(!POSIX)('create copies nothing through a linked parent of the ADR directory', () => {
+  const root = logRoot();
+  const outside = tmpDir();
+  mkdirSync(join(outside, 'adr'), { recursive: true });
+  writeFileSync(join(outside, 'adr', 'ADR-0009-outside.md'), adrText({ id: 'ADR-0009', title: 'Outside' }));
+  rmSync(join(root, 'docs'), { recursive: true });
+  symlinkSync(outside, join(root, 'docs'));
+
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  expect(made.skipped).toEqual(['docs/adr']);
+  const manifest = JSON.parse(readFileSync(join(made.path, 'manifest.json'), 'utf8'));
+  expect(manifest.files.map((f: { path: string }) => f.path)).toEqual([CONFIG_FILE]);
+});
+
+test.skipIf(!POSIX)('a backups folder that is a link is refused before anything is written', () => {
+  const root = logRoot();
+  const outside = tmpDir();
+  symlinkSync(outside, join(root, '.adrien'));
+  expect(() => createBackup(root, loadLogConfig(root), 'x', VERSION)).toThrow('through a link');
+  expect(readdirSync(outside)).toEqual([]);
+});
+
+test('the wait for an ADR lock honours ADRIEN_LOCK_TIMEOUT_MS', () => {
+  const root = logRoot();
+  mkdirSync(join(root, '.adrien', 'locks'), { recursive: true });
+  // A live owner (this process) holds the lock of ADR-0001: the backup must give up after the configured wait.
+  writeFileSync(
+    join(root, '.adrien', 'locks', 'adr-0001.lock'),
+    JSON.stringify({ pid: process.pid, host: hostname(), at: Date.now() }),
+  );
+  const started = Date.now();
+  expect(() => createBackup(root, loadLogConfig(root), 'x', VERSION, { ADRIEN_LOCK_TIMEOUT_MS: '50' })).toThrow(
+    expect.objectContaining({ code: 'ADR_LOCKED' }),
+  );
+  expect(Date.now() - started).toBeLessThan(5000);
 });
