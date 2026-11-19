@@ -1,6 +1,9 @@
-import { AdrienError, serializeAdr, workingRevision } from '@adrien/core';
+import { type Adr, AdrienError, serializeAdr, workingRevision } from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, type GlobalOptions, open, printJson } from '../cli.ts';
+
+// The top-level `revision` is the one to pass as --expect; a nested one would be the revision of another version.
+const bare = ({ revision: _revision, ...adr }: Adr) => adr;
 
 export function registerShow(program: Command, cli: Cli): void {
   program
@@ -18,8 +21,8 @@ export function registerShow(program: Command, cli: Cli): void {
         return printJson(cli, {
           id,
           revision: workingRevision(view, id),
-          base,
-          pending: change && { kind: change.kind, current: change.current ?? null },
+          base: base && bare(base),
+          pending: change && { kind: change.kind, current: change.current ? bare(change.current) : null },
         });
       }
       if (base) cli.out(serializeAdr(base));

@@ -144,7 +144,6 @@ function latest(atFork: Adr | undefined, base: Adr[]): Adr | undefined {
   );
 }
 
-/** The ADR files in this checkout (what edits and renumbering act on). */
 /**
  * The revision of an ADR in the working copy as the view read it: a hash of the same text the view holds, so it is never
  * newer than the content returned with it (an older one only causes a false conflict, a newer one would let a change
@@ -155,6 +154,7 @@ export function workingRevision(view: LogView, id: string): string | null {
   return (matches.length === 1 ? matches[0] : undefined)?.revision ?? null;
 }
 
+/** The ADR files in this checkout (what edits and renumbering act on). */
 export function workingAdrs(view: LogView): Adr[] {
   return view.working;
 }

@@ -37,7 +37,7 @@ export type AdrPatch = Partial<
 export interface OpOptions {
   today?: string;
   /**
-   * The revision of the ADR the caller read (see `revisionOfAdr`). When it is given and the ADR has changed since, the
+   * The revision of the ADR the caller read (see `workingRevision`). When it is given and the ADR has changed since, the
    * change is refused with ADR_CONFLICT instead of being applied on top of a version the caller never saw.
    */
   expectedRevision?: string;
@@ -213,16 +213,18 @@ export function updateAdr(
     if (opts?.note) {
       nextBody = `${nextBody.replace(/\n*$/, '\n')}\n> Proposed change (${opts.origin ?? 'agent'}, ${todayOf(opts)}): ${opts.note}\n`;
     }
-    const updated: Adr = { ...adr, body: nextBody, meta: { ...adr.meta, ...metaPatch } };
-    writeAdr(ctx.logRoot, updated);
-    return updated;
+    return persist(ctx, { ...adr, body: nextBody, meta: { ...adr.meta, ...metaPatch } });
   });
 }
 
+/** Writes an ADR and returns it with the revision of the text just written, which a caller can pass as its next base. */
+function persist(ctx: Context, adr: Adr): Adr {
+  writeAdr(ctx.logRoot, adr);
+  return { ...adr, revision: revisionOf(ctx.logRoot, adr.path) };
+}
+
 function write(ctx: Context, adr: Adr, meta: Partial<AdrMeta>): Adr {
-  const updated = { ...adr, meta: { ...adr.meta, ...meta } };
-  writeAdr(ctx.logRoot, updated);
-  return updated;
+  return persist(ctx, { ...adr, meta: { ...adr.meta, ...meta } });
 }
 
 export function acceptAdr(ctx: Context, _view: LogView, id: string, opts?: OpOptions): Adr {
@@ -292,14 +294,33 @@ function renumberUnlocked(
     );
   }
 
-  const taken = [...view.base, ...working].map((a) => a.meta.id);
-  const to = formatId(nextIdNumber(taken, ctx.config.id_format), ctx.config.id_format);
-  const path = posix.join(posix.dirname(target.path), `${to}-${slugify(target.meta.title)}.md`);
-  // The file may already be named for the new id (then it is rewritten in place); anywhere else it must be free, so a
-  // file the view could not parse is never replaced.
-  const inPlace = path === target.path;
-  writeAdr(ctx.logRoot, { ...target, path, meta: { ...target.meta, id: to } }, { exclusive: !inPlace });
-  if (!inPlace) unlinkSync(join(ctx.logRoot, ...target.path.split('/')));
+  // Allocate the way `createAdr` does: reserve the number, then re-read the log, so a concurrent create cannot take it.
+  let next = nextIdNumber(
+    [...view.base, ...working].map((a) => a.meta.id),
+    ctx.config.id_format,
+  );
+  let to: string;
+  let path: string;
+  for (;;) {
+    const reservation = reserveId(ctx.logRoot, next);
+    try {
+      to = formatId(reservation.number, ctx.config.id_format);
+      const fresh = readWorkingLog(ctx.logRoot, ctx.config).adrs.map((a) => a.meta.id);
+      if (fresh.includes(to)) {
+        next = nextIdNumber([...fresh, ...view.base.map((a) => a.meta.id)], ctx.config.id_format);
+        continue;
+      }
+      path = posix.join(posix.dirname(target.path), `${to}-${slugify(target.meta.title)}.md`);
+      // The file may already be named for the new id (then it is rewritten in place); anywhere else it must be free, so
+      // a file the view could not parse is never replaced.
+      const inPlace = path === target.path;
+      writeAdr(ctx.logRoot, { ...target, path, meta: { ...target.meta, id: to } }, { exclusive: !inPlace });
+      if (!inPlace) unlinkSync(join(ctx.logRoot, ...target.path.split('/')));
+      break;
+    } finally {
+      reservation.release();
+    }
+  }
 
   const swap = (ids: string[]) => ids.map((x) => (x === id ? to : x));
   // The ADRs this checkout changed or added follow the new id; they are rewritten from their text on disk now.

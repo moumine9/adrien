@@ -254,6 +254,31 @@ test('renumber never overwrites a file that already holds the next id, and leave
   expect(existsSync(join(root, 'docs/adr/ADR-0001-dup.md'))).toBe(true);
 });
 
+test('renumber skips an id a concurrent create has reserved, and leaves no reservation behind', async () => {
+  const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  initRepo(root, { origin: true });
+  writeFiles(root, { 'docs/adr/ADR-0001-dup.md': adrText({ id: 'ADR-0001', title: 'Dup' }) });
+  const { ctx, view } = await load(root);
+  // Another process is creating ADR-0002 right now: its marker exists but its file does not yet.
+  mkdirSync(join(root, '.adrien'), { recursive: true });
+  writeFileSync(join(root, '.adrien', 'create-2.lock'), '');
+  expect(renumber(ctx, view, 'ADR-0001').to).toBe('ADR-0003');
+  expect(existsSync(join(root, '.adrien', 'create-3.lock'))).toBe(false);
+});
+
+test('accept and status return the revision of the file they wrote, so it can be reused as the next base', async () => {
+  const root = makeLog({
+    'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A', review_rule: 'Do A.' }),
+  });
+  const { ctx, view } = await load(root);
+  const accepted = acceptAdr(ctx, view, 'ADR-0001', { today: TODAY });
+  expect(accepted.revision).toBe(revisionOf(root, accepted.path));
+  const next = setStatus(ctx, view, 'ADR-0001', 'deprecated', { expectedRevision: accepted.revision });
+  expect(next.revision).toBe(revisionOf(root, next.path));
+  const edited = updateAdr(ctx, view, 'ADR-0001', { tags: ['backend'] }, { expectedRevision: next.revision });
+  expect(edited.revision).toBe(revisionOf(root, edited.path));
+});
+
 test('renumber keeps the file when it is already named for the new id', async () => {
   const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
   initRepo(root, { origin: true });
