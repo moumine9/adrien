@@ -1,4 +1,5 @@
 import { AdrIndex, type Context, type LogView, loadLogView, resolveContext } from '@adrien/core';
+import type { UpdateDeps } from './commands/update.ts';
 
 /** What every command gets: where it runs, and where its output goes. */
 export interface Cli {
@@ -7,6 +8,7 @@ export interface Cli {
   out(text: string): void;
   err(text: string): void;
   setCode(code: number): void;
+  update?: Partial<UpdateDeps>;
 }
 
 export interface GlobalOptions {
