@@ -51,7 +51,7 @@ function ChipGroup({
             size="sm"
             pressed={selected.includes(v)}
             onPressedChange={() => onToggle(v)}
-            className="gap-1.5 font-semibold data-pressed:shadow-shadow"
+            className="gap-2 font-semibold data-pressed:shadow-shadow"
           >
             <Icon aria-hidden className="size-3.5" strokeWidth={2.5} />
             {v}

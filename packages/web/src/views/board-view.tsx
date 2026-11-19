@@ -3,6 +3,7 @@ import { Check, ChevronDown, Copy, Lock, Tag } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
 import { Chip, InCheckoutBadge, LocalEditBadge, type LocalEditKind, STATUS_ICONS } from '@/components/badges.tsx';
+import { PendingBand } from '@/components/pending-band.tsx';
 import { ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { EMPTY_FILTERS } from '@/lib/filters.ts';
@@ -66,7 +67,7 @@ function ApproveDisclosure({ id }: { id: string }) {
 
   return (
     <details className="group rounded-base border-2 border-border bg-background">
-      <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-base px-3 font-heading outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+      <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-base px-4 font-heading outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         How to approve
         <ChevronDown
           aria-hidden
@@ -74,10 +75,10 @@ function ApproveDisclosure({ id }: { id: string }) {
           strokeWidth={2.5}
         />
       </summary>
-      <div className="space-y-3 border-t-2 border-border p-3">
+      <div className="space-y-3 border-t border-rule p-4">
         <p className="text-sm">Approving is a merge: set the status to accepted in a merge request.</p>
         <div className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 break-all rounded-base border-2 border-border bg-secondary-background px-2 py-1 font-mono text-sm">
+          <code className="min-w-0 break-all rounded-inset border-2 border-border bg-secondary-background px-2 py-1 font-mono text-sm">
             {command}
           </code>
           <Button variant="neutral" size="sm" onClick={copy}>
@@ -100,34 +101,37 @@ function BoardCard({ row, localEdit }: { row: AdrRow; localEdit?: LocalEditKind 
   return (
     <article
       className={cn(
-        'space-y-3 rounded-base border-2 border-border bg-secondary-background p-4',
-        pending && 'hatch border-dashed',
+        'flex flex-col overflow-hidden rounded-base border-2 border-border bg-secondary-background',
+        pending && 'border-dashed',
         !pending && !retired && 'shadow-shadow',
       )}
     >
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="font-heading tabular-nums">{row.id}</span>
-        {pending && <InCheckoutBadge />}
-        {localEdit && <LocalEditBadge kind={localEdit} />}
-      </div>
-      <h3 className={cn('text-base leading-snug', retired && 'text-muted-foreground')}>
-        <Link
-          to={`/adr/${encodeURIComponent(row.id)}`}
-          className="rounded-base underline-offset-4 outline-none hover:underline hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring"
-        >
-          {row.title}
-        </Link>
-      </h3>
-      {row.tags.length > 0 && (
-        <div className="flex flex-wrap gap-1.5">
-          {row.tags.map((t) => (
-            <Chip key={t} icon={Tag}>
-              {t}
-            </Chip>
-          ))}
+      {pending && <PendingBand />}
+      <div className="space-y-3 p-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-heading tabular-nums">{row.id}</span>
+          {pending && <InCheckoutBadge />}
+          {localEdit && <LocalEditBadge kind={localEdit} />}
         </div>
-      )}
-      {row.status === 'proposed' && <ApproveDisclosure id={row.id} />}
+        <h3 className={cn('text-base leading-snug', retired && 'text-muted-foreground')}>
+          <Link
+            to={`/adr/${encodeURIComponent(row.id)}`}
+            className="rounded-base underline-offset-4 outline-none hover:underline hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring"
+          >
+            {row.title}
+          </Link>
+        </h3>
+        {row.tags.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {row.tags.map((t) => (
+              <Chip key={t} icon={Tag}>
+                {t}
+              </Chip>
+            ))}
+          </div>
+        )}
+        {row.status === 'proposed' && <ApproveDisclosure id={row.id} />}
+      </div>
     </article>
   );
 }
