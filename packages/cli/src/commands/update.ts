@@ -1,4 +1,5 @@
-import { spawn } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AdrienError } from '@adrien/core';
 import type { Command } from 'commander';
@@ -15,9 +16,11 @@ export interface UpdateDeps {
   fetch: typeof fetch;
   install: (command: string, args: string[]) => Promise<number>;
   installPath: string;
+  /** Where `npm install -g` puts packages, or null when npm cannot say. */
+  globalRoot: () => string | null;
 }
 
-export type InstallKind = 'npx' | 'global' | 'project' | 'unknown';
+export type InstallKind = 'npx' | 'global' | 'pnpm' | 'yarn' | 'bun' | 'project' | 'unknown';
 
 interface ParsedVersion {
   core: number[];
@@ -55,17 +58,33 @@ export function compareVersions(a: string, b: string): number {
   }
 }
 
-/** Says how this copy of adrien was installed, from the path of the running bundle. */
-export function detectInstall(path: string): InstallKind {
+/**
+ * Says how this copy of adrien was installed, from the real path of the running bundle. Only a copy under npm's own
+ * global root is `global`, the one kind this command may install over; any other `node_modules` copy is a project's.
+ */
+export function detectInstall(path: string, globalRoot: string | null): InstallKind {
   const p = path.replace(/\\/g, '/');
   if (p.includes('/_npx/')) return 'npx';
-  if (/\/(lib|npm|pnpm\/global\/\d+)\/node_modules\/adrien\//.test(p)) return 'global';
-  if (p.includes('/node_modules/adrien/')) return 'project';
-  return 'unknown';
+  if (/\/pnpm\/(global|dlx)\//.test(p)) return 'pnpm';
+  if (/\/(\.yarn|yarn)\/(global|berry)?/.test(p) && p.includes('/node_modules/adrien/')) return 'yarn';
+  if (p.includes('/.bun/')) return 'bun';
+  if (!p.includes('/node_modules/adrien/')) return 'unknown';
+  const root = globalRoot?.replace(/\\/g, '/').replace(/\/$/, '');
+  return root && p.startsWith(`${root}/`) ? 'global' : 'project';
+}
+
+/** The folder `npm install -g` writes to, resolved through symlinks; null when npm is missing or fails. */
+function npmGlobalRoot(): string | null {
+  try {
+    return realpathSync(execFileSync('npm', ['root', '-g'], { encoding: 'utf8', timeout: TIMEOUT_MS }).trim());
+  } catch {
+    return null;
+  }
 }
 
 /** Runs the installer and resolves with its exit code; only the global install path calls this. */
 export function spawnInstaller(command: string, args: string[]): Promise<number> {
+  process.stderr.write(`Running ${command} ${args.join(' ')}\n`);
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { stdio: 'inherit', shell: process.platform === 'win32' });
     child.on('error', reject);
@@ -77,7 +96,8 @@ const defaults = (): UpdateDeps => ({
   current: VERSION,
   fetch: (input, init) => fetch(input, init),
   install: spawnInstaller,
-  installPath: fileURLToPath(import.meta.url),
+  installPath: realpathSync(fileURLToPath(import.meta.url)),
+  globalRoot: npmGlobalRoot,
 });
 
 async function fetchLatest(fetchFn: typeof fetch): Promise<string> {
@@ -121,13 +141,19 @@ export function registerUpdate(program: Command, cli: Cli): void {
       }
       if (!updateAvailable) return cli.out(`adrien ${deps.current} is the latest version.\n`);
 
-      switch (detectInstall(deps.installPath)) {
+      switch (detectInstall(deps.installPath, deps.globalRoot())) {
         case 'npx':
           return cli.out(`adrien is running through npx. Run \`npx adrien@latest\` to use ${latest}.\n`);
         case 'project':
           return cli.out(
             `adrien is a project dependency. Run \`npm install adrien@latest\` in the project to get ${latest}.\n`,
           );
+        case 'pnpm':
+          return cli.out(`adrien is installed with pnpm. Run \`pnpm add -g adrien@latest\` to get ${latest}.\n`);
+        case 'yarn':
+          return cli.out(`adrien is installed with yarn. Run \`yarn global add adrien@latest\` to get ${latest}.\n`);
+        case 'bun':
+          return cli.out(`adrien is installed with bun. Run \`bun add -g adrien@latest\` to get ${latest}.\n`);
         case 'unknown':
           return cli.out(
             `Could not tell how adrien was installed. To get ${latest}, run \`npm ${INSTALL_ARGS.join(' ')}\`.\n`,
@@ -135,7 +161,6 @@ export function registerUpdate(program: Command, cli: Cli): void {
         case 'global':
           break;
       }
-      cli.out(`Installing adrien ${latest} globally with npm...\n`);
       let code: number;
       try {
         code = await deps.install('npm', INSTALL_ARGS);
