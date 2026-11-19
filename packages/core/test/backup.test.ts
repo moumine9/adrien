@@ -699,3 +699,14 @@ test('verify ignores the backup copy of the config while the live one is fine, a
   rmSync(join(root, CONFIG_FILE));
   expect(() => verifyBackup(root, made.id)).toThrow(/damaged.*cannot be read/);
 });
+
+test('a restore works when the live config names an ADR directory that cannot be backed up, and keeps its bytes', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  writeFileSync(join(root, CONFIG_FILE), configYaml({ adr_dir: '.' }));
+  const result = restoreBackup(root, loadLogConfig(root), made.id, VERSION);
+  expect(read(root, CONFIG_FILE)).toBe(configYaml());
+  expect(readFileSync(join(backupDirOf(root, result.preRestore), 'files', CONFIG_FILE), 'utf8')).toBe(
+    configYaml({ adr_dir: '.' }),
+  );
+});

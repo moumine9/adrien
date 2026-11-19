@@ -485,8 +485,10 @@ export function restoreBackup(
   refuseLinkedBackups(root);
   const { dir, manifest } = openBackup(root, id);
   // Where the ADRs go is what the backup says, checked like every other file; the live config may be gone or have moved.
-  const backed = backedUpConfig(dir, manifest, config, id);
-  const live = config ?? backed;
+  // A live config whose ADR directory cannot be backed up counts as unusable here; its bytes are still snapshotted.
+  const usable = config && !adrDirProblem(config) ? config : null;
+  const backed = backedUpConfig(dir, manifest, usable, id);
+  const live = usable ?? backed;
   const scopes = scopesOf(backed, manifest);
   const staged = manifest.files.map(({ path, sha256: expected }) => {
     const target = restoreTarget(root, scopes, path);
