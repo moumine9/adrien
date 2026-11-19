@@ -3,8 +3,23 @@ name: CI
 on:
   push:
   pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 jobs:
+  # Decision files change only in a pull request labelled `adr` (scripts/guard-adrs.mjs). The label check reruns on
+  # label changes. Its own job, so the `test` check names stay as they are.
+  adr-guard:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: node scripts/guard-adrs.mjs
+        env:
+          GUARD_BASE: origin/${{ github.base_ref }}
+          ADR_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'adr') }}
+
   test:
     strategy:
       fail-fast: false
