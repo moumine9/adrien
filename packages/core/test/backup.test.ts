@@ -631,3 +631,33 @@ test('an ADR directory with a name a backup cannot hold is refused', () => {
   const config = { ...loadLogConfig(root), adr_dir: 'docs/.git/adr' };
   expect(() => createBackup(root, config, 'x', VERSION)).toThrow(/a name a backup cannot hold/);
 });
+
+test('the pre-restore backup holds every existing file the restore overwrites, even under another ADR directory', () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml({ adr_dir: 'docs' }), 'docs/guide.md': 'old guide' });
+  const made = createBackup(root, loadLogConfig(root), 'before', VERSION);
+  writeFileSync(join(root, CONFIG_FILE), configYaml({ adr_dir: 'docs/adr' }));
+  writeFileSync(join(root, 'docs/guide.md'), 'edited since');
+
+  const result = restoreBackup(root, loadLogConfig(root), made.id, VERSION);
+
+  expect(read(root, 'docs/guide.md')).toBe('old guide');
+  const pre = JSON.parse(readFileSync(join(backupDirOf(root, result.preRestore), 'manifest.json'), 'utf8'));
+  expect(pre.files.map((f: { path: string }) => f.path)).toContain('docs/guide.md');
+  expect(readFileSync(join(backupDirOf(root, result.preRestore), 'files', 'docs', 'guide.md'), 'utf8')).toBe(
+    'edited since',
+  );
+});
+
+test('an ADR directory written with a trailing slash backs up and restores', () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml({ adr_dir: 'docs/adr/' }),
+    'docs/adr/ADR-0001-storage.md': adrText({ id: 'ADR-0001', title: 'Storage' }),
+  });
+  const config = loadLogConfig(root);
+  const made = createBackup(root, config, 'slash', VERSION);
+  writeFileSync(join(root, 'docs/adr/ADR-0001-storage.md'), 'damaged');
+  restoreBackup(root, config, made.id, VERSION);
+  expect(read(root, 'docs/adr/ADR-0001-storage.md')).toContain('Storage');
+});

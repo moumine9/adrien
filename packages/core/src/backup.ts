@@ -150,7 +150,7 @@ function lockOptionsOf(env: NodeJS.ProcessEnv): LockOptions {
   const timeoutMs = Number(env.ADRIEN_LOCK_TIMEOUT_MS);
   return Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {};
 }
-const adrRelOf = (config: LogConfig): string => posix.normalize(toPosix(config.adr_dir));
+const adrRelOf = (config: LogConfig): string => posix.normalize(toPosix(config.adr_dir)).replace(/(.)\/+$/, '$1');
 
 /** Why the ADR directory cannot be backed up, or null when it can. Pure: it only looks at the config. */
 export function adrDirProblem(config: LogConfig): string | null {
@@ -228,6 +228,15 @@ function logFiles(root: string, config: LogConfig): LogFiles {
   return { files: files.sort(), skipped: skipped.sort() };
 }
 
+/** The files of two configs' ADR directories together: a restore may replace files under either. */
+function unionFiles(root: string, config: LogConfig, other: LogConfig | null): LogFiles {
+  const first = logFiles(root, config);
+  if (!other) return first;
+  const second = logFiles(root, other);
+  const merge = (a: string[], b: string[]) => [...new Set([...a, ...b])].sort();
+  return { files: merge(first.files, second.files), skipped: merge(first.skipped, second.skipped) };
+}
+
 /**
  * The ids of the ADRs as they are now. It reads only the regular files `logFiles` collected: reading a FIFO named like an
  * ADR would block forever, so the log's own reader is not used here.
@@ -296,8 +305,9 @@ function snapshot(
   reason: string,
   adrienVersion: string,
   protect: string[],
+  also: LogConfig | null = null,
 ): BackupCreated {
-  const { files, skipped } = logFiles(root, config);
+  const { files, skipped } = unionFiles(root, config, also);
   // Strictly later than the newest backup, so the newest-first order never depends on a tie.
   const newest = okBackups(root)[0];
   const createdAt = new Date(Math.max(Date.now(), newest ? Date.parse(newest.createdAt) + 1 : 0));
@@ -467,10 +477,11 @@ export function restoreBackup(
   ).adrs.map((a) => a.meta.id);
   const paths = manifest.files.map((f) => f.path);
   refuseLinked(root, paths);
-  return underLocks(root, live, backedIds, env, () => {
+  const lockIds = [...backedIds, ...currentIds(root, backed)];
+  return underLocks(root, live, lockIds, env, () => {
     // Checked again under the locks: a link made after the first check must still stop the restore before any write.
     refuseLinked(root, paths);
-    const snap = snapshot(root, live, 'pre-restore', adrienVersion, [id]);
+    const snap = snapshot(root, live, 'pre-restore', adrienVersion, [id], backed);
     for (const s of staged) writeAtomic(s.target, s.bytes);
     const listed = new Set(manifest.files.map((f) => f.path));
     return {
