@@ -8,6 +8,8 @@ const ADR = 'docs/decisions/ADR-0002-only-an-accepted-adr-is-binding.md';
 const NEW = 'docs/decisions/ADR-0030-a-new-decision.md';
 const CONFIG = 'adrien.config.yaml';
 const CONFIG_TEXT = 'product: adrien\nadr_dir: docs/decisions\nid_format: "ADR-{n:4}"\n';
+const CODE_CONFIG = '.adrien.yaml';
+const CODE_TEXT = 'log: docs/decisions\ncomponents:\n  - core\n';
 
 const PROPOSED = `---
 id: ADR-0030
@@ -169,9 +171,9 @@ test('an accepted ADR may not change its components', () => {
   expect(guardChanges({ adrLabel: true, changes: [modified(ACCEPTED, head)] })).toEqual([FROZEN]);
 });
 
-test('an accepted ADR may change an entry of code, but not add or remove one', () => {
+test('an accepted ADR may not change its code, not even by renaming a path', () => {
   const renamed = ACCEPTED.replace('  - core:src/for-files.ts', '  - core:src/other.ts');
-  expect(guardChanges({ adrLabel: true, changes: [modified(ACCEPTED, renamed)] })).toEqual([]);
+  expect(guardChanges({ adrLabel: true, changes: [modified(ACCEPTED, renamed)] })).toEqual([FROZEN]);
   const added = ACCEPTED.replace('  - core:src/for-files.ts', '  - core:src/for-files.ts\n  - core:src/extra.ts');
   expect(guardChanges({ adrLabel: true, changes: [modified(ACCEPTED, added)] })).toEqual([FROZEN]);
 });
@@ -208,43 +210,70 @@ test('with the adr label, a change to adrien.config.yaml passes unless adr_dir m
   ).toEqual([`${CONFIG}: adr_dir cannot change from docs/decisions to docs/other`]);
   expect(
     guardChanges({ adrLabel: true, changes: [{ status: 'D', path: CONFIG, base: CONFIG_TEXT, head: null }] }),
-  ).toEqual([`${CONFIG}: adrien.config.yaml is never deleted or renamed`]);
+  ).toEqual([`${CONFIG}: a config file is never deleted or renamed`]);
   expect(guardChanges({ adrLabel: true, changes: [modified(CONFIG_TEXT, 'product: [oops', CONFIG)] })).toHaveLength(1);
 });
 
-test('the command exits 1 and explains a change made without the label, read from git', () => {
-  const root = tmpDir();
-  const git = (...args: string[]) => {
-    const run = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.com', ...args], {
-      cwd: root,
-      encoding: 'utf8',
-    });
-    if (run.status !== 0) throw new Error(run.stderr);
-  };
-  git('init', '-q', '-b', 'main');
-  writeFiles(root, { [ADR]: ACCEPTED });
-  git('add', '-A');
-  git('commit', '-qm', 'base');
-  git('checkout', '-qb', 'feature');
-  writeFiles(root, { [ADR]: ACCEPTED.replace('Text.', 'Edited.') });
-  git('commit', '-qam', 'feature');
-
-  const run = (label: string) =>
-    spawnSync(process.execPath, [script], {
-      cwd: root,
-      encoding: 'utf8',
-      env: { ...process.env, GUARD_BASE: 'main', ADR_LABEL: label },
-    });
-
-  const unlabelled = run('false');
-  expect(unlabelled.status).toBe(1);
-  expect(unlabelled.stderr).toContain('Move them to a pull request labelled');
-  const labelled = run('true');
-  expect(labelled.status).toBe(1);
-  expect(labelled.stderr).toContain(FROZEN);
+test('with the adr label, id_format and components of adrien.config.yaml are frozen too', () => {
+  const idFormat = CONFIG_TEXT.replace('ADR-{n:4}', 'ADR-{n:5}');
+  expect(guardChanges({ adrLabel: true, changes: [modified(CONFIG_TEXT, idFormat, CONFIG)] })).toEqual([
+    `${CONFIG}: id_format cannot change from ADR-{n:4} to ADR-{n:5}`,
+  ]);
+  const components = `${CONFIG_TEXT}components:\n  core:\n    root: packages/core\n`;
+  const changed = guardChanges({ adrLabel: true, changes: [modified(CONFIG_TEXT, components, CONFIG)] });
+  expect(changed).toHaveLength(1);
+  expect(changed[0]).toMatch(/^adrien\.config\.yaml: components cannot change/);
 });
 
-/** A repository whose base commit has `base` files and whose feature branch then writes `feature` (null deletes). */
+test('with the adr label, the log, components and any comment of .adrien.yaml are judged by value', () => {
+  const log = CODE_TEXT.replace('log: docs/decisions', 'log: docs/other');
+  expect(guardChanges({ adrLabel: true, changes: [modified(CODE_TEXT, log, CODE_CONFIG)] })).toEqual([
+    `${CODE_CONFIG}: log cannot change from docs/decisions to docs/other`,
+  ]);
+  const components = CODE_TEXT.replace('  - core', '  - core\n  - mcp');
+  expect(guardChanges({ adrLabel: true, changes: [modified(CODE_TEXT, components, CODE_CONFIG)] })).toHaveLength(1);
+  expect(
+    guardChanges({ adrLabel: true, changes: [modified(CODE_TEXT, `# a note\n${CODE_TEXT}`, CODE_CONFIG)] }),
+  ).toEqual([]);
+});
+
+test('a config file at any depth is guarded by its basename, case aside', () => {
+  const nested = 'packages/core/adrien.config.yaml';
+  const moved = CONFIG_TEXT.replace('docs/decisions', 'docs/other');
+  expect(guardChanges({ adrLabel: true, changes: [modified(CONFIG_TEXT, moved, nested)] })).toEqual([
+    `${nested}: adr_dir cannot change from docs/decisions to docs/other`,
+  ]);
+  expect(guardChanges({ adrLabel: false, changes: [modified(CODE_TEXT, CODE_TEXT, 'x/.adrien.yaml')] })).toEqual([
+    'This pull request changes decision files (x/.adrien.yaml). Move them to a pull request labelled `adr`.',
+  ]);
+  const upper = 'Packages/X/Adrien.Config.yaml';
+  expect(guardChanges({ adrLabel: true, changes: [modified(CONFIG_TEXT, moved, upper)] })).toEqual([
+    `${upper}: adr_dir cannot change from docs/decisions to docs/other`,
+  ]);
+});
+
+test('a config file cannot be added, at the root or nested', () => {
+  expect(
+    guardChanges({ adrLabel: true, changes: [{ status: 'A', path: 'packages/x/.adrien.yaml', head: CODE_TEXT }] }),
+  ).toEqual(['packages/x/.adrien.yaml: a config file cannot be added']);
+  expect(
+    guardChanges({ adrLabel: true, changes: [{ status: 'C', path: 'packages/y/.adrien.yaml', head: CODE_TEXT }] }),
+  ).toEqual(['packages/y/.adrien.yaml: a config file cannot be added']);
+});
+
+test('a nested config file that is deleted or renamed fails', () => {
+  expect(
+    guardChanges({
+      adrLabel: true,
+      changes: [{ status: 'D', path: 'packages/x/.adrien.yaml', base: CODE_TEXT, head: null }],
+    }),
+  ).toEqual(['packages/x/.adrien.yaml: a config file is never deleted or renamed']);
+});
+
+/**
+ * A repository whose base commit has `base` files and whose feature branch then writes `feature` (null deletes).
+ * `run(labels, env)` runs the guard with LABELS_JSON set to `labels`; HEAD is left on the feature branch.
+ */
 function repo(base: Record<string, string>, feature: Record<string, string | null>) {
   const root = tmpDir();
   const git = (...args: string[]) => {
@@ -265,13 +294,43 @@ function repo(base: Record<string, string>, feature: Record<string, string | nul
   }
   git('add', '-A');
   git('commit', '-qm', 'feature');
-  return (label: string) =>
+  const run = (labels: string, env: Record<string, string> = {}) =>
     spawnSync(process.execPath, [script], {
       cwd: root,
       encoding: 'utf8',
-      env: { ...process.env, GUARD_BASE: 'main', ADR_LABEL: label },
+      env: { ...process.env, GUARD_BASE: 'main', LABELS_JSON: labels, ...env },
     });
+  return { root, git, run };
 }
+
+test('the command exits 1 and explains a change made without the label, read from git', () => {
+  const { run } = repo({ [ADR]: ACCEPTED }, { [ADR]: ACCEPTED.replace('Text.', 'Edited.') });
+  const unlabelled = run('[]');
+  expect(unlabelled.status).toBe(1);
+  expect(unlabelled.stderr).toContain('Move them to a pull request labelled');
+  const labelled = run('["adr"]');
+  expect(labelled.status).toBe(1);
+  expect(labelled.stderr).toContain(FROZEN);
+});
+
+test('the label is matched exactly: "ADR" or "adr-ish" is not the adr label', () => {
+  const { run } = repo({ [ADR]: ACCEPTED }, { [ADR]: ACCEPTED.replace('status: accepted', 'status: superseded') });
+  for (const labels of ['["ADR"]', '["adr-ish"]', '["adr "]', '[]']) {
+    const result = run(labels);
+    expect(result.status).toBe(1);
+    expect(result.stderr).toContain('Move them to a pull request labelled');
+  }
+  expect(run('["bug", "adr"]').status).toBe(0);
+});
+
+test('GUARD_HEAD names the head to check, so the guard can run with HEAD on the base', () => {
+  const { git, run } = repo({ [ADR]: ACCEPTED }, { [ADR]: ACCEPTED.replace('Text.', 'Edited.') });
+  git('checkout', '-q', 'main');
+  expect(run('[]').status).toBe(0);
+  const checked = run('[]', { GUARD_HEAD: 'feature' });
+  expect(checked.status).toBe(1);
+  expect(checked.stderr).toContain('Move them to a pull request labelled');
+});
 
 test('a non-ASCII file name is read from git with its real path, so an allowed move passes', () => {
   const file = 'docs/decisions/ADR-0009-café.md';
@@ -279,23 +338,32 @@ test('a non-ASCII file name is read from git with its real path, so an allowed m
     'status: accepted',
     'status: superseded\nsuperseded_by: ADR-0010',
   );
-  const run = repo({ [file]: ACCEPTED.replace('ADR-0002', 'ADR-0009') }, { [file]: superseded });
-  expect(run('true').status).toBe(0);
-  expect(run('false').status).toBe(1);
+  const { run } = repo({ [file]: ACCEPTED.replace('ADR-0002', 'ADR-0009') }, { [file]: superseded });
+  expect(run('["adr"]').status).toBe(0);
+  expect(run('[]').status).toBe(1);
 });
 
 test('the decision directory is matched whatever the case of its path', () => {
   const file = 'Docs/Decisions/ADR-0002-only-an-accepted-adr-is-binding.md';
-  const run = repo({ [file]: ACCEPTED }, { [file]: ACCEPTED.replace('Text.', 'Edited.') });
-  const unlabelled = run('false');
+  const { run } = repo({ [file]: ACCEPTED }, { [file]: ACCEPTED.replace('Text.', 'Edited.') });
+  const unlabelled = run('[]');
   expect(unlabelled.status).toBe(1);
   expect(unlabelled.stderr).toContain('Docs/Decisions/ADR-0002');
 });
 
 test('a change to the config is read from git and needs the label', () => {
-  const run = repo({ [CONFIG]: CONFIG_TEXT }, { [CONFIG]: CONFIG_TEXT.replace('docs/decisions', 'docs/other') });
-  expect(run('false').stderr).toContain(CONFIG);
-  const labelled = run('true');
+  const { run } = repo({ [CONFIG]: CONFIG_TEXT }, { [CONFIG]: CONFIG_TEXT.replace('docs/decisions', 'docs/other') });
+  expect(run('[]').stderr).toContain(CONFIG);
+  const labelled = run('["adr"]');
   expect(labelled.status).toBe(1);
   expect(labelled.stderr).toContain('adr_dir cannot change from docs/decisions to docs/other');
+});
+
+test('a nested .adrien.yaml is found by git at any depth, and its components are frozen', () => {
+  const file = 'packages/x/.adrien.yaml';
+  const { run } = repo({ [file]: CODE_TEXT }, { [file]: CODE_TEXT.replace('  - core', '  - core\n  - mcp') });
+  expect(run('[]').stderr).toContain(file);
+  const labelled = run('["adr"]');
+  expect(labelled.status).toBe(1);
+  expect(labelled.stderr).toContain('packages/x/.adrien.yaml: components cannot change');
 });

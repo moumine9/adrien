@@ -56,14 +56,6 @@ const codeRepoSchema = z.strictObject({
   components: z.array(z.string().regex(ID, idMessage)).optional(),
 });
 
-function readYamlFile(file: string): unknown {
-  try {
-    return YAML.parse(readFileSync(file, 'utf8')) ?? {};
-  } catch (e) {
-    throw new AdrienError('CONFIG_INVALID', `${file}: invalid YAML (${(e as Error).message.split('\n')[0]})`);
-  }
-}
-
 function validate<T>(schema: z.ZodType<T>, data: unknown, file: string): T {
   const parsed = schema.safeParse(data);
   if (parsed.success) return parsed.data;
@@ -102,9 +94,20 @@ export function writeLogConfig(logRoot: string, config: LogConfig): void {
   writeNew(join(logRoot, CONFIG_FILE), config);
 }
 
+/** Parses and validates the text of a `.adrien.yaml`; `label` names it in error messages. */
+export function parseCodeRepoConfigText(text: string, label: string): CodeRepoConfig {
+  let data: unknown;
+  try {
+    data = YAML.parse(text) ?? {};
+  } catch (e) {
+    throw new AdrienError('CONFIG_INVALID', `${label}: invalid YAML (${(e as Error).message.split('\n')[0]})`);
+  }
+  return validate(codeRepoSchema, data, label);
+}
+
 export function loadCodeRepoConfig(dir: string): CodeRepoConfig | null {
   const file = join(dir, CODE_CONFIG_FILE);
-  return existsSync(file) ? validate(codeRepoSchema, readYamlFile(file), file) : null;
+  return existsSync(file) ? parseCodeRepoConfigText(readFileSync(file, 'utf8'), file) : null;
 }
 
 export function writeCodeRepoConfig(dir: string, config: CodeRepoConfig): void {

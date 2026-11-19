@@ -1,39 +1,43 @@
 name: ADR guard
 
-# Decision files and adrien.config.yaml change only in a pull request labelled `adr` (scripts/guard-adrs.mjs). The
-# check reruns when labels change. It is its own workflow, so the `test` checks are not rerun by label changes.
+# Decision files and config files change only in a pull request labelled `adr` (scripts/guard-adrs.mjs). The check runs
+# on pull_request_target, so it is the base branch's workflow and script that run, and it never runs code from the pull
+# request: the pull request's commits are only fetched as git data, and nothing is checked out or installed from them.
+# The check reruns when labels change.
 on:
-  pull_request:
+  pull_request_target:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 
 permissions:
   contents: read
 
+concurrency:
+  group: adr-guard-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   adr-guard:
     runs-on: ubuntu-latest
     steps:
+      # The default ref for this trigger is the base branch, which is the only code this job runs.
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      # The rules come from the base branch, so a pull request cannot weaken them. The base copy imports its own core,
-      # installed in a worktree beside this checkout. A base without the script (the first pull request) uses this copy.
-      - name: Run the base branch's guard
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      # The head commits are fetched as data (no checkout, no install) for the guard to read with git show and diff.
+      - name: Fetch the pull request head as data
         env:
-          BASE: ${{ github.base_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "refs/pull/${PR_NUMBER}/head:refs/guard/head"
+      - name: Run the guard
+        env:
           GUARD_BASE: origin/${{ github.base_ref }}
-          ADR_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'adr') }}
-        run: |
-          if git cat-file -e "origin/$BASE:scripts/guard-adrs.mjs" 2>/dev/null; then
-            git worktree add --detach .guard-base "origin/$BASE"
-            (cd .guard-base && pnpm install --frozen-lockfile)
-            node .guard-base/scripts/guard-adrs.mjs
-          else
-            node scripts/guard-adrs.mjs
-          fi
+          GUARD_HEAD: refs/guard/head
+          LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+        run: node scripts/guard-adrs.mjs

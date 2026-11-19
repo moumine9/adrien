@@ -1,32 +1,33 @@
-// Fails when a pull request changes the decision log (docs/decisions) or adrien.config.yaml without the `adr` label, or
-// changes them in a way the label does not allow. With the label, an ADR may be added but never deleted or renamed, and
-// an accepted ADR is frozen except for its status (only to superseded or deprecated) and its links and review fields.
-// Files are read and parsed with core (parseAdr, parseLogConfigText), so the guard sees what Adrien sees. The rules are
-// a pure function over the changes, so they can be tested without git; `main` reads the changes from git.
+// Fails when a pull request changes the decision log (docs/decisions) or a config file (adrien.config.yaml or
+// .adrien.yaml, at any depth) without the `adr` label, or changes them in a way the label does not allow. With the label,
+// an ADR may be added but never deleted or renamed, and an accepted ADR is frozen except for its status (only to
+// superseded or deprecated) and its links and review fields. A config file is never added, deleted or renamed, and
+// with the label its adr_dir, id_format, components and log do not change. Files are parsed with core (parseAdr,
+// parseLogConfigText, parseCodeRepoConfigText), so the guard sees what Adrien sees. The rules are a pure function over the
+// changes, so they can be tested without git; `main` reads the changes from git.
+//
+// The workflow (.github/workflows/adr-guard.yml) runs on pull_request_target, so it runs the base branch's copy of this
+// script and never runs code from the pull request. A pull request that adds the workflow therefore finds it absent (the
+// workflow comes from main, and there is none until it is merged): that is expected until then.
+//
+// Inputs: GUARD_BASE (the base ref), GUARD_HEAD (the head to check, default HEAD), LABELS_JSON (the pull request's label
+// names as a JSON array; the `adr` label must match exactly).
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
-import { parseLogConfigText } from '../packages/core/src/config.ts';
+import { parseCodeRepoConfigText, parseLogConfigText } from '../packages/core/src/config.ts';
 import { parseAdr } from '../packages/core/src/frontmatter.ts';
 
 const LOG = 'docs/decisions';
-const CONFIG = 'adrien.config.yaml';
-// The decision directory this guard protects. A config that names another adr_dir moves the log out of its reach.
-const GUARDED_DIR = LOG;
+const CODE_CONFIG = '.adrien.yaml';
+const CONFIG_NAMES = new Set(['adrien.config.yaml', CODE_CONFIG]);
 const ID_FORMAT = 'ADR-{n:4}';
-// What an accepted ADR may change. `status` is restricted further (see below); `code` may only be edited, not grown or
-// shrunk, so a change is a path rename.
-const EDITABLE_ON_ACCEPTED = new Set([
-  'status',
-  'superseded_by',
-  'supersedes',
-  'related',
-  'review_on',
-  'contested',
-  'code',
-]);
+// What an accepted ADR may change. `status` is restricted further (see below). `code` is frozen: a path change there
+// changes what the ADR is about, so it takes a new ADR.
+const EDITABLE_ON_ACCEPTED = new Set(['status', 'superseded_by', 'supersedes', 'related', 'review_on', 'contested']);
 const STATUSES_AFTER_ACCEPTED = new Set(['superseded', 'deprecated']);
 
-const isConfig = (change) => change.path.toLowerCase() === CONFIG;
+const basename = (path) => path.split('/').pop().toLowerCase();
+const isConfig = (change) => CONFIG_NAMES.has(basename(change.path));
 const cannotRead = (path) => `${path}: cannot read the file at base or head, so the change is refused`;
 
 /** JSON with sorted keys, so two parsed values compare equal whatever order core put their keys in. */
@@ -66,29 +67,45 @@ function adrFailures({ path, base, head }) {
   if (after.meta.status !== 'accepted' && !STATUSES_AFTER_ACCEPTED.has(after.meta.status)) {
     failures.push(`${id} is accepted; it may only become superseded or deprecated.`);
   }
-  const frozenChanged =
-    frozenPart(before) !== frozenPart(after) ||
-    before.body.trimEnd() !== after.body.trimEnd() ||
-    before.meta.code.length !== after.meta.code.length;
-  if (frozenChanged) failures.push(`${id} is accepted; its text is frozen. Supersede it with a new ADR.`);
+  if (frozenPart(before) !== frozenPart(after) || before.body.trimEnd() !== after.body.trimEnd()) {
+    failures.push(`${id} is accepted; its text is frozen. Supersede it with a new ADR.`);
+  }
   return failures;
 }
 
-/** The failures for adrien.config.yaml: it is never deleted or renamed, and its adr_dir never changes. */
+/** The values of a config file that the label does not let change, as core parses them. */
+function configValues(text, path) {
+  if (basename(path) === CODE_CONFIG) {
+    const { log, components } = parseCodeRepoConfigText(text, path);
+    return { log, components };
+  }
+  const { adr_dir, components, id_format } = parseLogConfigText(text, path);
+  return { adr_dir, components, id_format };
+}
+
+const show = (value) => (value === undefined ? 'nothing' : typeof value === 'string' ? value : canonical(value));
+
+/** The failures for a config file: never added, deleted or renamed, and its frozen values never change. */
 function configFailures({ status, path, oldPath, base, head }) {
-  if (status === 'D' || status === 'R') return [`${oldPath ?? path}: ${CONFIG} is never deleted or renamed`];
-  if (head == null || (status !== 'A' && base == null)) return [cannotRead(path)];
+  if (status === 'A' || status === 'C') return [`${path}: a config file cannot be added`];
+  if (status === 'D' || status === 'R') return [`${oldPath ?? path}: a config file is never deleted or renamed`];
+  if (base == null || head == null) return [cannotRead(path)];
+  let before;
+  let after;
   try {
-    const before = base == null ? GUARDED_DIR : parseLogConfigText(base, path).adr_dir;
-    const after = parseLogConfigText(head, path).adr_dir;
-    return before === after ? [] : [`${path}: adr_dir cannot change from ${before} to ${after}`];
+    before = configValues(base, path);
+    after = configValues(head, path);
   } catch (error) {
     return [`${path}: cannot be read (${error.message})`];
   }
+  return Object.keys({ ...before, ...after })
+    .sort()
+    .filter((key) => canonical(before[key]) !== canonical(after[key]))
+    .map((key) => `${path}: ${key} cannot change from ${show(before[key])} to ${show(after[key])}`);
 }
 
 /**
- * The failure messages for the changes under docs/decisions and the config. A change is
+ * The failure messages for the changes under docs/decisions and the config files. A change is
  * `{ status, path, oldPath?, base?, head? }`, where status is git's letter (A, M, D, R, C, T, possibly with a score such
  * as `R100`) and base and head are the file's text before and after (null when absent). An empty list passes.
  */
@@ -124,14 +141,25 @@ function fileAt(ref, path) {
 }
 
 /**
- * The changes under docs/decisions and the config from the merge base with `base` to HEAD. The pathspecs ignore case,
- * and `-z` keeps names as they are (no quoting), so a non-ASCII file name is read with its real path.
+ * The changes under docs/decisions and the config files, from the merge base of `base` and `head` to `head`. The
+ * pathspecs ignore case, the config files match by basename at any depth, and `-z` keeps names as they are (no
+ * quoting), so a non-ASCII file name is read with its real path.
  */
-function changesSince(base) {
-  const mergeBase = git(['merge-base', base, 'HEAD']);
+function changesSince(base, head) {
+  const mergeBase = git(['merge-base', base, head]);
   if (mergeBase.status !== 0) throw new Error(`cannot find a merge base with ${base}: ${mergeBase.stderr.trim()}`);
   const mergeBaseSha = mergeBase.stdout.trim();
-  const diff = git(['diff', '-z', '--name-status', `${base}...HEAD`, '--', `:(icase)${LOG}`, `:(icase)${CONFIG}`]);
+  const diff = git([
+    'diff',
+    '-z',
+    '--name-status',
+    mergeBaseSha,
+    head,
+    '--',
+    `:(icase)${LOG}`,
+    ':(icase,glob)**/adrien.config.yaml',
+    `:(icase,glob)**/${CODE_CONFIG}`,
+  ]);
   if (diff.status !== 0) throw new Error(`git diff failed: ${diff.stderr.trim()}`);
   const tokens = diff.stdout.split('\0');
   const changes = [];
@@ -142,7 +170,7 @@ function changesSince(base) {
       const oldPath = tokens[i];
       const path = tokens[i + 1];
       i += 2;
-      changes.push({ status, oldPath, path, base: fileAt(mergeBaseSha, oldPath), head: fileAt('HEAD', path) });
+      changes.push({ status, oldPath, path, base: fileAt(mergeBaseSha, oldPath), head: fileAt(head, path) });
     } else {
       const path = tokens[i];
       i += 1;
@@ -150,7 +178,7 @@ function changesSince(base) {
         status,
         path,
         base: status === 'A' ? null : fileAt(mergeBaseSha, path),
-        head: status === 'D' ? null : fileAt('HEAD', path),
+        head: status === 'D' ? null : fileAt(head, path),
       });
     }
   }
@@ -159,10 +187,13 @@ function changesSince(base) {
 
 function main() {
   const base = process.env.GUARD_BASE || 'origin/main';
-  const adrLabel = process.env.ADR_LABEL === 'true';
+  const head = process.env.GUARD_HEAD || 'HEAD';
   let failures;
   try {
-    failures = guardChanges({ adrLabel, changes: changesSince(base) });
+    // The label is compared exactly: GitHub's own `contains` ignores case, so the label names come in as JSON.
+    const labels = JSON.parse(process.env.LABELS_JSON || '[]');
+    const adrLabel = Array.isArray(labels) && labels.includes('adr');
+    failures = guardChanges({ adrLabel, changes: changesSince(base, head) });
   } catch (error) {
     console.error(`adrien: ${error.message}`);
     process.exit(1);
