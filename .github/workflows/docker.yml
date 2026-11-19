@@ -37,7 +37,7 @@ jobs:
   publish:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     permissions:
       contents: read
       packages: write
@@ -49,15 +49,19 @@ jobs:
           echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
       # release.yml publishes the npm package for this tag at the same time. The image installs it, so wait for it.
       - name: Wait for the npm package
+        # The registry lists a version in its metadata minutes before it serves the package file, and `npm install` in
+        # the image needs the file: v0.5.0 failed here with a 404 while `npm view` already answered. So wait for the
+        # tarball itself, and allow 45 minutes, since v0.5.0 took about 15.
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
-          deadline=$((SECONDS + 1200))
-          until [ -n "$(npm view --prefer-online "adrien@${VERSION}" version 2>/dev/null)" ]; do
+          deadline=$((SECONDS + 2700))
+          until TARBALL="$(npm view --prefer-online "adrien@${VERSION}" dist.tarball 2>/dev/null)" \
+            && [ -n "$TARBALL" ] && curl -fsSI --max-time 20 "$TARBALL" >/dev/null 2>&1; do
             if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "adrien@${VERSION} is still not on npm after 20 minutes" >&2
+              echo "adrien@${VERSION} is still not downloadable from npm after 45 minutes" >&2
               exit 1
             fi
-            sleep 20
+            sleep 30
           done
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
