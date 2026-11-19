@@ -237,17 +237,23 @@ test('a copy that cannot be placed prints the global command and runs nothing', 
   expect(install.calls).toEqual([]);
 });
 
-describe("looking up npm's global root", () => {
-  const calls: Array<{ file: string; args: string[]; shell: unknown }> = [];
+describe('starting npm', () => {
+  const calls: Array<{ command: string; args: unknown; shell: unknown }> = [];
 
   beforeEach(() => {
     calls.length = 0;
     vi.resetModules();
     vi.doMock('node:child_process', async (importOriginal) => ({
       ...(await importOriginal<typeof import('node:child_process')>()),
-      execFileSync: (file: string, args: string[], options: { shell?: unknown }) => {
-        calls.push({ file, args, shell: options.shell });
+      execFileSync: (command: string, second?: unknown, third?: { shell?: unknown }) => {
+        const options = Array.isArray(second) ? third : (second as { shell?: unknown });
+        calls.push({ command, args: Array.isArray(second) ? second : undefined, shell: options?.shell });
         return `${process.cwd()}\n`;
+      },
+      spawn: (command: string, second?: unknown, third?: { shell?: unknown }) => {
+        const options = Array.isArray(second) ? third : (second as { shell?: unknown });
+        calls.push({ command, args: Array.isArray(second) ? second : undefined, shell: options?.shell });
+        return { on: (event: string, cb: (code?: number) => void) => event === 'exit' && cb(0) };
       },
     }));
   });
@@ -257,13 +263,37 @@ describe("looking up npm's global root", () => {
     vi.restoreAllMocks();
   });
 
-  test.each([
-    ['win32', true],
-    ['linux', false],
-  ])('on %s the lookup uses a shell: %s (npm is npm.cmd on Windows)', async (platform, shell) => {
-    vi.spyOn(process, 'platform', 'get').mockReturnValue(platform as NodeJS.Platform);
+  test('on Windows the lookup is one command string run by a shell, never a shell with an argument list', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('win32');
     const { npmGlobalRoot } = await import('../src/commands/update.ts');
     expect(npmGlobalRoot()).toBeTruthy();
-    expect(calls).toEqual([{ file: 'npm', args: ['root', '-g'], shell }]);
+    expect(calls).toEqual([{ command: 'npm root -g', args: undefined, shell: true }]);
   });
+
+  test('elsewhere the lookup is npm with an argument list and no shell', async () => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue('linux');
+    const { npmGlobalRoot } = await import('../src/commands/update.ts');
+    expect(npmGlobalRoot()).toBeTruthy();
+    expect(calls).toEqual([{ command: 'npm', args: ['root', '-g'], shell: undefined }]);
+  });
+
+  test.each([
+    ['win32', { command: 'npm install -g adrien@latest', args: undefined, shell: true }],
+    ['linux', { command: 'npm', args: ['install', '-g', 'adrien@latest'], shell: undefined }],
+  ])('the installer on %s is started the same way', async (platform, expected) => {
+    vi.spyOn(process, 'platform', 'get').mockReturnValue(platform as NodeJS.Platform);
+    vi.spyOn(process.stderr, 'write').mockReturnValue(true);
+    const { spawnInstaller } = await import('../src/commands/update.ts');
+    await expect(spawnInstaller('npm', ['install', '-g', 'adrien@latest'])).resolves.toBe(0);
+    expect(calls).toEqual([expected]);
+  });
+});
+
+test('the real npm lookup finds a folder and raises no deprecation warning', async () => {
+  vi.resetModules();
+  const warn = vi.spyOn(process, 'emitWarning');
+  const { npmGlobalRoot } = await import('../src/commands/update.ts');
+  expect(npmGlobalRoot()).toBeTruthy();
+  expect(warn).not.toHaveBeenCalled();
+  warn.mockRestore();
 });

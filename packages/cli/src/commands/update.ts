@@ -76,9 +76,14 @@ export function detectInstall(path: string, globalRoot: string | null): InstallK
 /** The folder `npm install -g` writes to, resolved through symlinks; null when npm is missing or fails. */
 export function npmGlobalRoot(): string | null {
   try {
-    // On Windows npm is npm.cmd, which only a shell can start (the arguments are constants).
-    const options = { encoding: 'utf8', timeout: TIMEOUT_MS, shell: process.platform === 'win32' } as const;
-    return realpathSync(execFileSync('npm', ['root', '-g'], options).trim());
+    const options = { encoding: 'utf8', timeout: TIMEOUT_MS } as const;
+    // On Windows npm is npm.cmd, which only a shell can start. Node 24 warns when a shell is given an argument list, so
+    // the command goes in as one constant string there.
+    const out =
+      process.platform === 'win32'
+        ? execFileSync('npm root -g', { ...options, shell: true })
+        : execFileSync('npm', ['root', '-g'], options);
+    return realpathSync(out.trim());
   } catch {
     return null;
   }
@@ -88,7 +93,11 @@ export function npmGlobalRoot(): string | null {
 export function spawnInstaller(command: string, args: string[]): Promise<number> {
   process.stderr.write(`Running ${command} ${args.join(' ')}\n`);
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { stdio: 'inherit', shell: process.platform === 'win32' });
+    // Same Windows rule as above: one constant command string with a shell, an argument list without one.
+    const child =
+      process.platform === 'win32'
+        ? spawn(`${command} ${args.join(' ')}`, { stdio: 'inherit', shell: true })
+        : spawn(command, args, { stdio: 'inherit' });
     child.on('error', reject);
     child.on('exit', (code) => resolve(code ?? 1));
   });
