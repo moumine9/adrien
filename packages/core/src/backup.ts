@@ -398,9 +398,16 @@ export function listBackups(root: string): BackupEntry[] {
 
 /** Compares the log's decision files with a backup: changed (content differs), missing (gone) and added (not in it). */
 export function verifyBackup(root: string, id: string): BackupVerification {
-  const { manifest } = openBackup(root, id);
-  // Also the directories the backup covers beyond the live config's, so a pre-restore snapshot verifies cleanly.
-  const current = new Set(unionFiles(root, loadLogConfig(root), manifest.adrDirs).files);
+  const { dir, manifest } = openBackup(root, id);
+  // The live config may be gone or unreadable (that is what a backup is for): then the backed-up one says where to look.
+  let live: LogConfig | null = null;
+  try {
+    live = loadLogConfig(root);
+  } catch {
+    live = null;
+  }
+  const backed = backedUpConfig(dir, manifest, live, id);
+  const current = new Set(unionFiles(root, live ?? backed, scopesOf(backed, manifest)).files);
   const listed = new Map(manifest.files.map((f) => [f.path, f.sha256]));
   const changed: string[] = [];
   const missing: string[] = [];
@@ -411,6 +418,16 @@ export function verifyBackup(root: string, id: string): BackupVerification {
   }
   for (const path of current) if (!listed.has(path)) added.push(path);
   return { changed, missing, added };
+}
+
+/** Every directory a backup covers: its config's, and any a pre-restore snapshot recorded. Each must be usable. */
+function scopesOf(backed: LogConfig, manifest: Manifest): string[] {
+  const scopes = [...new Set([adrRelOf(backed), ...manifest.adrDirs.map((d) => adrRelOf(inDir(backed, d)))])];
+  for (const dir of scopes) {
+    const problem = adrDirProblem(inDir(backed, dir));
+    if (problem) throw new AdrienError('INVALID_INPUT', problem);
+  }
+  return scopes;
 }
 
 /**
@@ -464,12 +481,7 @@ export function restoreBackup(
   // Where the ADRs go is what the backup says, checked like every other file; the live config may be gone or have moved.
   const backed = backedUpConfig(dir, manifest, config, id);
   const live = config ?? backed;
-  // Every directory the backup covers: its config's, and any a pre-restore snapshot recorded. Each must be usable.
-  const scopes = [...new Set([adrRelOf(backed), ...manifest.adrDirs.map((d) => adrRelOf({ ...backed, adr_dir: d }))])];
-  for (const dir of scopes) {
-    const problem = adrDirProblem({ ...backed, adr_dir: dir });
-    if (problem) throw new AdrienError('INVALID_INPUT', problem);
-  }
+  const scopes = scopesOf(backed, manifest);
   const staged = manifest.files.map(({ path, sha256: expected }) => {
     const target = restoreTarget(root, scopes, path);
     const bytes = readFileSync(join(dir, FILES, ...path.split('/')));

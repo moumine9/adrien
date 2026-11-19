@@ -29,6 +29,26 @@ export function changeLines(v: BackupVerification): string {
     .join('');
 }
 
+/**
+ * The log a command works on. The config is one of the files a backup holds, so verify and restore must still work when
+ * it is gone or unreadable: they fall back to the folder `--log` names, or the nearest one holding backups.
+ */
+async function locate(
+  cli: Cli,
+  globals: GlobalOptions,
+  writable: boolean,
+): Promise<{ root: string; config: LogConfig | null; env: NodeJS.ProcessEnv }> {
+  try {
+    const ctx = await contextOf(cli, globals);
+    if (writable) assertWritable(ctx);
+    return { root: ctx.logRoot, config: ctx.config, env: ctx.env };
+  } catch (e) {
+    const found = e instanceof AdrienError && /^CONFIG_/.test(e.code) ? findBackupRoot(cli.cwd, globals.log) : null;
+    if (!found) throw e;
+    return { root: found, config: null, env: cli.env };
+  }
+}
+
 export function registerBackup(program: Command, cli: Cli): void {
   const backup = program
     .command('backup')
@@ -70,8 +90,8 @@ export function registerBackup(program: Command, cli: Cli): void {
     .argument('<id>', 'the backup to compare with')
     .action(async (id: string, _opts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
-      const ctx = await contextOf(cli, globals);
-      const result = verifyBackup(ctx.logRoot, id);
+      const { root } = await locate(cli, globals, false);
+      const result = verifyBackup(root, id);
       if (globals.json) printJson(cli, result);
       else
         cli.out(
@@ -88,19 +108,7 @@ export function registerBackup(program: Command, cli: Cli): void {
     .argument('<id>', 'the backup to restore')
     .action(async (id: string, _opts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
-      // The config is one of the files a backup holds, so a restore must still work when it is gone or unreadable.
-      let root: string;
-      let config: LogConfig | null = null;
-      let env = cli.env;
-      try {
-        const ctx = await contextOf(cli, globals);
-        assertWritable(ctx);
-        ({ logRoot: root, config, env } = ctx);
-      } catch (e) {
-        const found = e instanceof AdrienError && /^CONFIG_/.test(e.code) ? findBackupRoot(cli.cwd, globals.log) : null;
-        if (!found) throw e;
-        root = found;
-      }
+      const { root, config, env } = await locate(cli, globals, true);
       const result = restoreBackup(root, config, id, VERSION, env);
       if (globals.json) return printJson(cli, result);
       cli.out(

@@ -139,3 +139,12 @@ test('backup restore outside any log still says there is no log', async () => {
   expect(result.code).toBe(2);
   expect(result.stderr).toContain('No Adrien log found');
 });
+
+test('backup verify lists a deleted config as missing instead of failing', async () => {
+  const root = logDir();
+  const id = JSON.parse((await run(root, ['--json', 'backup', 'create'])).stdout).id as string;
+  rmSync(join(root, CONFIG_FILE));
+  const result = await run(root, ['backup', 'verify', id]);
+  expect(result.code).toBe(1);
+  expect(result.stdout).toContain(`missing: ${CONFIG_FILE}`);
+});

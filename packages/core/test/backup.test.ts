@@ -680,3 +680,12 @@ test('a manifest that lists an unusable extra ADR directory is refused before an
   writeFileSync(manifestFile, JSON.stringify(manifest));
   expect(() => restoreBackup(root, loadLogConfig(root), made.id, VERSION)).toThrow(/holds the backups/);
 });
+
+test('verifyBackup works when the live config is missing or unreadable, and says it is gone', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  rmSync(join(root, CONFIG_FILE));
+  expect(verifyBackup(root, made.id)).toEqual({ changed: [], missing: [CONFIG_FILE], added: [] });
+  writeFileSync(join(root, CONFIG_FILE), 'product: [broken');
+  expect(verifyBackup(root, made.id)).toEqual({ changed: [CONFIG_FILE], missing: [], added: [] });
+});
