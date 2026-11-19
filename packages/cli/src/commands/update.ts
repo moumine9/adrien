@@ -2,8 +2,8 @@ import { execFileSync, spawn } from 'node:child_process';
 import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
-  adrDirProblem,
   AdrienError,
+  adrDirProblem,
   type BackupVerification,
   CODE_CONFIG_FILE,
   CONFIG_FILE,

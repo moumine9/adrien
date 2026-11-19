@@ -139,7 +139,10 @@ function logFiles(root: string, config: LogConfig): LogFiles {
   const adrDir = join(root, adrRel);
   const link = lstatSync(adrDir, { throwIfNoEntry: false });
   if (link?.isSymbolicLink()) {
-    throw new AdrienError('INVALID_INPUT', `The ADR directory ${config.adr_dir} is a symbolic link. Backups never follow links.`);
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `The ADR directory ${config.adr_dir} is a symbolic link. Backups never follow links.`,
+    );
   }
   const files: string[] = [];
   const skipped: string[] = [];
@@ -190,7 +193,10 @@ function openBackup(root: string, id: string): { dir: string; manifest: Manifest
   }
   const manifest = loadManifest(dir);
   if (!manifest) {
-    throw new AdrienError('INVALID_INPUT', `Backup "${id}" is damaged: its manifest cannot be read. Nothing was changed.`);
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `Backup "${id}" is damaged: its manifest cannot be read. Nothing was changed.`,
+    );
   }
   return { dir, manifest };
 }
@@ -209,7 +215,13 @@ function prune(root: string, protect: string[]): void {
  * Copies the log into a new backup folder. It takes no lock itself: callers hold the locks of the whole log (see
  * `underLocks`). If the copy fails midway, the new folder is removed, so no half-made backup is ever listed.
  */
-function snapshot(root: string, config: LogConfig, reason: string, adrienVersion: string, protect: string[]): BackupCreated {
+function snapshot(
+  root: string,
+  config: LogConfig,
+  reason: string,
+  adrienVersion: string,
+  protect: string[],
+): BackupCreated {
   const { files, skipped } = logFiles(root, config);
   // Strictly later than the newest backup, so the newest-first order never depends on a tie.
   const newest = okBackups(root)[0];
@@ -225,7 +237,13 @@ function snapshot(root: string, config: LogConfig, reason: string, adrienVersion
       writeFileSync(dest, bytes);
       return { path: rel, sha256: sha256(bytes) };
     });
-    const manifest: Manifest = { createdAt: createdAt.toISOString(), adrienVersion, reason: slug, files: entries, skipped };
+    const manifest: Manifest = {
+      createdAt: createdAt.toISOString(),
+      adrienVersion,
+      reason: slug,
+      files: entries,
+      skipped,
+    };
     const tmp = join(dir, `${MANIFEST}.tmp`);
     writeFileSync(tmp, `${JSON.stringify(manifest, null, 2)}\n`);
     renameSync(tmp, join(dir, MANIFEST));

@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach } from 'vitest';
 import { BACKUP_KEEP, createBackup, listBackups, restoreBackup, verifyBackup } from '../src/backup.ts';
@@ -109,7 +109,10 @@ test('a log with no ADR folder yet backs up its config alone', () => {
 
 test('the ADR directory must be a sub-folder of the log that is not the backups folder', () => {
   const root = logRoot();
-  const config = (adr_dir: string) => loadLogConfig((writeFiles(root, { [CONFIG_FILE]: configYaml({ adr_dir }) }), root));
+  const config = (adr_dir: string) => {
+    writeFiles(root, { [CONFIG_FILE]: configYaml({ adr_dir }) });
+    return loadLogConfig(root);
+  };
   expect(() => createBackup(root, config('.'), 'x', VERSION)).toThrow('is the log root');
   expect(() => createBackup(root, config('../elsewhere'), 'x', VERSION)).toThrow('leaves the log');
   expect(() => createBackup(root, config('.adrien/adrs'), 'x', VERSION)).toThrow('holds the backups');
@@ -155,7 +158,12 @@ test('listBackups returns the newest first and reports damaged folders instead o
     { id: newer.id, status: 'ok', createdAt: expect.any(String), reason: 'second', fileCount: 2 },
     { id: older.id, status: 'ok', createdAt: expect.any(String), reason: 'first', fileCount: 2 },
   ]);
-  expect(listed.slice(2).map((b) => b.id).sort()).toEqual(['broken', 'stray']);
+  expect(
+    listed
+      .slice(2)
+      .map((b) => b.id)
+      .sort(),
+  ).toEqual(['broken', 'stray']);
   expect(listed.slice(2).every((b) => b.status === 'damaged')).toBe(true);
 });
 
