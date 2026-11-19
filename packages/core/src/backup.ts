@@ -65,12 +65,28 @@ export interface RestoreResult {
   leftover: string[];
 }
 
+const RESERVED = new Set(['.git', '.adrien']);
+const DRIVE = /^[A-Za-z]:/;
+
+/**
+ * Whether a path from a manifest is a plain relative path that cannot climb or reach a reserved folder: no empty, `.` or
+ * `..` segment, no absolute or drive-letter form, no backslash or NUL, and no `.git` or `.adrien` segment in any case.
+ * A manifest with a path that fails this is damaged. The check is on the raw text, before any normalisation.
+ */
+function safeRelPath(rel: string): boolean {
+  if (rel.length === 0 || rel.startsWith('/') || DRIVE.test(rel)) return false;
+  if (rel.includes('\\') || rel.includes('\0')) return false;
+  return rel
+    .split('/')
+    .every((part) => part !== '' && part !== '.' && part !== '..' && !RESERVED.has(part.toLowerCase()));
+}
+
 const manifestSchema = z.object({
   createdAt: z.iso.datetime(),
   adrienVersion: z.string(),
   reason: z.string(),
-  files: z.array(z.object({ path: z.string(), sha256: z.string() })),
-  skipped: z.array(z.string()).default([]),
+  files: z.array(z.object({ path: z.string().refine(safeRelPath), sha256: z.string() })),
+  skipped: z.array(z.string().refine(safeRelPath)).default([]),
 });
 type Manifest = z.infer<typeof manifestSchema>;
 
@@ -155,11 +171,12 @@ function logPath(root: string, rel: string): string {
   return file;
 }
 
-/** A restore writes only the ADR directory and the config, never `.adrien/`, `.git/` or anything else. */
+/**
+ * A restore writes only the config and paths under the ADR directory. `rel` has already passed `safeRelPath` (manifests
+ * are validated when read), so the prefix test on its text is exact.
+ */
 function restoreTarget(root: string, config: LogConfig, rel: string): string {
-  const inAdrDir =
-    rel.startsWith(`${adrRelOf(config)}/`) && !rel.split('/').some((part) => part === '.adrien' || part === '.git');
-  if (rel !== CONFIG_FILE && !inAdrDir) {
+  if (rel !== CONFIG_FILE && !rel.startsWith(`${adrRelOf(config)}/`)) {
     throw new AdrienError(
       'INVALID_INPUT',
       `The backup lists ${rel}, which a restore never writes (only the ADR directory and ${CONFIG_FILE}).`,

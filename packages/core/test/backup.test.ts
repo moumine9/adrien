@@ -355,7 +355,8 @@ test.each(['../escaped.md', '.git/config', '.adrien/locks/x.lock', 'docs/other/A
     manifest.files.push({ path, sha256: 'whatever' });
     writeFileSync(manifestFile, JSON.stringify(manifest));
 
-    expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow('never writes');
+    // A path that climbs or reaches .git is damaged before any restore logic; a plain path outside the ADR dir is refused.
+    expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow(/damaged|never writes/);
     expect(existsSync(join(root, '..', 'escaped.md'))).toBe(false);
   },
 );
@@ -473,4 +474,45 @@ test('the wait for an ADR lock honours ADRIEN_LOCK_TIMEOUT_MS', () => {
     expect.objectContaining({ code: 'ADR_LOCKED' }),
   );
   expect(Date.now() - started).toBeLessThan(5000);
+});
+
+/** Rewrites a backup's manifest directly, the way a crafted or tampered backup would look. */
+function rewriteManifest(backupPath: string, change: (manifest: { files: unknown[] }) => void): void {
+  const manifestFile = join(backupPath, 'manifest.json');
+  const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+  change(manifest);
+  writeFileSync(manifestFile, JSON.stringify(manifest));
+}
+
+test('restore writes nothing for a crafted manifest that climbs out of the ADR directory', () => {
+  const root = logRoot();
+  const config = loadLogConfig(root);
+  const made = createBackup(root, config, 'x', VERSION);
+  addEntry(made.path, 'docs/adr/../../pwned.txt', 'pwned');
+  addEntry(made.path, 'docs/adr/../../.GIT/hooks/pre-commit', 'pwned hook');
+
+  expect(listBackups(root)).toContainEqual({ id: made.id, status: 'damaged' });
+  expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow('damaged');
+  expect(existsSync(join(root, 'pwned.txt'))).toBe(false);
+  expect(existsSync(join(root, '.GIT'))).toBe(false);
+});
+
+test.each([
+  ['docs/adr/.GIT/config', 'a reserved name in another case'],
+  ['docs/adr/x\\..\\y.md', 'a backslash'],
+  ['/etc/passwd', 'an absolute path'],
+  ['C:/x.md', 'a drive letter'],
+  ['docs//adr/x.md', 'an empty segment'],
+  ['./docs/adr/x.md', 'a `.` segment'],
+  ['docs/adr/x\u0000.md', 'a NUL byte'],
+  ['', 'an empty path'],
+])('a manifest listing %j (%s) is damaged and restores nothing', (path) => {
+  const root = logRoot();
+  const config = loadLogConfig(root);
+  const made = createBackup(root, config, 'x', VERSION);
+  rewriteManifest(made.path, (m) => m.files.push({ path, sha256: 'whatever' }));
+
+  expect(listBackups(root)).toContainEqual({ id: made.id, status: 'damaged' });
+  expect(() => restoreBackup(root, config, made.id, VERSION)).toThrow('damaged');
+  expect(read(root, 'docs/adr/ADR-0001-storage.md')).toBe(adrText({ id: 'ADR-0001', title: 'Storage' }));
 });
