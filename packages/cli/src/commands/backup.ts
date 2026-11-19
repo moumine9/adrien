@@ -73,8 +73,8 @@ export function registerBackup(program: Command, cli: Cli): void {
     .description('List the backups, newest first')
     .action(async (_opts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
-      const ctx = await contextOf(cli, globals);
-      const backups = listBackups(ctx.logRoot);
+      const { root } = await locate(cli, globals, false);
+      const backups = listBackups(root);
       if (globals.json) return printJson(cli, backups);
       if (backups.length === 0) return cli.out('No backups yet.\n');
       for (const b of backups) {

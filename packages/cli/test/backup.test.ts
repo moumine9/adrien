@@ -148,3 +148,11 @@ test('backup verify lists a deleted config as missing instead of failing', async
   expect(result.code).toBe(1);
   expect(result.stdout).toContain(`missing: ${CONFIG_FILE}`);
 });
+
+test('backup list still finds the backups when the config is deleted', async () => {
+  const root = logDir();
+  await run(root, ['backup', 'create']);
+  rmSync(join(root, CONFIG_FILE));
+  const listed = JSON.parse((await run(root, ['--json', 'backup', 'list'])).stdout) as unknown[];
+  expect(listed).toHaveLength(1);
+});
