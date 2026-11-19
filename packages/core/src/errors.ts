@@ -4,6 +4,7 @@ export type AdrienErrorCode =
   | 'CONFIG_EXISTS'
   | 'READ_ONLY_LOG'
   | 'ADR_NOT_FOUND'
+  | 'ADR_LOCKED'
   | 'INVALID_INPUT'
   | 'PARSE_ERROR';
 

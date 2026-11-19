@@ -6,6 +6,7 @@ import { type DuplicateHit, findDuplicates } from './duplicates.ts';
 import { AdrienError } from './errors.ts';
 import { bodyTemplate } from './frontmatter.ts';
 import { formatId, nextIdNumber } from './ids.ts';
+import { type LockOptions, withAdrLocks } from './lock.ts';
 import { adrFilePath, readWorkingLog, reserveId, writeAdr } from './log.ts';
 import type { Adr, AdrMeta, Origin, TemplateName } from './model.ts';
 import { slugify } from './slug.ts';
@@ -38,6 +39,16 @@ export interface OpOptions {
 }
 
 const todayOf = (opts?: OpOptions) => opts?.today ?? new Date().toISOString().slice(0, 10);
+
+/** `ADRIEN_LOCK_TIMEOUT_MS` sets how long a change waits for another process to let go of an ADR; anything else keeps the default. */
+function lockOptions(env: NodeJS.ProcessEnv): LockOptions {
+  const timeoutMs = Number(env.ADRIEN_LOCK_TIMEOUT_MS);
+  return Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {};
+}
+
+/** Runs a change while holding the lock of every ADR it touches: one writer per ADR, across the CLI, the MCP server and anything else. */
+const locked = <T>(ctx: Context, ids: string[], fn: () => T): T =>
+  withAdrLocks(ctx.logRoot, ids, fn, lockOptions(ctx.env));
 
 export function assertWritable(ctx: Context): void {
   if (ctx.readOnly) {
@@ -178,15 +189,17 @@ export function updateAdr(
     );
   }
   validateInput(ctx, patch);
-  const adr = findAdr(ctx, id);
-  const { body, ...metaPatch } = patch;
-  let nextBody = body ?? adr.body;
-  if (opts?.note) {
-    nextBody = `${nextBody.replace(/\n*$/, '\n')}\n> Proposed change (${opts.origin ?? 'agent'}, ${todayOf(opts)}): ${opts.note}\n`;
-  }
-  const updated: Adr = { ...adr, body: nextBody, meta: { ...adr.meta, ...metaPatch } };
-  writeAdr(ctx.logRoot, updated);
-  return updated;
+  return locked(ctx, [id], () => {
+    const adr = findAdr(ctx, id);
+    const { body, ...metaPatch } = patch;
+    let nextBody = body ?? adr.body;
+    if (opts?.note) {
+      nextBody = `${nextBody.replace(/\n*$/, '\n')}\n> Proposed change (${opts.origin ?? 'agent'}, ${todayOf(opts)}): ${opts.note}\n`;
+    }
+    const updated: Adr = { ...adr, body: nextBody, meta: { ...adr.meta, ...metaPatch } };
+    writeAdr(ctx.logRoot, updated);
+    return updated;
+  });
 }
 
 function write(ctx: Context, adr: Adr, meta: Partial<AdrMeta>): Adr {
@@ -197,11 +210,13 @@ function write(ctx: Context, adr: Adr, meta: Partial<AdrMeta>): Adr {
 
 export function acceptAdr(ctx: Context, _view: LogView, id: string, opts?: OpOptions): Adr {
   assertWritable(ctx);
-  const adr = findAdr(ctx, id);
-  if (!adr.meta.review_rule?.trim()) {
-    throw new AdrienError('INVALID_INPUT', `${id} needs a review_rule before it can be accepted`);
-  }
-  return write(ctx, adr, { status: 'accepted', date: adr.meta.date ?? todayOf(opts) });
+  return locked(ctx, [id], () => {
+    const adr = findAdr(ctx, id);
+    if (!adr.meta.review_rule?.trim()) {
+      throw new AdrienError('INVALID_INPUT', `${id} needs a review_rule before it can be accepted`);
+    }
+    return write(ctx, adr, { status: 'accepted', date: adr.meta.date ?? todayOf(opts) });
+  });
 }
 
 export function setStatus(
@@ -214,28 +229,28 @@ export function setStatus(
   if (!['proposed', 'rejected', 'deprecated'].includes(status)) {
     throw new AdrienError('INVALID_INPUT', `Use \`adrien accept\` or \`adrien supersede\` to set "${status}"`);
   }
-  return write(ctx, findAdr(ctx, id), { status });
+  return locked(ctx, [id], () => write(ctx, findAdr(ctx, id), { status }));
 }
 
 export function supersede(ctx: Context, _view: LogView, oldId: string, newId: string): { old: Adr; replacement: Adr } {
   assertWritable(ctx);
   if (oldId === newId) throw new AdrienError('INVALID_INPUT', `${oldId} cannot supersede itself`);
-  const oldAdr = findAdr(ctx, oldId);
-  const newAdr = findAdr(ctx, newId);
-  return {
-    old: write(ctx, oldAdr, { status: 'superseded', superseded_by: newId }),
-    replacement: write(ctx, newAdr, { supersedes: [...new Set([...newAdr.meta.supersedes, oldId])] }),
-  };
+  return locked(ctx, [oldId, newId], () => {
+    const oldAdr = findAdr(ctx, oldId);
+    const newAdr = findAdr(ctx, newId);
+    return {
+      old: write(ctx, oldAdr, { status: 'superseded', superseded_by: newId }),
+      replacement: write(ctx, newAdr, { supersedes: [...new Set([...newAdr.meta.supersedes, oldId])] }),
+    };
+  });
 }
 
-/** Gives a colliding ADR the next free id; references in other pending ADRs follow it, base ADRs are never touched. */
-export function renumber(
+function renumberUnlocked(
   ctx: Context,
   view: LogView,
   id: string,
   opts?: { path?: string },
 ): { from: string; to: string; path: string } {
-  assertWritable(ctx);
   const candidates = readWorkingLog(ctx.logRoot, ctx.config).adrs.filter((a) => a.meta.id === id);
   if (candidates.length === 0) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
   const basePaths = new Set(view.base.filter((a) => a.meta.id === id).map((a) => a.path));
@@ -273,4 +288,19 @@ export function renumber(
     });
   }
   return { from: id, to, path };
+}
+
+/**
+ * Gives a colliding ADR the next free id; references in other pending ADRs follow it, base ADRs are never touched. It
+ * can rewrite any ADR that refers to the one it moves, so it holds the lock of every ADR in the log while it works.
+ */
+export function renumber(
+  ctx: Context,
+  view: LogView,
+  id: string,
+  opts?: { path?: string },
+): { from: string; to: string; path: string } {
+  assertWritable(ctx);
+  const everyId = readWorkingLog(ctx.logRoot, ctx.config).adrs.map((a) => a.meta.id);
+  return locked(ctx, everyId, () => renumberUnlocked(ctx, view, id, opts));
 }

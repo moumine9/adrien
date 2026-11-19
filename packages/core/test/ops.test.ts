@@ -1,4 +1,5 @@
-import { existsSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { runCheck } from '../src/check.ts';
@@ -7,8 +8,8 @@ import { type Context, resolveContext } from '../src/context.ts';
 import { BODY_TEMPLATE } from '../src/frontmatter.ts';
 import { fetchOrigin } from '../src/git.ts';
 import { readWorkingLog } from '../src/log.ts';
-import { acceptAdr, createAdr, renumber, supersede, updateAdr } from '../src/ops.ts';
-import { loadLogView } from '../src/view.ts';
+import { acceptAdr, createAdr, renumber, setStatus, supersede, updateAdr } from '../src/ops.ts';
+import { type LogView, loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { commitAll, git, initRepo } from './helpers/git.ts';
 
@@ -285,4 +286,64 @@ test('createAdr retries a number published after its initial scan', async () => 
   });
   expect(result).toMatchObject({ adr: { meta: { id: 'ADR-0002' } } });
   expect(ids(root, ctx).sort()).toEqual(['ADR-0001', 'ADR-0002']);
+});
+
+describe('one writer per ADR', () => {
+  const lockFile = (root: string, id: string) => join(root, '.adrien', 'locks', `${id}.lock`);
+  /** Holds an ADR as a live process of this machine would. */
+  function hold(root: string, id: string): void {
+    mkdirSync(join(root, '.adrien', 'locks'), { recursive: true });
+    writeFileSync(lockFile(root, id), JSON.stringify({ pid: process.pid, host: hostname(), at: Date.now() }));
+  }
+  const quick = { ADRIEN_LOCK_TIMEOUT_MS: '100' };
+  const ready = (id: string) => adrText({ id, title: `T ${id}`, review_rule: 'A rule.' });
+
+  async function setup() {
+    const root = makeLog({
+      'docs/adr/ADR-0001-a.md': ready('ADR-0001'),
+      'docs/adr/ADR-0002-b.md': ready('ADR-0002'),
+    });
+    const { ctx, view } = await load(root, quick);
+    return { root, ctx, view };
+  }
+
+  test.each([
+    ['updateAdr', (c: Context, v: LogView) => updateAdr(c, v, 'ADR-0001', { title: 'New title' })],
+    ['acceptAdr', (c: Context, v: LogView) => acceptAdr(c, v, 'ADR-0001', { today: TODAY })],
+    ['setStatus', (c: Context, v: LogView) => setStatus(c, v, 'ADR-0001', 'rejected')],
+    ['supersede, the old ADR', (c: Context, v: LogView) => supersede(c, v, 'ADR-0001', 'ADR-0002')],
+    ['supersede, the new ADR', (c: Context, v: LogView) => supersede(c, v, 'ADR-0002', 'ADR-0001')],
+    ['renumber', (c: Context, v: LogView) => renumber(c, v, 'ADR-0002')],
+  ])('%s fails with ADR_LOCKED while another process holds the ADR, and changes nothing', async (_name, run) => {
+    const { root, ctx, view } = await setup();
+    const before = readFileSync(join(root, 'docs/adr/ADR-0001-a.md'), 'utf8');
+    hold(root, 'ADR-0001');
+    expect(() => run(ctx, view)).toThrow(expect.objectContaining({ code: 'ADR_LOCKED' }));
+    expect(readFileSync(join(root, 'docs/adr/ADR-0001-a.md'), 'utf8')).toBe(before);
+  });
+
+  test('a lock on another ADR does not get in the way', async () => {
+    const { root, ctx, view } = await setup();
+    hold(root, 'ADR-0002');
+    expect(updateAdr(ctx, view, 'ADR-0001', { title: 'Fine' }).meta.title).toBe('Fine');
+  });
+
+  test('every operation releases its locks, whether it succeeds or fails', async () => {
+    const { root, ctx, view } = await setup();
+    updateAdr(ctx, view, 'ADR-0001', { title: 'Done' });
+    supersede(ctx, view, 'ADR-0001', 'ADR-0002');
+    expect(() => setStatus(ctx, view, 'ADR-0099', 'rejected')).toThrow(
+      expect.objectContaining({ code: 'ADR_NOT_FOUND' }),
+    );
+    expect(readdirSync(join(root, '.adrien', 'locks'))).toEqual([]);
+  });
+
+  test('the wait can be tuned with ADRIEN_LOCK_TIMEOUT_MS, and a bad value falls back to the default', async () => {
+    const { root } = await setup();
+    const { ctx, view } = await load(root, { ADRIEN_LOCK_TIMEOUT_MS: 'soon' });
+    // No lock is held, so the default wait is never used: the call just works.
+    expect(updateAdr(ctx, view, 'ADR-0001', { title: 'Works' }).meta.title).toBe('Works');
+    const zero = await load(root, { ADRIEN_LOCK_TIMEOUT_MS: '-5' });
+    expect(updateAdr(zero.ctx, zero.view, 'ADR-0001', { title: 'Still works' }).meta.title).toBe('Still works');
+  });
 });

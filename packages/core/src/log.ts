@@ -69,7 +69,7 @@ export function adrFilePath(config: LogConfig, id: string, title: string, subdir
 }
 
 /** Refuses a destination that leaves the log, lexically or through a symlink (whether the file or a folder above it). */
-function assertInsideLog(logRoot: string, file: string, adrPath: string): void {
+export function assertInsideLog(logRoot: string, file: string, adrPath: string): void {
   const root = canonicalPath(logRoot);
   const outside = (where: string) =>
     new AdrienError('INVALID_INPUT', `${adrPath} resolves outside the log (${where}); refusing to write it.`);
@@ -96,7 +96,7 @@ export function writeAdr(logRoot: string, adr: Adr, opts: { exclusive?: boolean 
   }
 }
 
-function tryWriteFile(file: string, content: string, flag: 'wx' | 'w'): boolean {
+export function tryWriteFile(file: string, content: string, flag: 'wx' | 'w'): boolean {
   try {
     writeFileSync(file, content, { flag });
     return true;
