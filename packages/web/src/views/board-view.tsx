@@ -2,7 +2,7 @@ import type { AdrRow, Status } from '@adrien/api/contract';
 import { Check, ChevronDown, Copy, Lock, Tag } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
-import { Chip, InCheckoutBadge, STATUS_ICONS } from '@/components/badges.tsx';
+import { Chip, InCheckoutBadge, LocalEditBadge, type LocalEditKind, STATUS_ICONS } from '@/components/badges.tsx';
 import { ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { EMPTY_FILTERS } from '@/lib/filters.ts';
@@ -21,6 +21,32 @@ const COLUMNS: readonly Status[] = ['proposed', 'accepted', 'rejected', 'superse
 const boardRows = (rows: AdrRow[]): AdrRow[] => {
   const baseIds = new Set(rows.filter((r) => r.layer === 'base').map((r) => r.id));
   return rows.filter((r) => r.layer === 'base' || r.pending_kind === 'added' || !baseIds.has(r.id));
+};
+
+/** A column shows this many cards until its reader asks for the rest, so one long column does not bury the others. */
+const COLUMN_LIMIT = 15;
+
+/**
+ * The local edits and removals hidden behind a base row, by the base file's path. `boardRows` hides them, so the base
+ * card carries the change instead: without it the card would look untouched while this checkout changes the decision.
+ * Like the core, a pending row is paired with the base row at the same path AND id first; only a moved file, whose
+ * path changed, is paired by id, and only when that id has a single base row. Two files that share an id are never mixed up.
+ */
+const localEditsByPath = (rows: AdrRow[]): Map<string, LocalEditKind> => {
+  const base = rows.filter((r) => r.layer === 'base');
+  const edits = new Map<string, LocalEditKind>();
+  for (const r of rows) {
+    if (r.layer !== 'pending' || (r.pending_kind !== 'modified' && r.pending_kind !== 'deleted')) continue;
+    // The core requires the path AND the id to match: a different decision that reuses a path is not an edit of it.
+    const samePlace = base.find((b) => b.path === r.path && b.id === r.id);
+    if (samePlace) {
+      edits.set(samePlace.path, r.pending_kind);
+      continue;
+    }
+    const sameId = base.filter((b) => b.id === r.id);
+    if (sameId.length === 1) edits.set((sameId[0] as AdrRow).path, r.pending_kind);
+  }
+  return edits;
 };
 
 /** Shows the command that approves a proposal. Approval is a merge, so the board never changes a status itself. */
@@ -68,7 +94,7 @@ function ApproveDisclosure({ id }: { id: string }) {
   );
 }
 
-function BoardCard({ row }: { row: AdrRow }) {
+function BoardCard({ row, localEdit }: { row: AdrRow; localEdit?: LocalEditKind }) {
   const pending = row.layer === 'pending';
   const retired = isRetired(row.status);
   return (
@@ -82,6 +108,7 @@ function BoardCard({ row }: { row: AdrRow }) {
       <div className="flex flex-wrap items-center gap-2">
         <span className="font-heading tabular-nums">{row.id}</span>
         {pending && <InCheckoutBadge />}
+        {localEdit && <LocalEditBadge kind={localEdit} />}
       </div>
       <h3 className={cn('text-base leading-snug', retired && 'text-muted-foreground')}>
         <Link
@@ -106,10 +133,14 @@ function BoardCard({ row }: { row: AdrRow }) {
 }
 
 /** A column is named by its status and icon, so the status never depends on colour alone. */
-function Column({ status, rows }: { status: Status; rows: AdrRow[] }) {
+function Column({ status, rows, edits }: { status: Status; rows: AdrRow[]; edits: Map<string, LocalEditKind> }) {
   const headingId = useId();
+  const listId = useId();
+  const [expanded, setExpanded] = useState(false);
   const { label, fill } = STATUS_STYLES[status];
   const Icon = STATUS_ICONS[status];
+  const remaining = rows.length - COLUMN_LIMIT;
+  const shown = expanded || remaining <= 0 ? rows : rows.slice(0, COLUMN_LIMIT);
   return (
     <section aria-labelledby={headingId} className="min-w-0 space-y-4">
       <h2
@@ -125,13 +156,26 @@ function Column({ status, rows }: { status: Status; rows: AdrRow[] }) {
           No decision is {label.toLowerCase()}.
         </p>
       ) : (
-        <ul className="space-y-4">
-          {rows.map((row) => (
-            <li key={`${row.layer}:${row.path}`}>
-              <BoardCard row={row} />
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul id={listId} className="space-y-4">
+            {shown.map((row) => (
+              <li key={`${row.layer}:${row.path}`}>
+                <BoardCard row={row} localEdit={row.layer === 'base' ? edits.get(row.path) : undefined} />
+              </li>
+            ))}
+          </ul>
+          {remaining > 0 && (
+            <Button
+              variant="neutral"
+              size="sm"
+              aria-controls={listId}
+              aria-expanded={expanded}
+              onClick={() => setExpanded((open) => !open)}
+            >
+              {expanded ? 'Show fewer' : `Show ${remaining} more`}
+            </Button>
+          )}
+        </>
       )}
     </section>
   );
@@ -139,19 +183,21 @@ function Column({ status, rows }: { status: Status; rows: AdrRow[] }) {
 
 export function BoardView() {
   const adrs = useAdrs(EMPTY_FILTERS);
-  const rows = boardRows(adrs.data?.results ?? []);
+  const allRows = adrs.data?.results ?? [];
+  const rows = boardRows(allRows);
+  const edits = localEditsByPath(allRows);
 
   return (
     <div className="space-y-8">
       <title>Board | Adrien</title>
+      <PageHeader title="Board">Every decision in the log, grouped by status.</PageHeader>
+
       <div className="flex gap-3 rounded-base border-2 border-border bg-secondary-background p-4 shadow-shadow">
         <Lock aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
         <p className="max-w-[72ch]">
           This board is read-only. A decision is approved by merging, never by moving a card.
         </p>
       </div>
-
-      <PageHeader title="Board">Every decision in the log, grouped by status.</PageHeader>
 
       {adrs.isPending ? (
         <LoadingBlocks label="Loading the board" count={3} />
@@ -160,7 +206,7 @@ export function BoardView() {
       ) : (
         <div className="grid grid-cols-1 gap-8 lg:grid-flow-col lg:grid-cols-[none] lg:auto-cols-[minmax(12.5rem,1fr)] lg:items-start lg:gap-5 lg:overflow-x-auto lg:pb-2">
           {COLUMNS.map((status) => (
-            <Column key={status} status={status} rows={rows.filter((r) => r.status === status)} />
+            <Column key={status} status={status} rows={rows.filter((r) => r.status === status)} edits={edits} />
           ))}
         </div>
       )}
