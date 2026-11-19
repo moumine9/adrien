@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { AdrienError } from './errors.ts';
@@ -78,23 +78,54 @@ function isStale(owner: Owner | null, file: string, staleMs: number): boolean {
   return owner.host === hostname() && !alive(owner.pid);
 }
 
+/** The guard files of a lock, in a folder of their own so reading them never lists the other locks: `g<n>` per generation, and `g<n>.done` once generation n has let go. */
+function generations(dir: string): { newest: number; done: Set<number>; live: number[] } {
+  const live: number[] = [];
+  const done = new Set<number>();
+  for (const name of readdirSync(dir)) {
+    const m = /^g(\d+)(\.done)?$/.exec(name);
+    if (m?.[2]) done.add(Number(m[1]));
+    else if (m) live.push(Number(m[1]));
+  }
+  return { newest: Math.max(0, ...live), done, live };
+}
+
 /**
- * Runs `fn` holding the guard file of a lock. Every removal of a lock happens under its guard: creating a lock needs no
+ * Runs `fn` holding the guard of a lock. Every removal of a lock happens under its guard: creating a lock needs no
  * guard (it cannot succeed while the file exists), so whoever holds the guard removes exactly the file it judged, never
- * a fresh lock that replaced it. With `wait` false it gives up at once when the guard is taken (returns undefined); a
- * guard left by a crashed holder is removed once it is old.
+ * a fresh lock that replaced it. With `wait` false it gives up at once when the guard is taken (returns undefined).
+ *
+ * No process ever deletes or renames a guard that someone may hold, because it could not tell a crashed holder's guard
+ * from one that was just taken. The guard is a numbered generation instead: the next one is created exclusively once the
+ * newest has let go (marked `.done`) or is older than `GUARD_MS` (its holder crashed), and the older ones are cleaned up
+ * by the holder of the newest. The newest generation is never deleted, so a number is never created twice.
  */
 function underGuard<T>(file: string, wait: boolean, fn: () => T): T | undefined {
-  const guard = `${file}.takeover`;
-  while (!tryWriteFile(guard, String(process.pid), 'wx')) {
-    if (ageOfFile(guard) > GUARD_MS) rmSync(guard, { force: true });
-    if (!wait) return undefined;
-    pause(1);
-  }
-  try {
-    return fn();
-  } finally {
-    rmSync(guard, { force: true });
+  const dir = `${file}.guard`;
+  mkdirSync(dir, { recursive: true });
+  const guard = (n: number, suffix = '') => join(dir, `g${n}${suffix}`);
+  for (;;) {
+    const { newest, done } = generations(dir);
+    const free = newest === 0 || done.has(newest) || ageOfFile(guard(newest)) > GUARD_MS;
+    const mine = newest + 1;
+    if (free && tryWriteFile(guard(mine), String(process.pid), 'wx')) {
+      // A view older than a cleanup can re-create a number that is gone; only the newest generation is a real guard.
+      const real = generations(dir).newest === mine;
+      try {
+        if (real) return fn();
+      } finally {
+        tryWriteFile(guard(mine, '.done'), '', 'w');
+        if (real) {
+          for (const k of generations(dir).live.filter((n) => n < mine)) {
+            rmSync(guard(k), { force: true });
+            rmSync(guard(k, '.done'), { force: true });
+          }
+        }
+      }
+    } else {
+      if (!wait) return undefined;
+      pause(1);
+    }
   }
 }
 

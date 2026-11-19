@@ -381,7 +381,7 @@ describe('one writer per ADR', () => {
     expect(() => setStatus(ctx, view, 'ADR-0099', 'rejected')).toThrow(
       expect.objectContaining({ code: 'ADR_NOT_FOUND' }),
     );
-    expect(readdirSync(join(root, '.adrien', 'locks'))).toEqual([]);
+    expect(readdirSync(join(root, '.adrien', 'locks')).filter((n) => n.endsWith('.lock'))).toEqual([]);
   });
 
   test('the wait can be tuned with ADRIEN_LOCK_TIMEOUT_MS, and a bad value falls back to the default', async () => {
@@ -480,7 +480,7 @@ describe('a change based on a stale read is refused, like a push after the base 
     expect(() => updateAdr(ctx, view, 'ADR-0001', { title: 'Mine' }, { expectedRevision: '000000000000' })).toThrow(
       /Read it again, redo your change on the latest version, and retry/,
     );
-    expect(readdirSync(join(root, '.adrien', 'locks'))).toEqual([]);
+    expect(readdirSync(join(root, '.adrien', 'locks')).filter((n) => n.endsWith('.lock'))).toEqual([]);
   });
 
   test('without an expected revision a change applies to the latest version, as before', async () => {

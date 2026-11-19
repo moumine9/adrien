@@ -24,5 +24,5 @@ test('two processes changing the same ADR at once lose none of their changes', a
   // Every one of the 50 read-change-write cycles survived: nobody overwrote anybody.
   expect(notes).toHaveLength(50);
   expect(new Set(notes).size).toBe(50);
-  expect(readdirSync(join(root, '.adrien', 'locks'))).toEqual([]);
+  expect(readdirSync(join(root, '.adrien', 'locks')).filter((n) => n.endsWith('.lock'))).toEqual([]);
 }, 60_000);
