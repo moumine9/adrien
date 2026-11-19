@@ -274,10 +274,9 @@ function renumberUnlocked(
   ctx: Context,
   view: LogView,
   id: string,
+  working: Adr[],
   opts?: { path?: string },
 ): { from: string; to: string; path: string } {
-  // Read now, under the lock: the view may be older than other processes' changes to the working copy.
-  const working = readWorkingLog(ctx.logRoot, ctx.config).adrs;
   const candidates = working.filter((a) => a.meta.id === id);
   if (candidates.length === 0) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
   const basePaths = new Set(view.base.filter((a) => a.meta.id === id).map((a) => a.path));
@@ -350,6 +349,23 @@ export function renumber(
   opts?: { path?: string },
 ): { from: string; to: string; path: string } {
   assertWritable(ctx);
-  const everyId = readWorkingLog(ctx.logRoot, ctx.config).adrs.map((a) => a.meta.id);
-  return locked(ctx, everyId, () => renumberUnlocked(ctx, view, id, opts));
+  let ids = readWorkingLog(ctx.logRoot, ctx.config).adrs.map((a) => a.meta.id);
+  for (;;) {
+    // Read under the locks: an ADR created while we waited for them may refer to this one, and it is rewritten below, so
+    // its lock must be held too. If one is missing, take the wider set and look again.
+    const outcome = locked<{ unlocked: string[] } | { done: { from: string; to: string; path: string } }>(
+      ctx,
+      ids,
+      () => {
+        const working = readWorkingLog(ctx.logRoot, ctx.config).adrs;
+        const unlocked = working
+          .filter((a) => [...a.meta.supersedes, ...a.meta.related, a.meta.superseded_by].includes(id))
+          .map((a) => a.meta.id)
+          .filter((other) => !ids.includes(other));
+        return unlocked.length ? { unlocked } : { done: renumberUnlocked(ctx, view, id, working, opts) };
+      },
+    );
+    if ('done' in outcome) return outcome.done;
+    ids = [...ids, ...outcome.unlocked];
+  }
 }

@@ -79,23 +79,34 @@ function isStale(owner: Owner | null, file: string, staleMs: number): boolean {
 }
 
 /**
- * Removes a stale lock, one process at a time. Removing it on a judgement made earlier could delete a lock that another
- * process has taken in the meantime, so a takeover first takes a guard file, and judges the lock again under it. A guard
- * left by a crashed taker is removed once it is old. Returns whether the lock was removed.
+ * Runs `fn` holding the guard file of a lock. Every removal of a lock happens under its guard: creating a lock needs no
+ * guard (it cannot succeed while the file exists), so whoever holds the guard removes exactly the file it judged, never
+ * a fresh lock that replaced it. With `wait` false it gives up at once when the guard is taken (returns undefined); a
+ * guard left by a crashed holder is removed once it is old.
  */
-export function takeOver(file: string, staleMs: number): boolean {
+function underGuard<T>(file: string, wait: boolean, fn: () => T): T | undefined {
   const guard = `${file}.takeover`;
-  if (!tryWriteFile(guard, String(process.pid), 'wx')) {
+  while (!tryWriteFile(guard, String(process.pid), 'wx')) {
     if (ageOfFile(guard) > GUARD_MS) rmSync(guard, { force: true });
-    return false;
+    if (!wait) return undefined;
+    pause(1);
   }
   try {
-    if (!isStale(readOwner(file), file, staleMs)) return false;
-    rmSync(file, { force: true });
-    return true;
+    return fn();
   } finally {
     rmSync(guard, { force: true });
   }
+}
+
+/** Removes a stale lock, judging it again under the guard. Returns whether the lock was removed. */
+export function takeOver(file: string, staleMs: number): boolean {
+  return (
+    underGuard(file, false, () => {
+      if (!isStale(readOwner(file), file, staleMs)) return false;
+      rmSync(file, { force: true });
+      return true;
+    }) ?? false
+  );
 }
 
 /** Takes the lock, and returns the content that identifies it as ours. */
@@ -122,7 +133,9 @@ function acquire(file: string, id: string, timeoutMs: number, staleMs: number): 
 /** Removes a lock only if it is still ours: after a takeover it belongs to someone else, and a failure must not stop the other releases. */
 function release(file: string, mine: string): void {
   try {
-    if (readFileSync(file, 'utf8') === mine) rmSync(file, { force: true });
+    underGuard(file, true, () => {
+      if (readFileSync(file, 'utf8') === mine) rmSync(file, { force: true });
+    });
   } catch {
     // Already gone, or not a file we can read: nothing of ours is left to remove.
   }

@@ -206,6 +206,20 @@ describe('taking over a stale lock', () => {
     expect(takeOver(file, 30_000)).toBe(true);
   });
 
+  test('a release waits for the guard, so it never removes a lock a takeover is judging', () => {
+    const root = tmpDir();
+    let guard = '';
+    const started = Date.now();
+    withAdrLocks(root, ['ADR-0001'], () => {
+      guard = `${lockFile(root, 'ADR-0001')}.takeover`;
+      writeFileSync(guard, '1');
+      age(guard, 9_700); // the guard goes stale in about 300 ms
+    });
+    expect(Date.now() - started).toBeGreaterThanOrEqual(200);
+    expect(existsSync(lockFile(root, 'ADR-0001'))).toBe(false);
+    expect(existsSync(guard)).toBe(false);
+  });
+
   test('several processes racing for a lock left by a dead process never hold it together', async () => {
     for (let round = 0; round < 3; round++) {
       const root = tmpDir();
