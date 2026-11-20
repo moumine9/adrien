@@ -18,7 +18,10 @@ function message(changed: readonly string[]): string {
  */
 export function ChangeToast({ dismissAfterMs = TOAST_SECONDS * 1000 }: { dismissAfterMs?: number }) {
   const { changed, version, dismiss } = useChangeWatch();
-  const [held, setHeld] = useState(false);
+  // The pointer and focus are tracked apart: the notice waits while either one is on it.
+  const [hovered, setHovered] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const held = hovered || focused;
   const box = useRef<HTMLDivElement>(null);
   const show = changed.length > 0;
   // A new change joins the notice and restarts the timer.
@@ -32,17 +35,18 @@ export function ChangeToast({ dismissAfterMs = TOAST_SECONDS * 1000 }: { dismiss
     // The button the reader pressed is about to go away: give focus to the page rather than to nothing.
     const hadFocus = box.current?.contains(document.activeElement);
     dismiss();
-    setHeld(false);
+    setHovered(false);
+    setFocused(false);
     if (hadFocus) document.getElementById('main')?.focus({ preventScroll: true });
   };
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the handlers only watch the pointer and focus to hold the timer; nothing here acts on a click.
     <div
       ref={box}
-      onMouseEnter={() => setHeld(true)}
-      onMouseLeave={() => setHeld(false)}
-      onFocus={() => setHeld(true)}
-      onBlur={() => setHeld(false)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onFocus={() => setFocused(true)}
+      onBlur={() => setFocused(false)}
       className={cn(
         'fixed right-4 bottom-4 left-4 z-40 sm:right-auto sm:max-w-md',
         show &&

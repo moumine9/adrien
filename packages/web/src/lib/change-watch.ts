@@ -37,6 +37,10 @@ export function useChangeWatch(): { changed: string[]; version: number; dismiss:
   });
   const collecting = settings.changeNotifications;
   useEffect(() => {
+    // Turning notifications off takes away a notice that is already showing.
+    if (!collecting) setState((s) => (s.changed.size === 0 ? s : { changed: new Set(), version: s.version }));
+  }, [collecting]);
+  useEffect(() => {
     if (!data) return;
     const next = stampsOf(data.results);
     const before = seen.current;

@@ -163,6 +163,58 @@ describe('The change toast', () => {
     await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
   });
 
+  it('keeps waiting while the button has focus, even after the pointer has left', async () => {
+    let patch: Record<string, string | null> = {};
+    const { client, user } = renderToast(
+      movingFetch(() => patch),
+      40,
+    );
+    await firstReading(client);
+    patch = { 'ADR-0002': 'abcdefabcdef' };
+    await poll(client);
+    const text = await screen.findByText('ADR-0002 changed.');
+    await user.hover(text);
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus();
+    await user.unhover(text);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+    expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
+    expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus();
+  });
+
+  it('keeps waiting while the pointer is on it, even after focus has left', async () => {
+    let patch: Record<string, string | null> = {};
+    const { client, user } = renderToast(
+      movingFetch(() => patch),
+      40,
+    );
+    await firstReading(client);
+    patch = { 'ADR-0002': 'abcdefabcdef' };
+    await poll(client);
+    const text = await screen.findByText('ADR-0002 changed.');
+    await user.hover(text);
+    await user.tab();
+    await user.tab();
+    expect(screen.getByRole('button', { name: 'Dismiss' })).not.toHaveFocus();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+    expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
+  });
+
+  it('takes a notice that is already showing away when notifications are turned off', async () => {
+    let patch: Record<string, string | null> = {};
+    const { client } = renderToast(movingFetch(() => patch));
+    await firstReading(client);
+    patch = { 'ADR-0002': 'abcdefabcdef' };
+    await poll(client);
+    await screen.findByText('ADR-0002 changed.');
+    act(() => updateSettings({ changeNotifications: false }));
+    await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
+  });
+
   it('gives focus to the page when the button that had it goes away', async () => {
     let patch: Record<string, string | null> = {};
     const { client, user } = renderToast(movingFetch(() => patch));
