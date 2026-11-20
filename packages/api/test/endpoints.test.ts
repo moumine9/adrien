@@ -232,10 +232,12 @@ describe('GET /api/adrs/:id', () => {
     expect(edited.body.revision).toBe(workingRevision(view, 'ADR-0001'));
     expect(edited.body.revision).toMatch(/^[0-9a-f]{12}$/);
     expect(edited.body.modifiedAt).toBe(statSync(join(root, 'docs/adr/ADR-0001-dates.md')).mtime.toISOString());
-    // Unchanged here: dated by the commit on the default branch, not by the file.
+    // Unchanged here: dated by the commit that touched it, not by the file.
     const same = await get<AdrResponse>(root, '/api/adrs/ADR-0002');
     expect(same.body.revision).toBe(workingRevision(view, 'ADR-0002'));
-    expect(same.body.modifiedAt).toBe(new Date(git(root, 'log', '-1', '--format=%cI', 'origin/main')).toISOString());
+    expect(same.body.modifiedAt).toBe(
+      new Date(git(root, 'log', '-1', '--format=%cI', 'HEAD', '--', 'docs/adr/ADR-0002-postgres.md')).toISOString(),
+    );
     // Deleted in this checkout: no revision to base a change on, but the binding version has a date.
     const deleted = await get<AdrResponse>(root, '/api/adrs/ADR-0004');
     expect(deleted.body.revision).toBeNull();

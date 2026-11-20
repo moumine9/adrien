@@ -1,5 +1,6 @@
 import { rmSync, statSync, utimesSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { CONFIG_FILE, parseLogConfigText } from '../src/config.ts';
 import { git as runGit } from '../src/git.ts';
 import { modifiedAtById } from '../src/modified.ts';
@@ -90,7 +91,7 @@ test('in a shallow clone the commit dates are unknown, never the date of the bou
   writeFiles(origin, { [B]: adrText({ id: 'ADR-0002', title: 'B again' }) });
   commitAll(origin, 'edit b');
   const clone = tmpDir();
-  git(clone, 'clone', '-q', '--depth', '1', `file://${origin}`, '.');
+  git(clone, 'clone', '-q', '--depth', '1', pathToFileURL(origin).href, '.');
   const view = await loadLogView(clone, config());
   expect(view.mode).toBe('git');
   const dates = await modifiedAtById(clone, config(), view);
@@ -100,7 +101,7 @@ test('in a shallow clone the commit dates are unknown, never the date of the bou
   expect((await modifiedAtById(clone, config(), await loadLogView(clone, config()))).get('ADR-0002')).toBeNull();
 });
 
-test('the dates of every ADR come from one git log, not one per ADR', async () => {
+test('the dates of every ADR come from one git log per version, not one per ADR', async () => {
   const root = tmpDir();
   twoAdrs(root);
   initRepo(root);
@@ -155,4 +156,32 @@ test('a log in a sub-folder of its repository is dated by the commits that touch
   initRepo(repo);
   const dates = await modifiedAtById(root, config(), await loadLogView(root, config()));
   expect(dates.get('ADR-0001')).toBe(committerDate(repo, `decisions/${A}`));
+});
+
+test('an ADR is dated by this checkout, not by a newer commit that only the default branch holds', async () => {
+  const root = tmpDir();
+  twoAdrs(root);
+  initRepo(root, { origin: true });
+  const before = committerDate(root, B);
+  writeFiles(root, { [B]: adrText({ id: 'ADR-0002', title: 'B upstream' }) });
+  commitAll(root, 'edit b upstream');
+  git(root, 'push', '-q', 'origin', 'main');
+  git(root, 'reset', '-q', '--hard', 'HEAD~1');
+  const view = await loadLogView(root, config());
+  const dates = await modifiedAtById(root, config(), view);
+  expect(view.base.find((a) => a.meta.id === 'ADR-0002')?.meta.title).toBe('B upstream');
+  expect(dates.get('ADR-0002')).toBe(before);
+});
+
+test('an ADR only the default branch holds is dated by that branch, wherever the branch keeps its ADRs', async () => {
+  const root = tmpDir();
+  twoAdrs(root);
+  initRepo(root, { origin: true });
+  writeFiles(root, { 'docs/adr/ADR-0007-new.md': adrText({ id: 'ADR-0007', title: 'Added upstream' }) });
+  commitAll(root, 'add 7 upstream');
+  git(root, 'push', '-q', 'origin', 'main');
+  git(root, 'reset', '-q', '--hard', 'HEAD~1');
+  const view = await loadLogView(root, config());
+  const dates = await modifiedAtById(root, config(), view);
+  expect(dates.get('ADR-0007')).toBe(new Date(git(root, 'log', '-1', '--format=%cI', 'origin/main')).toISOString());
 });

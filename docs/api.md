@@ -49,5 +49,6 @@ the one `adrien show --json` describes:
   older read is refused. It is the same value `adrien show --json` and `adr_get` return. `null` when the ADR is not in
   this checkout (deleted here) or its id is used by several files.
 - `modifiedAt`: an ISO 8601 time. It is the file's modification time when this checkout changes the ADR or there is no
-  default branch to read. Otherwise it is the time of the last commit on the default branch that touched the file, since a
-  clone resets file times. `null` when it cannot be known, as in a shallow clone.
+  default branch to read. Otherwise it is the time of the last commit in this checkout that touched the file, since a
+  clone resets file times (an ADR that only the default branch holds takes that branch's last commit instead). `null` when
+  it cannot be known, as in a shallow clone.
