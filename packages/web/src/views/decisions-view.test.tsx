@@ -12,7 +12,12 @@ describe('Decisions view', () => {
   it("shows each card's revision and time, and drops the revision when Show revision is off", async () => {
     const first = renderApp('/');
     await screen.findAllByRole('article');
-    expect(screen.getAllByRole('button', { name: /^Copy revision [0-9a-f]{12}$/ }).length).toBeGreaterThan(0);
+    const copies = screen.getAllByRole('button', { name: /^Copy revision/ });
+    expect(copies.length).toBeGreaterThan(0);
+    // Every revision the mock serves is 12 hex digits, like a real one.
+    expect(copies.filter((b) => /^Copy revision [0-9a-f]{12}$/.test(b.getAttribute('aria-label') ?? ''))).toHaveLength(
+      copies.length,
+    );
     first.unmount();
     localStorage.setItem('adrien.settings', JSON.stringify({ showRevision: false }));
     renderApp('/');

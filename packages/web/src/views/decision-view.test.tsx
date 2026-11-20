@@ -16,6 +16,13 @@ afterEach(() => {
 const heading = (name: string | RegExp) => screen.findByRole('heading', { name });
 
 describe('Decision view', () => {
+  it('shows the time of a decision deleted in this checkout, but no revision to copy', async () => {
+    renderApp('/adr/ADR-0012');
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.getAllByText(/^Changed /).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /^Copy revision/ })).toBeNull();
+  });
+
   it('shows when the decision last changed and its revision under the title, and copies the revision', async () => {
     const { user } = renderApp('/adr/ADR-0002');
     await heading('Use PostgreSQL as the system of record for billing');

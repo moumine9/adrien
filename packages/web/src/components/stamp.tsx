@@ -62,7 +62,7 @@ export function VersionStamp({
   return (
     <p className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 text-sm', className)}>
       {modifiedAt && (
-        <time dateTime={modifiedAt} title={exact}>
+        <time dateTime={modifiedAt} title={exact} className="relative z-10">
           <span aria-hidden>Changed {relativeText}</span>
           <span className="sr-only">
             Changed {relativeText}, {exact}

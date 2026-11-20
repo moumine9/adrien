@@ -90,7 +90,10 @@ function metaOf(variant: MockVariant, view: View): MetaResponse {
 function stampOf(a: AdrFile): { revision: string; modifiedAt: string } {
   let h = 0;
   for (const ch of `${a.meta.id}:${a.path}`) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0;
-  const revision = `${h.toString(16).padStart(8, '0')}${(h ^ 0x9e3779b9).toString(16).padStart(8, '0')}`.slice(0, 12);
+  const revision = `${h.toString(16).padStart(8, '0')}${((h ^ 0x9e3779b9) >>> 0).toString(16).padStart(8, '0')}`.slice(
+    0,
+    12,
+  );
   // Between one and nine days ago, so the demo shows relative times.
   return { revision, modifiedAt: new Date(Date.now() - ((h % 9) + 1) * 24 * 3600 * 1000).toISOString() };
 }
@@ -116,6 +119,9 @@ function rowsOf(view: View): Array<{ row: AdrListRow; body: string }> {
     const file = p.kind === 'deleted' ? p.base : p.current;
     if (file) rows.push({ row: rowOf(file, 'pending', p.kind), body: file.body });
   }
+  // Deleted here: no revision, on the base row and on the pending row alike.
+  const deleted = new Set(view.pending.filter((p) => p.kind === 'deleted').map((p) => (p.base ?? p.current)?.meta.id));
+  for (const { row } of rows) if (deleted.has(row.id)) row.revision = null;
   return rows.sort(
     (x, y) =>
       x.row.id.localeCompare(y.row.id) ||
@@ -173,8 +179,12 @@ function getAdr(view: View, id: string): AdrResponse | null {
       ? { kind: change.kind }
       : { kind: change.kind, ...(change.current as AdrFile) }
     : null;
-  const working = (pending && change?.kind !== 'deleted' ? change?.current : base) ?? null;
-  return { id, ...(working ? stampOf(working) : { revision: null, modifiedAt: null }), base, pending };
+  // A decision deleted in this checkout has no revision to base a change on, as in the real API; its binding version
+  // still has a time.
+  const deleted = change?.kind === 'deleted';
+  const working = (change && !deleted ? change.current : base) ?? null;
+  const stamp = working ? stampOf(working) : { revision: null, modifiedAt: null };
+  return { id, ...stamp, revision: deleted ? null : stamp.revision, base, pending };
 }
 
 function graphOf(view: View): GraphResponse {
