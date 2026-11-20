@@ -1,6 +1,5 @@
 import { statSync } from 'node:fs';
 import { join, posix, relative } from 'node:path';
-import type { LogConfig } from './config.ts';
 import { git, gitToplevel } from './git.ts';
 import { toPosix } from './log.ts';
 import type { Adr } from './model.ts';
@@ -54,7 +53,6 @@ async function commitDates(top: string, ref: string, dirs: string[], run: RunGit
  */
 export async function modifiedAtById(
   logRoot: string,
-  config: LogConfig,
   view: LogView,
   run: RunGit = git,
 ): Promise<Map<string, string | null>> {

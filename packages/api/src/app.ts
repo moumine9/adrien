@@ -131,7 +131,7 @@ export function createApp(opts: ApiOptions): Hono {
     // Every match, ranked: the index holds at most one row per base ADR and one per pending change.
     const limit = view.base.length + view.pending.length;
     const results = await withIndex(ctx, view, (index) => (q ? index.search(q, filters, limit) : index.list(filters)));
-    const modified = await modifiedAtById(ctx.logRoot, ctx.config, view);
+    const modified = await modifiedAtById(ctx.logRoot, view);
     return c.json<AdrsResponse>({
       results: results.map((row) => ({
         ...row,
@@ -144,7 +144,7 @@ export function createApp(opts: ApiOptions): Hono {
   app.get('/api/adrs/:id', async (c) => {
     const { ctx, view } = await load();
     const id = c.req.param('id');
-    return c.json(adrOf(view, id, (await modifiedAtById(ctx.logRoot, ctx.config, view)).get(id) ?? null));
+    return c.json(adrOf(view, id, (await modifiedAtById(ctx.logRoot, view)).get(id) ?? null));
   });
 
   app.get('/api/graph', async (c) => {

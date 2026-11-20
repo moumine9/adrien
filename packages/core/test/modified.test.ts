@@ -32,7 +32,7 @@ test('a committed ADR is dated by the last commit on the base ref that touched i
   const old = new Date('2020-01-01T00:00:00Z');
   utimesSync(join(root, A), old, old);
   const view = await loadLogView(root, config());
-  const dates = await modifiedAtById(root, config(), view);
+  const dates = await modifiedAtById(root, view);
   expect(dates.get('ADR-0001')).toBe(committerDate(root, A));
   expect(dates.get('ADR-0002')).toBe(committerDate(root, B));
 });
@@ -46,7 +46,7 @@ test('an ADR with a pending change is dated by the file in the working copy', as
     'docs/adr/ADR-0003-c.md': adrText({ id: 'ADR-0003', title: 'C' }),
   });
   const view = await loadLogView(root, config());
-  const dates = await modifiedAtById(root, config(), view);
+  const dates = await modifiedAtById(root, view);
   expect(dates.get('ADR-0001')).toBe(mtime(root, A));
   expect(dates.get('ADR-0003')).toBe(mtime(root, 'docs/adr/ADR-0003-c.md'));
   expect(dates.get('ADR-0002')).toBe(committerDate(root, B));
@@ -57,7 +57,7 @@ test('without git, the file mtime dates the ADR', async () => {
   twoAdrs(root);
   const view = await loadLogView(root, config());
   expect(view.mode).toBe('files');
-  const dates = await modifiedAtById(root, config(), view);
+  const dates = await modifiedAtById(root, view);
   expect(dates.get('ADR-0001')).toBe(mtime(root, A));
 });
 
@@ -67,7 +67,7 @@ test('an ADR deleted in the working copy keeps its commit date, and one that dis
   initRepo(root);
   git(root, 'rm', '-q', B);
   const view = await loadLogView(root, config());
-  const dates = await modifiedAtById(root, config(), view);
+  const dates = await modifiedAtById(root, view);
   expect(dates.get('ADR-0002')).toBe(committerDate(root, B));
   expect(dates.has('ADR-0009')).toBe(false);
 });
@@ -80,7 +80,7 @@ test('an id used by several files has no date', async () => {
   });
   initRepo(root);
   const view = await loadLogView(root, config());
-  const dates = await modifiedAtById(root, config(), view);
+  const dates = await modifiedAtById(root, view);
   expect(dates.get('ADR-0001')).toBeNull();
 });
 
@@ -94,11 +94,11 @@ test('in a shallow clone the commit dates are unknown, never the date of the bou
   git(clone, 'clone', '-q', '--depth', '1', pathToFileURL(origin).href, '.');
   const view = await loadLogView(clone, config());
   expect(view.mode).toBe('git');
-  const dates = await modifiedAtById(clone, config(), view);
+  const dates = await modifiedAtById(clone, view);
   expect(dates.get('ADR-0001')).toBeNull();
   expect(dates.get('ADR-0002')).toBeNull();
   git(clone, 'rm', '-q', B);
-  expect((await modifiedAtById(clone, config(), await loadLogView(clone, config()))).get('ADR-0002')).toBeNull();
+  expect((await modifiedAtById(clone, await loadLogView(clone, config()))).get('ADR-0002')).toBeNull();
 });
 
 test('the dates of every ADR come from one git log per version, not one per ADR', async () => {
@@ -107,7 +107,7 @@ test('the dates of every ADR come from one git log per version, not one per ADR'
   initRepo(root);
   const view = await loadLogView(root, config());
   const seen: string[][] = [];
-  await modifiedAtById(root, config(), view, (cwd, args) => {
+  await modifiedAtById(root, view, (cwd, args) => {
     seen.push(args);
     return runGit(cwd, args);
   });
@@ -119,7 +119,7 @@ test('an ADR whose file vanished after it was read has no date', async () => {
   twoAdrs(root);
   const view = await loadLogView(root, config());
   rmSync(join(root, A));
-  expect((await modifiedAtById(root, config(), view)).get('ADR-0001')).toBeNull();
+  expect((await modifiedAtById(root, view)).get('ADR-0001')).toBeNull();
 });
 
 test('a git that cannot answer leaves the committed ADRs without a date', async () => {
@@ -129,7 +129,7 @@ test('a git that cannot answer leaves the committed ADRs without a date', async 
   const view = await loadLogView(root, config());
   const answers = [() => null, (args: string[]) => (args.includes('log') ? null : 'false\n')];
   for (const answer of answers) {
-    const dates = await modifiedAtById(root, config(), view, async (cwd, args) =>
+    const dates = await modifiedAtById(root, view, async (cwd, args) =>
       args.includes('rev-parse') && args.includes('--show-toplevel') ? await runGit(cwd, args) : answer(args),
     );
     expect(dates.get('ADR-0001')).toBeNull();
@@ -144,7 +144,7 @@ test('an ADR directory at the root of the log is dated too', async () => {
     'ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }),
   });
   initRepo(root);
-  const dates = await modifiedAtById(root, flat, await loadLogView(root, flat));
+  const dates = await modifiedAtById(root, await loadLogView(root, flat));
   expect(dates.get('ADR-0001')).toBe(committerDate(root, 'ADR-0001-a.md'));
 });
 
@@ -154,7 +154,7 @@ test('a log in a sub-folder of its repository is dated by the commits that touch
   const root = join(repo, 'decisions');
   twoAdrs(root);
   initRepo(repo);
-  const dates = await modifiedAtById(root, config(), await loadLogView(root, config()));
+  const dates = await modifiedAtById(root, await loadLogView(root, config()));
   expect(dates.get('ADR-0001')).toBe(committerDate(repo, `decisions/${A}`));
 });
 
@@ -168,7 +168,7 @@ test('an ADR is dated by this checkout, not by a newer commit that only the defa
   git(root, 'push', '-q', 'origin', 'main');
   git(root, 'reset', '-q', '--hard', 'HEAD~1');
   const view = await loadLogView(root, config());
-  const dates = await modifiedAtById(root, config(), view);
+  const dates = await modifiedAtById(root, view);
   expect(view.base.find((a) => a.meta.id === 'ADR-0002')?.meta.title).toBe('B upstream');
   expect(dates.get('ADR-0002')).toBe(before);
 });
@@ -182,6 +182,6 @@ test('an ADR only the default branch holds is dated by that branch, wherever the
   git(root, 'push', '-q', 'origin', 'main');
   git(root, 'reset', '-q', '--hard', 'HEAD~1');
   const view = await loadLogView(root, config());
-  const dates = await modifiedAtById(root, config(), view);
+  const dates = await modifiedAtById(root, view);
   expect(dates.get('ADR-0007')).toBe(new Date(git(root, 'log', '-1', '--format=%cI', 'origin/main')).toISOString());
 });
