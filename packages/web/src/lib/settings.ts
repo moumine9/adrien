@@ -17,7 +17,7 @@ export interface Settings {
   refreshSeconds: RefreshSeconds;
   /** Whether the revision (what `--expect` and `base_revision` take) is shown on cards and on the decision page. */
   showRevision: boolean;
-  /** Whether changes made since the page was last viewed are announced on the decision list. */
+  /** Whether a notice tells the reader that decisions changed while the page was open. */
   changeNotifications: boolean;
 }
 

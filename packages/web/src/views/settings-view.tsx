@@ -145,7 +145,7 @@ export function SettingsView() {
         <SwitchRow
           id="settings-change-notifications"
           label="Show change notifications"
-          hint="Mark decisions that changed since you last looked at them."
+          hint="Tell me when decisions change while this page is open."
           checked={settings.changeNotifications}
           onChange={(changeNotifications) => update({ changeNotifications })}
         />
