@@ -1,16 +1,17 @@
-import type { AdrRow } from '@adrien/api/contract';
+import type { AdrListRow } from '@adrien/api/contract';
 import { Box, Tag } from 'lucide-react';
 import { Link } from 'react-router';
 import { bindingOf, isRetired, STATUS_STYLES, type Verification } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
 import { BindingBadge, Chip, PendingBadge, StatusBadge } from './badges.tsx';
 import { PendingBand } from './pending-band.tsx';
+import { VersionStamp } from './stamp.tsx';
 
 /**
  * One row of `/api/adrs`. Decisions that stand are raised on a hard shadow; retired ones lie flat; pending changes
  * are hatched with a dashed edge, never raised, because they bind nothing.
  */
-export function DecisionCard({ row, verification }: { row: AdrRow; verification: Verification }) {
+export function DecisionCard({ row, verification }: { row: AdrListRow; verification: Verification }) {
   const pending = row.layer === 'pending';
   const retired = isRetired(row.status);
   const raised = !pending && !retired;
@@ -68,6 +69,7 @@ export function DecisionCard({ row, verification }: { row: AdrRow; verification:
               ))}
             </div>
           )}
+          <VersionStamp revision={row.revision} modifiedAt={row.modifiedAt} className="text-muted-foreground" />
         </div>
       </div>
     </article>

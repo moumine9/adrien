@@ -4,6 +4,7 @@ import { failingFetch, hangingFetch, jsonResponse, overrideFetch, renderApp } fr
 import { createMockFetch } from '../../mock/handler.ts';
 
 beforeEach(() => {
+  localStorage.clear();
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(new Date(2026, 10, 18, 12));
 });
@@ -15,6 +16,31 @@ afterEach(() => {
 const heading = (name: string | RegExp) => screen.findByRole('heading', { name });
 
 describe('Decision view', () => {
+  it('shows the time of a decision deleted in this checkout, but no revision to copy', async () => {
+    renderApp('/adr/ADR-0012');
+    await screen.findByRole('heading', { level: 1 });
+    expect(screen.getAllByText(/^Changed /).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: /^Copy revision/ })).toBeNull();
+  });
+
+  it('shows when the decision last changed and its revision under the title, and copies the revision', async () => {
+    const { user } = renderApp('/adr/ADR-0002');
+    await heading('Use PostgreSQL as the system of record for billing');
+    expect(screen.getAllByText(/^Changed \d+ days? ago/)).toHaveLength(2); // the visible text and its full reading
+    const copy = screen.getByRole('button', { name: /^Copy revision [0-9a-f]{12}$/ });
+    await user.click(copy);
+    expect(screen.getByText('Copied')).toBeInTheDocument();
+    expect(await navigator.clipboard.readText()).toMatch(/^[0-9a-f]{12}$/);
+  });
+
+  it('hides the revision but keeps the time when Show revision is off', async () => {
+    localStorage.setItem('adrien.settings', JSON.stringify({ showRevision: false }));
+    renderApp('/adr/ADR-0002');
+    await heading('Use PostgreSQL as the system of record for billing');
+    expect(screen.queryByRole('button', { name: /^Copy revision/ })).toBeNull();
+    expect(screen.getAllByText(/^Changed /).length).toBeGreaterThan(0);
+  });
+
   it('shows skeletons while loading', async () => {
     renderApp('/adr/ADR-0002', { fetch: hangingFetch });
     expect(await screen.findByRole('status', { name: 'Loading the decision' })).toBeInTheDocument();

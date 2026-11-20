@@ -8,7 +8,7 @@ async function loadStore() {
   return import('./settings.ts');
 }
 
-const DEFAULTS = { theme: 'system', refreshSeconds: 5 };
+const DEFAULTS = { theme: 'system', refreshSeconds: 5, showRevision: true };
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -25,7 +25,7 @@ describe('settings store', () => {
     const store = await loadStore();
     store.updateSettings({ theme: 'dark' });
     store.updateSettings({ refreshSeconds: 60 });
-    expect(store.getSettings()).toEqual({ theme: 'dark', refreshSeconds: 60 });
+    expect(store.getSettings()).toEqual({ theme: 'dark', refreshSeconds: 60, showRevision: true });
   });
 
   it('notifies subscribers on change and stops after unsubscribe', async () => {
@@ -50,7 +50,7 @@ describe('settings store', () => {
     const first = await loadStore();
     first.updateSettings({ theme: 'dark', refreshSeconds: 15 });
     const second = await loadStore();
-    expect(second.getSettings()).toEqual({ theme: 'dark', refreshSeconds: 15 });
+    expect(second.getSettings()).toEqual({ theme: 'dark', refreshSeconds: 15, showRevision: true });
   });
 
   it('falls back to the defaults for corrupt JSON', async () => {
@@ -68,7 +68,7 @@ describe('settings store', () => {
   it('keeps the valid fields of a partly corrupt stored object and defaults the others', async () => {
     localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme: 'neon', refreshSeconds: 15 }));
     const store = await loadStore();
-    expect(store.getSettings()).toEqual({ theme: 'system', refreshSeconds: 15 });
+    expect(store.getSettings()).toEqual({ theme: 'system', refreshSeconds: 15, showRevision: true });
   });
 
   it('replaces an invalid stored value with the default on read', async () => {
@@ -81,7 +81,7 @@ describe('settings store', () => {
     const store = await loadStore();
     store.updateSettings({ theme: 'dark', refreshSeconds: 60 });
     store.updateSettings({ theme: 'sepia' as never, refreshSeconds: 90 as never });
-    expect(store.getSettings()).toEqual({ theme: 'dark', refreshSeconds: 60 });
+    expect(store.getSettings()).toEqual({ theme: 'dark', refreshSeconds: 60, showRevision: true });
   });
 
   it('accepts every refresh interval, including 0 for off', async () => {
@@ -112,7 +112,7 @@ describe('settings store', () => {
       throw new Error('quota');
     });
     store.updateSettings({ theme: 'light' });
-    expect(store.getSettings()).toEqual({ theme: 'light', refreshSeconds: 30 });
+    expect(store.getSettings()).toEqual({ theme: 'light', refreshSeconds: 30, showRevision: true });
   });
 
   it('keeps unknown stored keys when it writes', async () => {
@@ -122,6 +122,7 @@ describe('settings store', () => {
     expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}')).toEqual({
       theme: 'light',
       refreshSeconds: 15,
+      showRevision: true,
       future: { x: 1 },
     });
   });
@@ -205,5 +206,24 @@ describe('settings store', () => {
     unsubscribe();
     window.dispatchEvent(new StorageEvent('storage', { key: SETTINGS_KEY }));
     expect(listener).not.toHaveBeenCalled();
+  });
+});
+
+describe('showRevision', () => {
+  it('is on by default, can be turned off, and survives a remount', async () => {
+    const store = await loadStore();
+    expect(store.getSettings().showRevision).toBe(true);
+    store.updateSettings({ showRevision: false });
+    expect(JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}')).toMatchObject({ showRevision: false });
+    expect((await loadStore()).getSettings().showRevision).toBe(false);
+  });
+
+  it('ignores a stored value that is not a boolean, and a change that is not one', async () => {
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ showRevision: 'no' }));
+    const store = await loadStore();
+    expect(store.getSettings().showRevision).toBe(true);
+    store.updateSettings({ showRevision: false });
+    store.updateSettings({ showRevision: 'yes' as never });
+    expect(store.getSettings().showRevision).toBe(false);
   });
 });

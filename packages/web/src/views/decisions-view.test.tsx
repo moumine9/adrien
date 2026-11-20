@@ -4,7 +4,28 @@ import { failingFetch, hangingFetch, renderApp } from '@/test/render.tsx';
 const location = () => screen.getByTestId('location').textContent;
 const cards = () => screen.getAllByRole('article');
 
+beforeEach(() => {
+  localStorage.clear();
+});
+
 describe('Decisions view', () => {
+  it("shows each card's revision and time, and drops the revision when Show revision is off", async () => {
+    const first = renderApp('/');
+    await screen.findAllByRole('article');
+    const copies = screen.getAllByRole('button', { name: /^Copy revision/ });
+    expect(copies.length).toBeGreaterThan(0);
+    // Every revision the mock serves is 12 hex digits, like a real one.
+    expect(copies.filter((b) => /^Copy revision [0-9a-f]{12}$/.test(b.getAttribute('aria-label') ?? ''))).toHaveLength(
+      copies.length,
+    );
+    first.unmount();
+    localStorage.setItem('adrien.settings', JSON.stringify({ showRevision: false }));
+    renderApp('/');
+    await screen.findAllByRole('article');
+    expect(screen.queryByRole('button', { name: /^Copy revision/ })).toBeNull();
+    expect(screen.getAllByText(/^Changed /).length).toBeGreaterThan(0);
+  });
+
   it('shows skeletons while loading', () => {
     renderApp('/', { fetch: hangingFetch });
     expect(screen.getByRole('status', { name: 'Loading decisions' })).toBeInTheDocument();
