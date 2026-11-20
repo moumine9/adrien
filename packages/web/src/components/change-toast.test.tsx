@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { act, render, screen, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useChangeWatch } from '@/lib/change-watch.ts';
 import { updateSettings } from '@/lib/settings.ts';
 import { renderApp } from '@/test/render.tsx';
 import { createMockFetch } from '../../mock/handler.ts';
@@ -29,6 +30,7 @@ function renderToast(fetchImpl: typeof fetch, dismissAfterMs?: number) {
   render(
     <QueryClientProvider client={client}>
       <ChangeToast dismissAfterMs={dismissAfterMs} />
+      <main id="main" tabIndex={-1} />
     </QueryClientProvider>,
   );
   return { client, user: userEvent.setup() };
@@ -51,12 +53,10 @@ beforeEach(() => {
 
 describe('The change toast', () => {
   it('keeps a live region mounted from the first render, empty until something changes', async () => {
-    let patch: Record<string, string | null> = {};
-    renderApp('/', { fetch: movingFetch(() => patch) });
-    const region = await screen.findByTestId('change-toast');
+    renderApp('/', { fetch: movingFetch(() => ({})) });
+    const region = screen.getByTestId('change-toast');
     expect(region).toHaveAttribute('aria-live', 'polite');
     expect(region).toBeEmptyDOMElement();
-    patch = {};
   });
 
   it('names one decision that changed, then says nothing about the first reading', async () => {
@@ -75,6 +75,7 @@ describe('The change toast', () => {
     await firstReading(client);
     patch = { 'ADR-0002': 'abcdefabcdef' };
     await poll(client);
+    await waitFor(() => expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.'));
     patch = { 'ADR-0002': 'abcdefabcdef', 'ADR-0001': '123456123456' };
     await poll(client);
     await waitFor(() => expect(screen.getByTestId('change-toast')).toHaveTextContent('2 decisions changed.'));
@@ -119,8 +120,90 @@ describe('The change toast', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
     expect(
-      client.getQueryData<{ results: { id: string; revision: string }[] }>(['adrs', ''])?.results[1]?.revision,
+      client
+        .getQueryData<{ results: { id: string; revision: string }[] }>(['adrs', ''])
+        ?.results.find((row) => row.id === 'ADR-0002')?.revision,
     ).toBe('abcdefabcdef');
     expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement();
+  });
+
+  it('does not bring back old news when notifications are turned on again', async () => {
+    updateSettings({ changeNotifications: false });
+    let patch: Record<string, string | null> = {};
+    const { client } = renderToast(movingFetch(() => patch));
+    await firstReading(client);
+    patch = { 'ADR-0002': 'abcdefabcdef' };
+    await poll(client);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    act(() => updateSettings({ changeNotifications: true }));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement();
+  });
+
+  it('waits while the pointer is on it, and leaves when the pointer does', async () => {
+    let patch: Record<string, string | null> = {};
+    const { client, user } = renderToast(
+      movingFetch(() => patch),
+      40,
+    );
+    await firstReading(client);
+    patch = { 'ADR-0002': 'abcdefabcdef' };
+    await poll(client);
+    const text = await screen.findByText('ADR-0002 changed.');
+    await user.hover(text);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 120));
+    });
+    expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
+    await user.unhover(text);
+    await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
+  });
+
+  it('gives focus to the page when the button that had it goes away', async () => {
+    let patch: Record<string, string | null> = {};
+    const { client, user } = renderToast(movingFetch(() => patch));
+    await firstReading(client);
+    patch = { 'ADR-0002': 'abcdefabcdef' };
+    await poll(client);
+    await user.click(await screen.findByRole('button', { name: 'Dismiss' }));
+    expect(document.getElementById('main')).toHaveFocus();
+  });
+
+  it('keeps the button out of the live region, so only the sentence is announced', async () => {
+    let patch: Record<string, string | null> = {};
+    const { client } = renderToast(movingFetch(() => patch));
+    await firstReading(client);
+    patch = { 'ADR-0002': 'abcdefabcdef' };
+    await poll(client);
+    const button = await screen.findByRole('button', { name: 'Dismiss' });
+    expect(screen.getByTestId('change-toast')).not.toContainElement(button);
+  });
+});
+
+describe('useChangeWatch', () => {
+  it('counts a change to a decision that was already collected', async () => {
+    let patch: Record<string, string | null> = {};
+    vi.stubGlobal(
+      'fetch',
+      movingFetch(() => patch),
+    );
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+    });
+    const { result } = renderHook(() => useChangeWatch(), {
+      wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
+    });
+    await firstReading(client);
+    patch = { 'ADR-0002': 'aaaaaaaaaaaa' };
+    await poll(client);
+    await waitFor(() => expect(result.current.version).toBe(1));
+    patch = { 'ADR-0002': 'bbbbbbbbbbbb' };
+    await poll(client);
+    await waitFor(() => expect(result.current.version).toBe(2));
+    expect(result.current.changed).toEqual(['ADR-0002']);
   });
 });
