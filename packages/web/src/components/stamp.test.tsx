@@ -1,9 +1,13 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { updateSettings } from '@/lib/settings.ts';
 import { VersionStamp } from './stamp.tsx';
 
 const AT = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(() => {
   localStorage.clear();
@@ -34,12 +38,11 @@ describe('VersionStamp', () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<VersionStamp revision="a1b2c3d4e5f6" modifiedAt={null} />);
     await user.click(screen.getByRole('button'));
-    expect(screen.getByRole('status')).toHaveTextContent('Copied');
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Copied'));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2100);
     });
     expect(screen.getByRole('status')).toBeEmptyDOMElement();
-    vi.useRealTimers();
   });
 
   it('survives a blocked clipboard without saying it copied', async () => {
