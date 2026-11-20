@@ -31,12 +31,16 @@ export function ChangeToast({ dismissAfterMs = TOAST_SECONDS * 1000 }: { dismiss
     const timer = setTimeout(dismiss, dismissAfterMs);
     return () => clearTimeout(timer);
   }, [show, held, version, dismissAfterMs]);
+  // However the notice went away (button, timer, or the setting), nothing is on it any more.
+  useEffect(() => {
+    if (show) return;
+    setHovered(false);
+    setFocused(false);
+  }, [show]);
   const close = () => {
     // The button the reader pressed is about to go away: give focus to the page rather than to nothing.
     const hadFocus = box.current?.contains(document.activeElement);
     dismiss();
-    setHovered(false);
-    setFocused(false);
     if (hadFocus) document.getElementById('main')?.focus({ preventScroll: true });
   };
   return (

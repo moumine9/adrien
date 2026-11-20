@@ -148,7 +148,7 @@ describe('The change toast', () => {
     let patch: Record<string, string | null> = {};
     const { client, user } = renderToast(
       movingFetch(() => patch),
-      40,
+      300,
     );
     await firstReading(client);
     patch = { 'ADR-0002': 'abcdefabcdef' };
@@ -156,7 +156,7 @@ describe('The change toast', () => {
     const text = await screen.findByText('ADR-0002 changed.');
     await user.hover(text);
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => setTimeout(resolve, 700));
     });
     expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
     await user.unhover(text);
@@ -167,7 +167,7 @@ describe('The change toast', () => {
     let patch: Record<string, string | null> = {};
     const { client, user } = renderToast(
       movingFetch(() => patch),
-      40,
+      300,
     );
     await firstReading(client);
     patch = { 'ADR-0002': 'abcdefabcdef' };
@@ -178,7 +178,7 @@ describe('The change toast', () => {
     expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus();
     await user.unhover(text);
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => setTimeout(resolve, 700));
     });
     expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
     expect(screen.getByRole('button', { name: 'Dismiss' })).toHaveFocus();
@@ -188,7 +188,7 @@ describe('The change toast', () => {
     let patch: Record<string, string | null> = {};
     const { client, user } = renderToast(
       movingFetch(() => patch),
-      40,
+      300,
     );
     await firstReading(client);
     patch = { 'ADR-0002': 'abcdefabcdef' };
@@ -199,7 +199,7 @@ describe('The change toast', () => {
     await user.tab();
     expect(screen.getByRole('button', { name: 'Dismiss' })).not.toHaveFocus();
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => setTimeout(resolve, 700));
     });
     expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
   });
