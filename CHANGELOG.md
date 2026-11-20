@@ -1,3 +1,17 @@
+## [0.7.0](https://github.com/moumine9/adrien/compare/v0.6.0...v0.7.0) (2026-11-20)
+
+### Features
+
+* **cli:** `adrien update` checks for the latest version and installs it, only over a copy under npm's global root, and prints the right command for pnpm, yarn and bun ([ef0fa1e](https://github.com/moumine9/adrien/commit/ef0fa1ea9c5b811a91ecf9924d8396935d71f87c))
+* **cli:** back up the decision files before `adrien update` installs, then verify them afterwards. `adrien backup create|list|verify|restore` manage the backups under `.adrien/backups`; a restore first takes a snapshot of what it overwrites, so it can be undone, and works when the live config is missing or unusable ([0e41046](https://github.com/moumine9/adrien/commit/0e4104638428616947762e18027bafa65d0e0f08))
+* **web:** a Settings page for the theme and the refresh interval, kept in one shared settings store; the old theme key is migrated and tabs stay in sync ([75e36e7](https://github.com/moumine9/adrien/commit/75e36e7a4b3e23f2689cfd712d6652c006e729ce))
+
+### Bug Fixes
+
+* **core:** a lock creation that fails with `EPERM` on Windows is treated as contention instead of an error ([44ce4ad](https://github.com/moumine9/adrien/commit/44ce4ad41c83252dfa56054381576a489e68ed82))
+* **core:** the wait for a lock takeover guard is bounded, and removing a guard is best effort ([6a23d70](https://github.com/moumine9/adrien/commit/6a23d7071b9955f32dd583555b958ba9d6cdc021))
+* **cli:** `adrien update` starts npm and looks up its global root correctly on Windows ([262e863](https://github.com/moumine9/adrien/commit/262e863d14782a9a76a08efc0f13d65a61623de2), [adea92a](https://github.com/moumine9/adrien/commit/adea92aa2503bbcf2fe902f9ecd24e563b6c644a))
+
 ## [0.6.0](https://github.com/moumine9/adrien/compare/v0.5.0...v0.6.0) (2026-11-19)
 
 ### Features
