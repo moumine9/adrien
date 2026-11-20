@@ -163,7 +163,7 @@ function getAdr(view: View, id: string): AdrResponse | null {
       ? { kind: change.kind }
       : { kind: change.kind, ...(change.current as AdrFile) }
     : null;
-  return { id, base, pending };
+  return { id, revision: null, modifiedAt: null, base, pending };
 }
 
 function graphOf(view: View): GraphResponse {

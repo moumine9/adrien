@@ -1,6 +1,6 @@
-import { rmSync } from 'node:fs';
+import { rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE, DEFAULT_TAGS } from '@adrien/core';
+import { CONFIG_FILE, DEFAULT_TAGS, loadLogView, resolveContext, workingRevision } from '@adrien/core';
 import { adrText, configYaml, DEFAULT_COMPONENTS, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { git, initRepo } from '../../core/test/helpers/git.ts';
 import { type ApiOptions, createApp } from '../src/app.ts';
@@ -164,6 +164,8 @@ describe('GET /api/adrs', () => {
       layer: 'base',
       pending_kind: null,
       path: 'docs/adr/ADR-0001-dates.md',
+      revision: expect.stringMatching(/^[0-9a-f]{12}$/),
+      modifiedAt: expect.stringMatching(/^\d{4}-\d\d-\d\dT/),
     });
   });
 
@@ -220,6 +222,36 @@ describe('GET /api/adrs/:id', () => {
       },
       pending: null,
     });
+  });
+
+  test('carries the revision `adrien show --json` returns, and when the version in this checkout was written', async () => {
+    const root = gitLog();
+    const ctx = await resolveContext({ cwd: root, env: { ADRIEN_HOME: tmpDir() } });
+    const view = await loadLogView(ctx.logRoot, ctx.config);
+    const edited = await get<AdrResponse>(root, '/api/adrs/ADR-0001');
+    expect(edited.body.revision).toBe(workingRevision(view, 'ADR-0001'));
+    expect(edited.body.revision).toMatch(/^[0-9a-f]{12}$/);
+    expect(edited.body.modifiedAt).toBe(statSync(join(root, 'docs/adr/ADR-0001-dates.md')).mtime.toISOString());
+    // Unchanged here: dated by the commit that touched it, not by the file.
+    const same = await get<AdrResponse>(root, '/api/adrs/ADR-0002');
+    expect(same.body.revision).toBe(workingRevision(view, 'ADR-0002'));
+    expect(same.body.modifiedAt).toBe(
+      new Date(git(root, 'log', '-1', '--format=%cI', 'HEAD', '--', 'docs/adr/ADR-0002-postgres.md')).toISOString(),
+    );
+    // Deleted in this checkout: no revision to base a change on, but the binding version has a date.
+    const deleted = await get<AdrResponse>(root, '/api/adrs/ADR-0004');
+    expect(deleted.body.revision).toBeNull();
+    expect(deleted.body.modifiedAt).not.toBeNull();
+  });
+
+  test('list rows carry the same stamps as the detail', async () => {
+    const root = gitLog();
+    const list = await get<AdrsResponse>(root, '/api/adrs');
+    for (const row of list.body.results) {
+      const detail = await get<AdrResponse>(root, `/api/adrs/${row.id}`);
+      expect([row.id, row.revision, row.modifiedAt]).toEqual([row.id, detail.body.revision, detail.body.modifiedAt]);
+    }
+    expect(list.body.results.some((r) => r.revision)).toBe(true);
   });
 
   test('an unknown id is a 404', async () => {

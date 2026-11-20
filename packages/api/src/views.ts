@@ -1,4 +1,13 @@
-import { type Adr, AdrienError, type Context, type LogView, mergedAdrs, STATUSES, type Status } from '@adrien/core';
+import {
+  type Adr,
+  AdrienError,
+  type Context,
+  type LogView,
+  mergedAdrs,
+  STATUSES,
+  type Status,
+  workingRevision,
+} from '@adrien/core';
 import type { AdrFile, AdrResponse, GraphEdge, GraphNode, GraphResponse, MetaResponse } from './contract.ts';
 
 /**
@@ -36,12 +45,14 @@ export function metaOf(ctx: Context, view: LogView, version: string): MetaRespon
 
 const fileOf = (adr: Adr): AdrFile => ({ meta: adr.meta, body: adr.body, path: adr.path });
 
-export function adrOf(view: LogView, id: string): AdrResponse {
+export function adrOf(view: LogView, id: string, modifiedAt: string | null = null): AdrResponse {
   const base = view.base.find((a) => a.meta.id === id);
   const change = view.pending.find((c) => c.id === id);
   if (!base && !change) throw new AdrienError('ADR_NOT_FOUND', `No ADR ${id} in the log`);
   return {
     id,
+    revision: workingRevision(view, id),
+    modifiedAt,
     base: base ? fileOf(base) : null,
     pending: change ? { kind: change.kind, ...(change.current ? fileOf(change.current) : {}) } : null,
   };

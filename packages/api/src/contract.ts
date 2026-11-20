@@ -25,8 +25,21 @@ export interface MetaResponse {
 
 /** `GET /api/adrs` */
 export interface AdrsResponse {
-  results: AdrRow[];
+  results: AdrListRow[];
 }
+
+/**
+ * What a row and a response say about the version in this checkout, as `adrien show --json` does: `revision` is the one
+ * a change passes as `--expect` or `base_revision`, null when the ADR is not in the checkout (or its id is used by several
+ * files). `modifiedAt` is an ISO time: the file's mtime when this checkout changes the ADR or has no default branch,
+ * else the last commit of this checkout that touched it; null when that cannot be known (a shallow clone).
+ */
+export interface Stamp {
+  revision: string | null;
+  modifiedAt: string | null;
+}
+
+export type AdrListRow = AdrRow & Stamp;
 
 export interface AdrFile {
   meta: AdrMeta;
@@ -36,7 +49,7 @@ export interface AdrFile {
 }
 
 /** `GET /api/adrs/:id` */
-export interface AdrResponse {
+export interface AdrResponse extends Stamp {
   id: string;
   /** The binding version on the default branch (null for an ADR that only exists in this checkout). */
   base: AdrFile | null;
