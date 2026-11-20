@@ -19,15 +19,47 @@ describe('Settings page', () => {
     expect(within(appearance).getByRole('combobox', { name: 'Theme' })).toBeInTheDocument();
     expect(within(updates).getByRole('combobox', { name: 'Refresh every' })).toBeInTheDocument();
     expect(within(details).getByRole('switch', { name: 'Show revision' })).toBeInTheDocument();
+    expect(within(details).getByRole('switch', { name: 'Show change notifications' })).toBeInTheDocument();
     expect(screen.getAllByRole('region')).toHaveLength(3);
     expect(screen.getByRole('button', { name: 'Reset to defaults' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Save' })).toBeNull();
   });
 
-  it('shows only settings that do something: one switch, Show revision', async () => {
+  it('shows only settings that do something: two switches, Show revision and Show change notifications', async () => {
     renderApp('/settings');
     await screen.findByRole('heading', { level: 1, name: 'Settings' });
-    expect(screen.getAllByRole('switch').map((el) => el.getAttribute('aria-label') ?? el.id)).toHaveLength(1);
+    expect(screen.getAllByRole('switch').map((el) => el.getAttribute('aria-label') ?? el.id)).toHaveLength(2);
+  });
+
+  describe('Show change notifications', () => {
+    const notifications = () => screen.getByRole('switch', { name: 'Show change notifications' });
+
+    it('is on by default, explains itself, and applies a change at once', async () => {
+      const { user } = renderApp('/settings');
+      await screen.findByRole('heading', { level: 1, name: 'Settings' });
+      expect(notifications()).toBeChecked();
+      expect(notifications()).toHaveAccessibleDescription(/change/);
+      await user.click(notifications());
+      expect(notifications()).not.toBeChecked();
+      expect(JSON.parse(localStorage.getItem('adrien.settings') ?? '{}')).toMatchObject({ changeNotifications: false });
+    });
+
+    it('keeps the choice after a remount', async () => {
+      const first = renderApp('/settings');
+      await screen.findByRole('heading', { level: 1, name: 'Settings' });
+      await first.user.click(notifications());
+      first.unmount();
+      renderApp('/settings');
+      expect(await screen.findByRole('switch', { name: 'Show change notifications' })).not.toBeChecked();
+    });
+
+    it('is put back by Reset to defaults', async () => {
+      const { user } = renderApp('/settings');
+      await screen.findByRole('heading', { level: 1, name: 'Settings' });
+      await user.click(notifications());
+      await user.click(screen.getByRole('button', { name: 'Reset to defaults' }));
+      expect(notifications()).toBeChecked();
+    });
   });
 
   describe('Show revision', () => {
