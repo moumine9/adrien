@@ -4,7 +4,7 @@ import { withAdrLocks } from '../../src/lock.ts';
 
 const [root, id, out] = process.argv.slice(2);
 withAdrLocks(root, [id], () => {
-  appendFileSync(out, `${process.pid} enter ${performance.timeOrigin + performance.now()}\n`);
+  appendFileSync(out, `${process.pid} enter ${performance.now()}\n`);
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 40);
-  appendFileSync(out, `${process.pid} exit ${performance.timeOrigin + performance.now()}\n`);
+  appendFileSync(out, `${process.pid} exit ${performance.now()}\n`);
 });

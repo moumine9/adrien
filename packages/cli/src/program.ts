@@ -2,6 +2,7 @@ import { AdrienError } from '@adrien/core';
 import { Command, CommanderError, Option } from 'commander';
 import type { Cli } from './cli.ts';
 import { registerAccept } from './commands/accept.ts';
+import { registerBackup } from './commands/backup.ts';
 import { registerCheck } from './commands/check.ts';
 import { registerExport } from './commands/export.ts';
 import { registerFor } from './commands/for.ts';
@@ -67,6 +68,7 @@ export function buildProgram(cli: Cli): Command {
     registerMcp,
     registerServe,
     registerUpdate,
+    registerBackup,
   ]) {
     register(program, cli);
   }

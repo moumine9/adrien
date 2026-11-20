@@ -74,8 +74,8 @@ Run from the code repo (or log repo). Any MCP client that speaks stdio works the
 
 ## Commands
 
-`init`, `new`, `list`, `show`, `search`, `for`, `review`, `check`, `lint`, `export`, `accept`, `status`, `supersede`, `renumber`, `sync`, `update`, `mcp`, `serve`.
-Run `adrien <command> --help`. Add `--json` for machine-readable output. `adrien update --check` compares your version with the latest on npm; `adrien update` installs it when adrien is a global install (other installs get the command to run). `adrien serve` starts a read-only
+`init`, `new`, `list`, `show`, `search`, `for`, `review`, `check`, `lint`, `export`, `accept`, `status`, `supersede`, `renumber`, `sync`, `update`, `backup`, `mcp`, `serve`.
+Run `adrien <command> --help`. Add `--json` for machine-readable output. `adrien update --check` compares your version with the latest on npm; `adrien update` installs it when adrien is a global install (other installs get the command to run), after backing up the decision files (see `adrien backup` in the format reference). `adrien serve` starts a read-only
 [local HTTP API](https://github.com/moumine9/adrien/blob/main/docs/api.md) on `127.0.0.1:4310`. To run it for a team, see
 [self-hosting](https://github.com/moumine9/adrien/blob/main/docs/self-hosting.md).
 

@@ -1,7 +1,18 @@
+import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpDir } from '../../core/test/helpers/fixtures.ts';
-import { compareVersions, detectInstall } from '../src/commands/update.ts';
+import { AdrienError, CONFIG_FILE, listBackups } from '@adrien/core';
+import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { backupDefaults, compareVersions, detectInstall } from '../src/commands/update.ts';
 import { runCli } from '../src/program.ts';
+
+const ADR = 'docs/adr/ADR-0001-storage.md';
+
+/** A decision log with one ADR, as the working directory of an update. */
+function logDir(): string {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml(), [ADR]: adrText({ id: 'ADR-0001', title: 'Storage' }) });
+  return root;
+}
 
 const GLOBAL_PATH = '/usr/local/lib/node_modules/adrien/dist/index.js';
 const PROJECT_PATH = '/work/app/node_modules/adrien/dist/index.js';
@@ -192,6 +203,175 @@ test('a registry answer without a usable version is a network error too', async 
   });
   expect(result.code).toBe(2);
   expect(result.stderr).toContain('npm registry');
+});
+
+test('a global update backs up the decision files before npm runs and confirms they are unchanged after', async () => {
+  const root = logDir();
+  const { fn } = latestFetch('0.7.0');
+  const backupsAtInstall: number[] = [];
+  const install = async () => {
+    backupsAtInstall.push(listBackups(root).length);
+    return 0;
+  };
+  const result = await runCli(['update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: join(tmpDir(), '.home') },
+    update: { current: '0.6.0', fetch: fn, install, installPath: GLOBAL_PATH, globalRoot },
+  });
+  const [backup] = listBackups(root);
+  expect(backupsAtInstall).toEqual([1]);
+  expect(backup).toMatchObject({ reason: 'before-update-0-6-0' });
+  expect(result.stdout).toMatch(/Backed up the decision files to .*\.adrien[\\/]backups[\\/]/);
+  expect(result.stdout).toContain('Decision files unchanged.');
+  expect(result).toMatchObject({ code: 0, stderr: '' });
+});
+
+test('an upgrade that changes a decision file exits 1 and names the restore command', async () => {
+  const root = logDir();
+  const { fn } = latestFetch('0.7.0');
+  const install = async () => {
+    writeFileSync(join(root, ADR), 'rewritten by the upgrade');
+    return 0;
+  };
+  const result = await runCli(['update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: join(tmpDir(), '.home') },
+    update: { current: '0.6.0', fetch: fn, install, installPath: GLOBAL_PATH, globalRoot },
+  });
+  const [backup] = listBackups(root);
+  expect(result.code).toBe(1);
+  expect(result.stdout).toContain(`Decision files differ from backup ${backup?.id}`);
+  expect(result.stdout).toContain(`changed: ${ADR}`);
+  expect(result.stdout).toContain(`adrien backup restore ${backup?.id}`);
+});
+
+test('a backup that cannot be made stops the update before npm runs', async () => {
+  const root = logDir();
+  const { fn } = latestFetch('0.7.0');
+  const install = installer(0);
+  const result = await runCli(['update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: join(tmpDir(), '.home') },
+    update: {
+      current: '0.6.0',
+      fetch: fn,
+      install: install.fn,
+      installPath: GLOBAL_PATH,
+      globalRoot,
+      backup: {
+        ...backupDefaults,
+        create: () => {
+          throw new AdrienError('INVALID_INPUT', 'disk full');
+        },
+      },
+    },
+  });
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain('could not back up the decision files');
+  expect(result.stderr).toContain('disk full');
+  expect(install.calls).toEqual([]);
+});
+
+test('a log that cannot be read stops the update before npm runs', async () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: 'product: [' });
+  const { fn } = latestFetch('0.7.0');
+  const install = installer(0);
+  const result = await runCli(['update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: join(tmpDir(), '.home') },
+    update: { current: '0.6.0', fetch: fn, install: install.fn, installPath: GLOBAL_PATH, globalRoot },
+  });
+  expect(result.code).toBe(1);
+  expect(result.stderr).toContain('could not back up');
+  expect(install.calls).toEqual([]);
+});
+
+test('outside a decision log the update says there is nothing to back up and installs', async () => {
+  const { fn } = latestFetch('0.7.0');
+  const install = installer(0);
+  const result = await run(['update'], {
+    current: '0.6.0',
+    fetch: fn,
+    install: install.fn,
+    installPath: GLOBAL_PATH,
+    globalRoot,
+  });
+  expect(result.stdout).toContain('No decision log here, nothing to back up.');
+  expect(install.calls).toHaveLength(1);
+  expect(result.code).toBe(0);
+});
+
+test('a remote log is skipped without cloning anything, and the install still runs', async () => {
+  const root = tmpDir();
+  const home = join(tmpDir(), '.home');
+  writeFiles(root, { '.adrien.yaml': 'log: https://example.invalid/adr.git\n' });
+  const { fn } = latestFetch('0.7.0');
+  const install = installer(0);
+  const result = await runCli(['update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: home },
+    update: { current: '0.6.0', fetch: fn, install: install.fn, installPath: GLOBAL_PATH, globalRoot },
+  });
+  expect(result.stdout).toContain('Skipped: the log is a remote clone');
+  expect(existsSync(join(home, 'cache'))).toBe(false);
+  expect(install.calls).toHaveLength(1);
+  expect(result.code).toBe(0);
+});
+
+test('a log given as a URL on the command line is skipped the same way', async () => {
+  const root = tmpDir();
+  const { fn } = latestFetch('0.7.0');
+  const install = installer(0);
+  const result = await runCli(['--log', 'https://example.invalid/adr.git', 'update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: join(tmpDir(), '.home') },
+    update: { current: '0.6.0', fetch: fn, install: install.fn, installPath: GLOBAL_PATH, globalRoot },
+  });
+  expect(result.stdout).toContain('Skipped: the log is a remote clone');
+  expect(install.calls).toHaveLength(1);
+});
+
+test('an ADR directory that cannot be backed up is reported as skipped, and the install still runs', async () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: configYaml({ adr_dir: '.' }) });
+  const { fn } = latestFetch('0.7.0');
+  const install = installer(0);
+  const result = await runCli(['update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: join(tmpDir(), '.home') },
+    update: { current: '0.6.0', fetch: fn, install: install.fn, installPath: GLOBAL_PATH, globalRoot },
+  });
+  expect(result.stdout).toContain('Skipped: The ADR directory . is the log root');
+  expect(install.calls).toHaveLength(1);
+  expect(result.code).toBe(0);
+});
+
+test('a failed check after the install is reported with exit 1, not a crash', async () => {
+  const root = logDir();
+  const { fn } = latestFetch('0.7.0');
+  const install = installer(0);
+  const result = await runCli(['update'], {
+    cwd: root,
+    env: { ADRIEN_HOME: join(tmpDir(), '.home') },
+    update: {
+      current: '0.6.0',
+      fetch: fn,
+      install: install.fn,
+      installPath: GLOBAL_PATH,
+      globalRoot,
+      backup: {
+        ...backupDefaults,
+        verify: () => {
+          throw new AdrienError('INVALID_INPUT', 'manifest unreadable');
+        },
+      },
+    },
+  });
+  expect(result.code).toBe(1);
+  expect(result.stdout).toContain('Updated adrien 0.6.0 -> 0.7.0.');
+  expect(result.stderr).toContain('could not check the decision files');
+  expect(result.stderr).toContain('manifest unreadable');
 });
 
 test("detectInstall only calls a copy global when it sits under npm's own global root", () => {
