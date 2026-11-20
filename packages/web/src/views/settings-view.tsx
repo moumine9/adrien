@@ -142,6 +142,13 @@ export function SettingsView() {
           checked={settings.showRevision}
           onChange={(showRevision) => update({ showRevision })}
         />
+        <SwitchRow
+          id="settings-change-notifications"
+          label="Show change notifications"
+          hint="Tell me when decisions change while this page is open."
+          checked={settings.changeNotifications}
+          onChange={(changeNotifications) => update({ changeNotifications })}
+        />
       </Group>
 
       <div>

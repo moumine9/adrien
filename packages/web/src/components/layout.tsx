@@ -19,6 +19,7 @@ import { useMeta } from '@/lib/queries.ts';
 import { useApplyTheme, useTheme } from '@/lib/theme.ts';
 import { cn } from '@/lib/utils.ts';
 import { BrandMark } from './brand-mark.tsx';
+import { ChangeToast } from './change-toast.tsx';
 import { DemoBanner } from './demo-banner.tsx';
 import { LoadingBlocks } from './states.tsx';
 
@@ -180,6 +181,7 @@ export function Layout() {
             : 'This view is read-only.'}
         </div>
       </footer>
+      <ChangeToast />
     </div>
   );
 }

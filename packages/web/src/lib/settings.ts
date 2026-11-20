@@ -17,12 +17,15 @@ export interface Settings {
   refreshSeconds: RefreshSeconds;
   /** Whether the revision (what `--expect` and `base_revision` take) is shown on cards and on the decision page. */
   showRevision: boolean;
+  /** Whether a notice tells the reader that decisions changed while the page was open. */
+  changeNotifications: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   refreshSeconds: 5,
   showRevision: true,
+  changeNotifications: true,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -37,6 +40,8 @@ function pick(value: unknown, base: Settings): Settings {
       ? (record.refreshSeconds as RefreshSeconds)
       : base.refreshSeconds,
     showRevision: typeof record.showRevision === 'boolean' ? record.showRevision : base.showRevision,
+    changeNotifications:
+      typeof record.changeNotifications === 'boolean' ? record.changeNotifications : base.changeNotifications,
   };
 }
 
