@@ -5,8 +5,8 @@
  */
 import type {
   AdrFile,
+  AdrListRow,
   AdrResponse,
-  AdrRow,
   ApiError,
   FileDecisions,
   ForResponse,
@@ -86,8 +86,18 @@ function metaOf(variant: MockVariant, view: View): MetaResponse {
   };
 }
 
-function rowOf(a: AdrFile, layer: 'base' | 'pending', kind: PendingKind | null): AdrRow {
+/** A stable stand-in for a revision: 12 hex digits derived from the ADR's id and path. */
+function stampOf(a: AdrFile): { revision: string; modifiedAt: string } {
+  let h = 0;
+  for (const ch of `${a.meta.id}:${a.path}`) h = (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0;
+  const revision = `${h.toString(16).padStart(8, '0')}${(h ^ 0x9e3779b9).toString(16).padStart(8, '0')}`.slice(0, 12);
+  // Between one and nine days ago, so the demo shows relative times.
+  return { revision, modifiedAt: new Date(Date.now() - ((h % 9) + 1) * 24 * 3600 * 1000).toISOString() };
+}
+
+function rowOf(a: AdrFile, layer: 'base' | 'pending', kind: PendingKind | null): AdrListRow {
   return {
+    ...stampOf(a),
     id: a.meta.id,
     title: a.meta.title,
     status: a.meta.status,
@@ -100,7 +110,7 @@ function rowOf(a: AdrFile, layer: 'base' | 'pending', kind: PendingKind | null):
   };
 }
 
-function rowsOf(view: View): Array<{ row: AdrRow; body: string }> {
+function rowsOf(view: View): Array<{ row: AdrListRow; body: string }> {
   const rows = view.base.map((a) => ({ row: rowOf(a, 'base', null), body: a.body }));
   for (const p of view.pending) {
     const file = p.kind === 'deleted' ? p.base : p.current;
@@ -120,7 +130,7 @@ const fold = (s: string) =>
     .replace(/\p{Diacritic}/gu, '')
     .toLowerCase();
 
-function listAdrs(view: View, params: URLSearchParams): AdrRow[] {
+function listAdrs(view: View, params: URLSearchParams): AdrListRow[] {
   const tags = params.getAll('tag');
   const components = params.getAll('component');
   const statuses = params.getAll('status');
@@ -138,7 +148,7 @@ function listAdrs(view: View, params: URLSearchParams): AdrRow[] {
 
   const terms = fold(q).match(/[\p{L}\p{N}]+/gu) ?? [];
   if (terms.length === 0) return [];
-  const score = ({ row, body }: { row: AdrRow; body: string }) => {
+  const score = ({ row, body }: { row: AdrListRow; body: string }) => {
     const title = fold(row.title);
     const rule = fold(row.review_rule ?? '');
     const text = fold(body);
@@ -163,7 +173,8 @@ function getAdr(view: View, id: string): AdrResponse | null {
       ? { kind: change.kind }
       : { kind: change.kind, ...(change.current as AdrFile) }
     : null;
-  return { id, revision: null, modifiedAt: null, base, pending };
+  const working = (pending && change?.kind !== 'deleted' ? change?.current : base) ?? null;
+  return { id, ...(working ? stampOf(working) : { revision: null, modifiedAt: null }), base, pending };
 }
 
 function graphOf(view: View): GraphResponse {

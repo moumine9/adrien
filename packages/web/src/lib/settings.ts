@@ -15,11 +15,14 @@ export type RefreshSeconds = (typeof REFRESH_SECONDS)[number];
 export interface Settings {
   theme: ThemeSetting;
   refreshSeconds: RefreshSeconds;
+  /** Whether the revision (what `--expect` and `base_revision` take) is shown on cards and on the decision page. */
+  showRevision: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   refreshSeconds: 5,
+  showRevision: true,
 };
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -33,6 +36,7 @@ function pick(value: unknown, base: Settings): Settings {
     refreshSeconds: REFRESH_SECONDS.includes(record.refreshSeconds as RefreshSeconds)
       ? (record.refreshSeconds as RefreshSeconds)
       : base.refreshSeconds,
+    showRevision: typeof record.showRevision === 'boolean' ? record.showRevision : base.showRevision,
   };
 }
 

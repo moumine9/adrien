@@ -5,6 +5,7 @@ import { Link, useParams } from 'react-router';
 import { BindingBadge, Chip, DueBadge, PendingBadge, STATUS_ICONS, StatusBadge } from '@/components/badges.tsx';
 import { AdrMarkdown } from '@/components/markdown.tsx';
 import { PendingBand } from '@/components/pending-band.tsx';
+import { VersionStamp } from '@/components/stamp.tsx';
 import { ErrorState, LoadingBlocks } from '@/components/states.tsx';
 import { buttonVariants } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
@@ -395,6 +396,7 @@ export function DecisionView() {
         <h1 className="display max-w-[24ch] text-3xl sm:text-5xl" style={{ fontStretch: '115%' }}>
           {m.title}
         </h1>
+        <VersionStamp revision={data.revision} modifiedAt={data.modifiedAt} />
         {m.status === 'superseded' && m.superseded_by && (
           <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-secondary-background px-3 py-2">
             <Replace aria-hidden className="size-4" strokeWidth={2.5} />

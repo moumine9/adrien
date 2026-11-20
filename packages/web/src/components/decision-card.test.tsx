@@ -1,4 +1,4 @@
-import type { AdrRow } from '@adrien/api/contract';
+import type { AdrListRow } from '@adrien/api/contract';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { DecisionCard } from './decision-card.tsx';
@@ -12,9 +12,9 @@ const pendingRow = {
   review_rule: null,
   tags: [],
   components: [],
-} as unknown as AdrRow;
+} as unknown as AdrListRow;
 
-function renderCard(row: AdrRow) {
+function renderCard(row: AdrListRow) {
   return render(
     <MemoryRouter>
       <DecisionCard row={row} verification="verified" />
@@ -36,7 +36,7 @@ describe('DecisionCard', () => {
   });
 
   it('draws no band on a card that is not pending', () => {
-    const { container } = renderCard({ ...pendingRow, layer: 'base', pending_kind: null } as unknown as AdrRow);
+    const { container } = renderCard({ ...pendingRow, layer: 'base', pending_kind: null } as unknown as AdrListRow);
     expect(container.querySelector('.hatch')).toBeNull();
   });
 });
