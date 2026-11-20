@@ -39,3 +39,15 @@ adrien serve --port 8080 --log ../decisions
 | `GET /api/check`                        | `CheckResponse`. `lint=1` adds the style warnings.                                                                                                                                                                        |
 | `GET /api/export?format=markdown\|llms` | The generated overview as `text/plain`.                                                                                                                                                                                   |
 | `GET /` and other paths                 | The web visualizer (static files), with `index.html` as the fallback for client-side routes. 404 JSON for unknown `/api/*`.                                                                                               |
+
+## Revision and modified time
+
+Each row of `GET /api/adrs` and each `GET /api/adrs/:id` response carries two fields about the version in this checkout,
+the one `adrien show --json` describes:
+
+- `revision`: the value to pass as `--expect` (CLI) or `base_revision` (MCP) when changing the ADR, so a change based on an
+  older read is refused. It is the same value `adrien show --json` and `adr_get` return. `null` when the ADR is not in
+  this checkout (deleted here) or its id is used by several files.
+- `modifiedAt`: an ISO 8601 time. It is the file's modification time when this checkout changes the ADR or there is no
+  default branch to read. Otherwise it is the time of the last commit on the default branch that touched the file, since a
+  clone resets file times. `null` when it cannot be known, as in a shallow clone.

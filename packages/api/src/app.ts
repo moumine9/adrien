@@ -9,11 +9,13 @@ import {
   type Filters,
   type LogView,
   loadLogView,
+  modifiedAtById,
   resolveContext,
   runCheck,
   STATUSES,
   type Status,
   unverifiedBaseNote,
+  workingRevision,
 } from '@adrien/core';
 import { Hono, type Context as HonoContext } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -129,12 +131,20 @@ export function createApp(opts: ApiOptions): Hono {
     // Every match, ranked: the index holds at most one row per base ADR and one per pending change.
     const limit = view.base.length + view.pending.length;
     const results = await withIndex(ctx, view, (index) => (q ? index.search(q, filters, limit) : index.list(filters)));
-    return c.json<AdrsResponse>({ results });
+    const modified = await modifiedAtById(ctx.logRoot, ctx.config, view);
+    return c.json<AdrsResponse>({
+      results: results.map((row) => ({
+        ...row,
+        revision: workingRevision(view, row.id),
+        modifiedAt: modified.get(row.id) ?? null,
+      })),
+    });
   });
 
   app.get('/api/adrs/:id', async (c) => {
-    const { view } = await load();
-    return c.json(adrOf(view, c.req.param('id')));
+    const { ctx, view } = await load();
+    const id = c.req.param('id');
+    return c.json(adrOf(view, id, (await modifiedAtById(ctx.logRoot, ctx.config, view)).get(id) ?? null));
   });
 
   app.get('/api/graph', async (c) => {

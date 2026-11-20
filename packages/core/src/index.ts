@@ -15,6 +15,7 @@ export * from './lint.ts';
 export { type LockOptions, withAdrLocks } from './lock.ts';
 export * from './log.ts';
 export * from './model.ts';
+export * from './modified.ts';
 export * from './ops.ts';
 export * from './paths.ts';
 export * from './repo-url.ts';
