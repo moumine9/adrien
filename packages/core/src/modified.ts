@@ -28,6 +28,8 @@ async function commitDates(top: string, ref: string, dirs: string[], run: RunGit
     'core.quotepath=false',
     'log',
     '--no-renames',
+    // Combined diffs of merges: a file settled while resolving a conflict belongs to the merge, which `--name-only` alone omits.
+    '-c',
     '--format=@@%cI',
     '--name-only',
     ref,

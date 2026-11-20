@@ -6,7 +6,7 @@ import { git as runGit } from '../src/git.ts';
 import { modifiedAtById } from '../src/modified.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
-import { commitAll, git, initRepo } from './helpers/git.ts';
+import { commitAll, git, gitEnv, initRepo } from './helpers/git.ts';
 
 const config = () => parseLogConfigText(configYaml(), CONFIG_FILE);
 const A = 'docs/adr/ADR-0001-a.md';
@@ -184,4 +184,27 @@ test('an ADR only the default branch holds is dated by that branch, wherever the
   const view = await loadLogView(root, config());
   const dates = await modifiedAtById(root, view);
   expect(dates.get('ADR-0007')).toBe(new Date(git(root, 'log', '-1', '--format=%cI', 'origin/main')).toISOString());
+});
+
+test('an ADR settled while resolving a merge conflict is dated by the merge', async () => {
+  const root = tmpDir();
+  twoAdrs(root);
+  initRepo(root);
+  git(root, 'switch', '-q', '-c', 'topic');
+  writeFiles(root, { [B]: adrText({ id: 'ADR-0002', title: 'B on topic' }) });
+  commitAll(root, 'topic edit');
+  git(root, 'switch', '-q', 'main');
+  writeFiles(root, { [B]: adrText({ id: 'ADR-0002', title: 'B on main' }) });
+  commitAll(root, 'main edit');
+  expect(() => git(root, 'merge', '--no-commit', 'topic')).toThrow();
+  writeFiles(root, { [B]: adrText({ id: 'ADR-0002', title: 'B resolved' }) });
+  // Dated far from the parents, so a date taken from either of them cannot pass for the merge's.
+  gitEnv().GIT_COMMITTER_DATE = '2031-01-02T03:04:05Z';
+  try {
+    commitAll(root, 'merge topic');
+  } finally {
+    delete gitEnv().GIT_COMMITTER_DATE;
+  }
+  const dates = await modifiedAtById(root, await loadLogView(root, config()));
+  expect(dates.get('ADR-0002')).toBe('2031-01-02T03:04:05.000Z');
 });
