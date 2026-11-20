@@ -690,6 +690,13 @@ test('verifyBackup works when the live config is missing or unreadable, and says
   expect(verifyBackup(root, made.id)).toEqual({ changed: [CONFIG_FILE], missing: [], added: [] });
 });
 
+test('verifyBackup reports a live config whose ADR directory cannot be backed up as changed, not as an error', () => {
+  const root = logRoot();
+  const made = createBackup(root, loadLogConfig(root), 'x', VERSION);
+  writeFileSync(join(root, CONFIG_FILE), configYaml({ adr_dir: '.' }));
+  expect(verifyBackup(root, made.id)).toEqual({ changed: [CONFIG_FILE], missing: [], added: [] });
+});
+
 test('verify ignores the backup copy of the config while the live one is fine, and a lost copy is reported as damaged', () => {
   const root = logRoot();
   const made = createBackup(root, loadLogConfig(root), 'x', VERSION);

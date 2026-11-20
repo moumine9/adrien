@@ -406,6 +406,8 @@ export function verifyBackup(root: string, id: string): BackupVerification {
   } catch {
     live = null;
   }
+  // A live config whose ADR directory cannot be backed up (`.`, say) cannot say where to look either; its bytes are still compared.
+  if (live && adrDirProblem(live)) live = null;
   // The backup's own copy of the config is only opened when the live one cannot say where to look.
   const base = live ?? backedUpConfig(dir, manifest, null, id);
   const current = new Set(unionFiles(root, base, scopesOf(base, manifest)).files);
