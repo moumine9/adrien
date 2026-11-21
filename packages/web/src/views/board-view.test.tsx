@@ -1,9 +1,13 @@
 import type { AdrRow } from '@adrien/api/contract';
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import { failingFetch, hangingFetch, jsonResponse, overrideFetch, renderApp } from '@/test/render.tsx';
+import { createMockFetch } from '../../mock/handler.ts';
 
 const location = () => screen.getByTestId('location').textContent;
 const columnHeadings = () => screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
+/** The card for `title`, once the log has said whether its statuses are verified (cards wait for that). */
+const settledCard = async (title: string) =>
+  (await screen.findByRole('link', { name: title })).closest('article') as HTMLElement;
 const cardOf = (title: string) => screen.getByRole('link', { name: title }).closest('article') as HTMLElement;
 
 const READ_ONLY = 'This board is read-only. A decision is approved by merging, never by moving a card.';
@@ -41,10 +45,63 @@ describe('Board view', () => {
     const card = (await screen.findByRole('link', { name: 'Move product search to a dedicated index' })).closest(
       'article',
     ) as HTMLElement;
-    const band = card.firstElementChild as HTMLElement;
-    expect(band).toHaveClass('hatch');
+    expect(card).toHaveAttribute('data-binding', 'pending');
+    const band = card.querySelector('.hatch') as HTMLElement;
     expect(band).toHaveAttribute('aria-hidden', 'true');
     expect(card.querySelectorAll('.hatch')).toHaveLength(1);
+  });
+
+  it('draws an accepted decision as binding with its edge when the default branch backs it', async () => {
+    renderApp('/board');
+    const card = await settledCard('Use PostgreSQL as the system of record for billing');
+    await waitFor(() => expect(card).toHaveAttribute('data-binding', 'binding'));
+    expect(card.querySelector('[data-surface-edge]')).not.toBeNull();
+    expect(card.querySelector('[data-surface-notch]')).toBeNull();
+  });
+
+  it('draws it as unverified, with a notch and no edge, when no default branch backs it', async () => {
+    renderApp('/board', { variant: 'unresolved' });
+    const card = await settledCard('Use PostgreSQL as the system of record for billing');
+    await waitFor(() => expect(card).toHaveAttribute('data-binding', 'unverified'));
+    expect(card.querySelector('[data-surface-notch]')).not.toBeNull();
+    expect(card.querySelector('[data-surface-edge]')).toBeNull();
+  });
+
+  it('draws a proposed decision on the default branch as not binding, with no edge', async () => {
+    renderApp('/board');
+    const card = await settledCard('Ship risky changes behind feature flags');
+    expect(card).toHaveAttribute('data-binding', 'not-binding');
+    expect(card.querySelector('[data-surface-edge]')).toBeNull();
+    expect(card).not.toHaveAttribute('data-retired');
+  });
+
+  it('mutes a retired decision', async () => {
+    renderApp('/board');
+    const card = await settledCard('Render the checkout entirely on the server');
+    expect(card).toHaveAttribute('data-retired', 'true');
+  });
+
+  it('draws no card until the log says whether its statuses are verified, so none flashes as unverified', async () => {
+    const inner = createMockFetch('default');
+    const metaNeverAnswers: typeof fetch = (input, init) =>
+      String(input).startsWith('/api/meta') ? new Promise<Response>(() => {}) : inner(input, init);
+    renderApp('/board', { fetch: metaNeverAnswers });
+    expect(screen.getByRole('status', { name: 'Loading the board' })).toBeInTheDocument();
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(screen.queryAllByRole('article')).toHaveLength(0);
+  });
+
+  it('draws the cards, as unverified, when the log cannot say', async () => {
+    const inner = createMockFetch('default');
+    const metaFails: typeof fetch = async (input, init) =>
+      String(input).startsWith('/api/meta')
+        ? new Response(JSON.stringify({ error: { code: 'X', message: 'down' } }), { status: 500 })
+        : inner(input, init);
+    renderApp('/board', { fetch: metaFails });
+    const card = await settledCard('Use PostgreSQL as the system of record for billing');
+    expect(card).toHaveAttribute('data-binding', 'unverified');
   });
 
   it('shows skeletons while loading', () => {
