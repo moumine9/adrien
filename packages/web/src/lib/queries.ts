@@ -55,7 +55,8 @@ export const useAdrs = (filters: DecisionFilters) =>
     queryFn: async ({ signal }) => {
       const sent = Date.now();
       const result = await api.adrs(filters, signal);
-      sentAt.set(filtersToSearch(filters).toString(), sent);
+      // Only the unfiltered list is ever read back, so a typed search does not add an entry.
+      if (filtersToSearch(filters).toString() === '') sentAt.set('', sent);
       return result;
     },
     // Keep the previous results on screen while a new filter loads, instead of flashing skeletons.

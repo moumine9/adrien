@@ -73,8 +73,11 @@ export function useChangeWatch(): {
  * depend on the notifications setting.
  */
 export function useChangedSinceOpened(id: string, shown: { revision?: string | null; loadedAt: number }): boolean {
-  const { data } = useAdrs(EMPTY_FILTERS);
-  if (!data || shown.revision === undefined || listSentAt(EMPTY_FILTERS) < shown.loadedAt) return false;
+  // Reading `dataUpdatedAt` subscribes to every successful poll, even one that returns the same content, so the send
+  // time below is read again and the answer follows the newest reading.
+  const { data, dataUpdatedAt } = useAdrs(EMPTY_FILTERS);
+  if (!data || !dataUpdatedAt || shown.revision === undefined || listSentAt(EMPTY_FILTERS) < shown.loadedAt)
+    return false;
   const latest = data.results.find((row) => row.id === id)?.revision ?? null;
   return latest !== shown.revision;
 }
