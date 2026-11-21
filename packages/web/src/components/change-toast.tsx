@@ -1,47 +1,87 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { useMatch } from 'react-router';
 import { Button } from '@/components/ui/button.tsx';
-import { useChangeWatch } from '@/lib/change-watch.ts';
+import { useChangedSinceOpened, useChangeWatch } from '@/lib/change-watch.ts';
+import { useAdr } from '@/lib/queries.ts';
 import { cn } from '@/lib/utils.ts';
 
 export const TOAST_SECONDS = 8;
+export const UPDATED_MS = 2000;
 
-function message(changed: readonly string[]): string {
+function message(changed: readonly string[], open: string | undefined): string {
+  if (open && changed.length === 1) return `${open} changed.`;
+  if (open) return `${open} and ${changed.length - 1} more changed.`;
   return changed.length === 1 ? `${changed[0]} changed.` : `${changed.length} decisions changed.`;
 }
 
 /**
  * Tells the reader, once, that decisions changed while the page was open. The live region is mounted from the first
  * render, because a region that appears together with its text is not announced; it holds the sentence only, so the
- * button is not read out with it. The notice never takes focus and never changes what is on the page: the lists
- * refresh themselves, the notice only says that they did. It waits while the pointer or focus is on it.
+ * buttons are not read out with it. The notice never takes focus and never changes what is on the page: the lists
+ * refresh themselves, the notice only says that they did. On the decision being read it stays until the reader presses
+ * Reload (the decision never changes by itself) or dismisses it. It waits while the pointer or focus is on it.
  */
-export function ChangeToast({ dismissAfterMs = TOAST_SECONDS * 1000 }: { dismissAfterMs?: number }) {
-  const { changed, version, dismiss } = useChangeWatch();
+export function ChangeToast({
+  dismissAfterMs = TOAST_SECONDS * 1000,
+  updatedForMs = UPDATED_MS,
+}: {
+  dismissAfterMs?: number;
+  updatedForMs?: number;
+}) {
+  const { changed, version, dismiss, forget } = useChangeWatch();
+  const client = useQueryClient();
+  const match = useMatch('/adr/:id');
+  const openId = match?.params.id === undefined ? undefined : decodeURIComponent(match.params.id);
+  // The decision on screen, as loaded: the notice is about the version the reader is looking at, not the latest one.
+  const shown = useAdr(openId ?? '').data?.revision;
+  const outOfDate = useChangedSinceOpened(openId ?? '', shown);
+  const openChanged = openId !== undefined && changed.includes(openId) && outOfDate;
+  // Once the page shows the latest version, by either Reload, the notice about it is stale.
+  useEffect(() => {
+    if (openId !== undefined && !outOfDate && shown !== undefined) forget(openId);
+  }, [openId, outOfDate, shown, forget]);
   // The pointer and focus are tracked apart: the notice waits while either one is on it.
   const [hovered, setHovered] = useState(false);
   const [focused, setFocused] = useState(false);
+  const [updated, setUpdated] = useState(false);
   const held = hovered || focused;
   const box = useRef<HTMLDivElement>(null);
-  const show = changed.length > 0;
-  // A new change joins the notice and restarts the timer.
+  const showChanges = changed.length > 0;
+  const show = showChanges || updated;
+  // A new change joins the notice and restarts the timer. A change to the decision being read waits for the reader.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `version` stands for "something changed again".
   useEffect(() => {
-    if (!show || held) return;
+    if (!showChanges || openChanged || held) return;
     const timer = setTimeout(dismiss, dismissAfterMs);
     return () => clearTimeout(timer);
-  }, [show, held, version, dismissAfterMs]);
+  }, [showChanges, openChanged, held, version, dismissAfterMs]);
+  useEffect(() => {
+    if (!updated) return;
+    const timer = setTimeout(() => setUpdated(false), updatedForMs);
+    return () => clearTimeout(timer);
+  }, [updated, updatedForMs]);
   // However the notice went away (button, timer, or the setting), nothing is on it any more.
   useEffect(() => {
     if (show) return;
     setHovered(false);
     setFocused(false);
   }, [show]);
-  const close = () => {
+  const handFocusToPage = () => {
     // The button the reader pressed is about to go away: give focus to the page rather than to nothing.
-    const hadFocus = box.current?.contains(document.activeElement);
+    if (box.current?.contains(document.activeElement)) document.getElementById('main')?.focus({ preventScroll: true });
+  };
+  const close = () => {
+    handFocusToPage();
     dismiss();
-    if (hadFocus) document.getElementById('main')?.focus({ preventScroll: true });
+  };
+  const reload = async () => {
+    if (!openId) return;
+    handFocusToPage();
+    await client.refetchQueries({ queryKey: ['adr', openId] });
+    forget(openId);
+    setUpdated(true);
   };
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: the handlers only watch the pointer and focus to hold the timer; nothing here acts on a click.
@@ -59,9 +99,14 @@ export function ChangeToast({ dismissAfterMs = TOAST_SECONDS * 1000 }: { dismiss
       )}
     >
       <p data-testid="change-toast" aria-live="polite" className="flex-1 font-heading">
-        {show ? message(changed) : null}
+        {showChanges ? message(changed, openChanged ? openId : undefined) : updated ? 'Updated.' : null}
       </p>
-      {show && (
+      {showChanges && openChanged && (
+        <Button size="sm" onClick={() => void reload()} aria-label={`Reload ${openId}`}>
+          Reload
+        </Button>
+      )}
+      {showChanges && (
         <Button variant="neutral" size="icon" onClick={close} aria-label="Dismiss" title="Dismiss">
           <X aria-hidden />
         </Button>

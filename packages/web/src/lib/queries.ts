@@ -5,7 +5,10 @@ import { api, isClientError } from './api.ts';
 import { type DecisionFilters, EMPTY_FILTERS, filtersToSearch } from './filters.ts';
 import { type RefreshSeconds, useSettings } from './settings.ts';
 
-/** The server re-reads the log on every request, so a refetch on focus shows edits made meanwhile. */
+/**
+ * The server re-reads the log on every request, so a refetch on focus shows edits made meanwhile. The one exception is
+ * the decision being read, which changes only when the reader presses Reload (see `useAdr`).
+ */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
     defaultOptions: {
@@ -60,13 +63,18 @@ export function useFileResolver(): ResolveFile {
   }, [data]);
 }
 
+/**
+ * A decision being read is fetched when it opens and again only on request, so its text never shifts while someone is
+ * quoting it. The list keeps refreshing; `useChangedSinceOpened` compares against it to say the decision is out of date.
+ */
 export const useAdr = (id: string) =>
   useQuery({
     queryKey: ['adr', id],
     queryFn: ({ signal }) => api.adr(id, signal),
     enabled: Boolean(id),
-    refetchInterval: useRefreshInterval(),
-    refetchIntervalInBackground: false,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 
 export const useGraph = () =>

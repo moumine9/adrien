@@ -1,25 +1,12 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter } from 'react-router';
 import { useChangeWatch } from '@/lib/change-watch.ts';
 import { updateSettings } from '@/lib/settings.ts';
+import { type Moved, movingFetch } from '@/test/moving-fetch.ts';
 import { renderApp } from '@/test/render.tsx';
-import { createMockFetch } from '../../mock/handler.ts';
 import { ChangeToast } from './change-toast.tsx';
-
-/** The mock API, with the revisions of the listed decisions replaced while `moved` says so. */
-function movingFetch(moved: () => Record<string, string | null>): typeof fetch {
-  const inner = createMockFetch('default');
-  return async (input, init) => {
-    const response = await inner(input, init);
-    const url = new URL(String(input), 'http://localhost');
-    if (url.pathname !== '/api/adrs') return response;
-    const body = await response.json();
-    const patch = moved();
-    for (const row of body.results) if (row.id in patch) row.revision = patch[row.id];
-    return new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
-  };
-}
 
 /** The toast alone, against a fetch that can change its answers between polls. */
 function renderToast(fetchImpl: typeof fetch, dismissAfterMs?: number) {
@@ -29,8 +16,10 @@ function renderToast(fetchImpl: typeof fetch, dismissAfterMs?: number) {
   });
   render(
     <QueryClientProvider client={client}>
-      <ChangeToast dismissAfterMs={dismissAfterMs} />
-      <main id="main" tabIndex={-1} />
+      <MemoryRouter>
+        <ChangeToast dismissAfterMs={dismissAfterMs} />
+        <main id="main" tabIndex={-1} />
+      </MemoryRouter>
     </QueryClientProvider>,
   );
   return { client, user: userEvent.setup() };
@@ -60,34 +49,34 @@ describe('The change toast', () => {
   });
 
   it('names one decision that changed, then says nothing about the first reading', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client } = renderToast(movingFetch(() => patch));
     await firstReading(client);
     expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement();
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     await waitFor(() => expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.'));
   });
 
   it('merges further changes into the same notice instead of stacking', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client } = renderToast(movingFetch(() => patch));
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     await waitFor(() => expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.'));
-    patch = { 'ADR-0002': 'abcdefabcdef', 'ADR-0001': '123456123456' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' }, 'ADR-0001': { revision: '123456123456' } };
     await poll(client);
     await waitFor(() => expect(screen.getByTestId('change-toast')).toHaveTextContent('2 decisions changed.'));
     expect(screen.getAllByRole('button', { name: 'Dismiss' })).toHaveLength(1);
   });
 
   it('is dismissed by its button and does not take focus', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client, user } = renderToast(movingFetch(() => patch));
     await firstReading(client);
     const before = document.activeElement;
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     await screen.findByRole('button', { name: 'Dismiss' });
     expect(document.activeElement).toBe(before);
@@ -96,13 +85,13 @@ describe('The change toast', () => {
   });
 
   it('leaves by itself after a while', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client } = renderToast(
       movingFetch(() => patch),
       30,
     );
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     await waitFor(() => expect(screen.getByTestId('change-toast')).toHaveTextContent('changed'));
     await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
@@ -110,10 +99,10 @@ describe('The change toast', () => {
 
   it('stays quiet when change notifications are off', async () => {
     updateSettings({ changeNotifications: false });
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client } = renderToast(movingFetch(() => patch));
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     // Give the notice time to appear if it were going to.
     await act(async () => {
@@ -129,10 +118,10 @@ describe('The change toast', () => {
 
   it('does not bring back old news when notifications are turned on again', async () => {
     updateSettings({ changeNotifications: false });
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client } = renderToast(movingFetch(() => patch));
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
@@ -145,13 +134,13 @@ describe('The change toast', () => {
   });
 
   it('waits while the pointer is on it, and leaves when the pointer does', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client, user } = renderToast(
       movingFetch(() => patch),
       300,
     );
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     const text = await screen.findByText('ADR-0002 changed.');
     await user.hover(text);
@@ -164,13 +153,13 @@ describe('The change toast', () => {
   });
 
   it('keeps waiting while the button has focus, even after the pointer has left', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client, user } = renderToast(
       movingFetch(() => patch),
       300,
     );
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     const text = await screen.findByText('ADR-0002 changed.');
     await user.hover(text);
@@ -185,13 +174,13 @@ describe('The change toast', () => {
   });
 
   it('keeps waiting while the pointer is on it, even after focus has left', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client, user } = renderToast(
       movingFetch(() => patch),
       300,
     );
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     const text = await screen.findByText('ADR-0002 changed.');
     await user.hover(text);
@@ -205,10 +194,10 @@ describe('The change toast', () => {
   });
 
   it('takes a notice that is already showing away when notifications are turned off', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client } = renderToast(movingFetch(() => patch));
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     await screen.findByText('ADR-0002 changed.');
     act(() => updateSettings({ changeNotifications: false }));
@@ -216,20 +205,20 @@ describe('The change toast', () => {
   });
 
   it('gives focus to the page when the button that had it goes away', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client, user } = renderToast(movingFetch(() => patch));
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     await user.click(await screen.findByRole('button', { name: 'Dismiss' }));
     expect(document.getElementById('main')).toHaveFocus();
   });
 
   it('keeps the button out of the live region, so only the sentence is announced', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     const { client } = renderToast(movingFetch(() => patch));
     await firstReading(client);
-    patch = { 'ADR-0002': 'abcdefabcdef' };
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
     const button = await screen.findByRole('button', { name: 'Dismiss' });
     expect(screen.getByTestId('change-toast')).not.toContainElement(button);
@@ -238,7 +227,7 @@ describe('The change toast', () => {
 
 describe('useChangeWatch', () => {
   it('counts a change to a decision that was already collected', async () => {
-    let patch: Record<string, string | null> = {};
+    let patch: Record<string, Moved> = {};
     vi.stubGlobal(
       'fetch',
       movingFetch(() => patch),
@@ -250,10 +239,10 @@ describe('useChangeWatch', () => {
       wrapper: ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>,
     });
     await firstReading(client);
-    patch = { 'ADR-0002': 'aaaaaaaaaaaa' };
+    patch = { 'ADR-0002': { revision: 'aaaaaaaaaaaa' } };
     await poll(client);
     await waitFor(() => expect(result.current.version).toBe(1));
-    patch = { 'ADR-0002': 'bbbbbbbbbbbb' };
+    patch = { 'ADR-0002': { revision: 'bbbbbbbbbbbb' } };
     await poll(client);
     await waitFor(() => expect(result.current.version).toBe(2));
     expect(result.current.changed).toEqual(['ADR-0002']);

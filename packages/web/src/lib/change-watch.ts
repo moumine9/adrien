@@ -27,7 +27,12 @@ export function changedIds(before: Stamps, after: Stamps): string[] {
  * notifications are off nothing is collected, so turning them on later does not bring back old news. `version` goes up
  * with every change, even to a decision already collected, so the notice can start its timer again.
  */
-export function useChangeWatch(): { changed: string[]; version: number; dismiss: () => void } {
+export function useChangeWatch(): {
+  changed: string[];
+  version: number;
+  dismiss: () => void;
+  forget: (id: string) => void;
+} {
   const { data } = useAdrs(EMPTY_FILTERS);
   const [settings] = useSettings();
   const seen = useRef<Stamps | null>(null);
@@ -53,5 +58,21 @@ export function useChangeWatch(): { changed: string[]; version: number; dismiss:
     changed: [...state.changed].sort(),
     version: state.version,
     dismiss: () => setState((s) => ({ changed: new Set(), version: s.version })),
+    forget: (id) =>
+      setState((s) =>
+        s.changed.has(id) ? { changed: new Set([...s.changed].filter((x) => x !== id)), version: s.version } : s,
+      ),
   };
+}
+
+/**
+ * Whether the decision on screen (loaded at revision `shown`) has changed since, according to the list the app keeps
+ * refreshing. A decision that has left the list counts as changed. Unlike the notice, this is a state of the page, so it
+ * does not depend on the notifications setting.
+ */
+export function useChangedSinceOpened(id: string, shown: string | null | undefined): boolean {
+  const { data } = useAdrs(EMPTY_FILTERS);
+  if (!data || shown === undefined) return false;
+  const latest = data.results.find((row) => row.id === id)?.revision ?? null;
+  return latest !== shown;
 }
