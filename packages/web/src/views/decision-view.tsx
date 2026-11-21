@@ -7,9 +7,10 @@ import { AdrMarkdown } from '@/components/markdown.tsx';
 import { PendingBand } from '@/components/pending-band.tsx';
 import { VersionStamp } from '@/components/stamp.tsx';
 import { ErrorState, LoadingBlocks } from '@/components/states.tsx';
-import { buttonVariants } from '@/components/ui/button.tsx';
+import { Button, buttonVariants } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { ApiRequestError } from '@/lib/api.ts';
+import { useChangedSinceOpened } from '@/lib/change-watch.ts';
 import { useAdr, useFileResolver, useGraph, useMeta } from '@/lib/queries.ts';
 import { type Binding, bindingOf, isReviewDue, STATUS_STYLES, verificationOf } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
@@ -324,6 +325,7 @@ function DetailSkeleton() {
 export function DecisionView() {
   const { id = '' } = useParams();
   const adr = useAdr(id);
+  const outOfDate = useChangedSinceOpened(id, { revision: adr.data?.revision, loadedAt: adr.dataUpdatedAt });
   const resolveFile = useFileResolver();
   const meta = useMeta();
   const graph = useGraph();
@@ -397,6 +399,21 @@ export function DecisionView() {
           {m.title}
         </h1>
         <VersionStamp revision={data.revision} modifiedAt={data.modifiedAt} />
+        {outOfDate && (
+          <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-caution px-3 py-1 text-ink">
+            <span className="font-heading">Changed since you opened this</span>
+            <Button
+              variant="neutral"
+              onClick={() => {
+                // The button goes away when the new version arrives: keep focus on the page.
+                document.getElementById('main')?.focus({ preventScroll: true });
+                void adr.refetch();
+              }}
+            >
+              Reload
+            </Button>
+          </p>
+        )}
         {m.status === 'superseded' && m.superseded_by && (
           <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-secondary-background px-3 py-2">
             <Replace aria-hidden className="size-4" strokeWidth={2.5} />

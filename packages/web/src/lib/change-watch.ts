@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { EMPTY_FILTERS } from './filters.ts';
-import { useAdrs } from './queries.ts';
+import { listSentAt, useAdrs } from './queries.ts';
 import { useSettings } from './settings.ts';
 
 /**
@@ -27,7 +27,12 @@ export function changedIds(before: Stamps, after: Stamps): string[] {
  * notifications are off nothing is collected, so turning them on later does not bring back old news. `version` goes up
  * with every change, even to a decision already collected, so the notice can start its timer again.
  */
-export function useChangeWatch(): { changed: string[]; version: number; dismiss: () => void } {
+export function useChangeWatch(): {
+  changed: string[];
+  version: number;
+  dismiss: () => void;
+  forget: (id: string) => void;
+} {
   const { data } = useAdrs(EMPTY_FILTERS);
   const [settings] = useSettings();
   const seen = useRef<Stamps | null>(null);
@@ -49,9 +54,30 @@ export function useChangeWatch(): { changed: string[]; version: number; dismiss:
     const ids = changedIds(before, next);
     if (ids.length > 0) setState((s) => ({ changed: new Set([...s.changed, ...ids]), version: s.version + 1 }));
   }, [data, collecting]);
-  return {
-    changed: [...state.changed].sort(),
-    version: state.version,
-    dismiss: () => setState((s) => ({ changed: new Set(), version: s.version })),
-  };
+  const dismiss = useCallback(() => setState((s) => ({ changed: new Set(), version: s.version })), []);
+  const forget = useCallback(
+    (id: string) =>
+      setState((s) =>
+        s.changed.has(id) ? { changed: new Set([...s.changed].filter((x) => x !== id)), version: s.version } : s,
+      ),
+    [],
+  );
+  return { changed: [...state.changed].sort(), version: state.version, dismiss, forget };
+}
+
+/**
+ * Whether the decision on screen has changed since it was loaded, according to the list the app keeps refreshing. Only a
+ * reading of the list whose request was sent at or after the decision finished loading can say so: the server reads the
+ * files when a request starts, so a slower, older reading that merely arrived later predates what the reader sees.
+ * A decision that has left the list counts as changed. Unlike the notice, this is a state of the page, so it does not
+ * depend on the notifications setting.
+ */
+export function useChangedSinceOpened(id: string, shown: { revision?: string | null; loadedAt: number }): boolean {
+  // Reading `dataUpdatedAt` subscribes to every successful poll, even one that returns the same content, so the send
+  // time below is read again and the answer follows the newest reading.
+  const { data, dataUpdatedAt } = useAdrs(EMPTY_FILTERS);
+  if (!data || !dataUpdatedAt || shown.revision === undefined || listSentAt(EMPTY_FILTERS) < shown.loadedAt)
+    return false;
+  const latest = data.results.find((row) => row.id === id)?.revision ?? null;
+  return latest !== shown.revision;
 }

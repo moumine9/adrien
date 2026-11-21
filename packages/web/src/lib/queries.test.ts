@@ -35,6 +35,17 @@ describe('query polling', () => {
     expect(meta?.observers[0]?.options.refetchIntervalInBackground).toBe(false);
   });
 
+  it('leaves the decision being read to change only when the reader reloads it', async () => {
+    const { client } = renderApp('/adr/ADR-0002');
+    await screen.findByRole('heading', { level: 1 });
+    const options = client.getQueryCache().find({ queryKey: ['adr', 'ADR-0002'] })?.observers[0]?.options;
+    expect(options?.refetchInterval).toBe(false);
+    expect(options?.refetchOnWindowFocus).toBe(false);
+    expect(options?.refetchOnReconnect).toBe(false);
+    expect(options?.staleTime).toBe(Number.POSITIVE_INFINITY);
+    expect(options?.gcTime).toBe(0);
+  });
+
   it('changes the interval of mounted queries when the setting changes', async () => {
     const { client } = renderApp('/');
     await screen.findByRole('link', { name: 'Decisions' });
