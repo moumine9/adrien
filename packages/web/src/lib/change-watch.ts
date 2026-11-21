@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { EMPTY_FILTERS } from './filters.ts';
-import { useAdrs } from './queries.ts';
+import { listSentAt, useAdrs } from './queries.ts';
 import { useSettings } from './settings.ts';
 
 /**
@@ -67,13 +67,14 @@ export function useChangeWatch(): {
 
 /**
  * Whether the decision on screen has changed since it was loaded, according to the list the app keeps refreshing. Only a
- * reading of the list taken at or after the decision was loaded can say so: an older one predates what the reader sees.
+ * reading of the list whose request was sent at or after the decision finished loading can say so: the server reads the
+ * files when a request starts, so a slower, older reading that merely arrived later predates what the reader sees.
  * A decision that has left the list counts as changed. Unlike the notice, this is a state of the page, so it does not
  * depend on the notifications setting.
  */
 export function useChangedSinceOpened(id: string, shown: { revision?: string | null; loadedAt: number }): boolean {
-  const { data, dataUpdatedAt } = useAdrs(EMPTY_FILTERS);
-  if (!data || shown.revision === undefined || dataUpdatedAt < shown.loadedAt) return false;
+  const { data } = useAdrs(EMPTY_FILTERS);
+  if (!data || shown.revision === undefined || listSentAt(EMPTY_FILTERS) < shown.loadedAt) return false;
   const latest = data.results.find((row) => row.id === id)?.revision ?? null;
   return latest !== shown.revision;
 }

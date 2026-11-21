@@ -40,10 +40,24 @@ export const useMeta = () =>
     refetchIntervalInBackground: false,
   });
 
+/** When the request behind the latest reading of each list was sent, by query key. */
+const sentAt = new Map<string, number>();
+
+/**
+ * When the request that produced the list's latest reading was sent. The server reads the files when a request starts,
+ * not when it answers, so this, and not the time the answer arrived, says how old the reading is.
+ */
+export const listSentAt = (filters: DecisionFilters): number => sentAt.get(filtersToSearch(filters).toString()) ?? 0;
+
 export const useAdrs = (filters: DecisionFilters) =>
   useQuery({
     queryKey: ['adrs', filtersToSearch(filters).toString()],
-    queryFn: ({ signal }) => api.adrs(filters, signal),
+    queryFn: async ({ signal }) => {
+      const sent = Date.now();
+      const result = await api.adrs(filters, signal);
+      sentAt.set(filtersToSearch(filters).toString(), sent);
+      return result;
+    },
     // Keep the previous results on screen while a new filter loads, instead of flashing skeletons.
     placeholderData: keepPreviousData,
     refetchInterval: useRefreshInterval(),

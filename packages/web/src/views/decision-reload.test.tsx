@@ -74,6 +74,45 @@ describe('A decision that changes while it is open', () => {
     expect(screen.queryByText('Changed since you opened this')).not.toBeInTheDocument();
   });
 
+  it('does not call a decision out of date because a slower, older reading of the list finished after it', async () => {
+    const patch = { current: {} as Record<string, Moved> };
+    let release: (() => void) | undefined;
+    let hold = false;
+    const inner = movingFetch(() => patch.current);
+    const slowList: typeof fetch = async (input, init) => {
+      const response = await inner(input, init);
+      if (hold && new URL(String(input), 'http://localhost').pathname === '/api/adrs') {
+        hold = false;
+        await new Promise<void>((resolve) => {
+          release = resolve;
+        });
+      }
+      return response;
+    };
+    const { client, user } = renderApp('/', { fetch: slowList });
+    await screen.findByRole('link', { name: OLD });
+    await waitFor(() => expect(client.getQueryData(['adrs', ''])).toBeDefined());
+    // A reading of the list starts, takes the old version... and is slow to answer.
+    hold = true;
+    const poll = client.refetchQueries({ queryKey: ['adrs'] });
+    await waitFor(() => expect(release).toBeDefined());
+    // Meanwhile the decision is edited and opened: the page shows the new version.
+    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW } };
+    await user.click(screen.getByRole('link', { name: OLD }));
+    expect(await screen.findByRole('heading', { level: 1, name: NEW })).toBeInTheDocument();
+    // Now the old reading of the list arrives. It is older than what is on screen.
+    await act(async () => {
+      release?.();
+      await poll;
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    const row = client
+      .getQueryData<{ results: { id: string; revision: string | null }[] }>(['adrs', ''])
+      ?.results.find((r) => r.id === 'ADR-0002');
+    expect(row?.revision).not.toBe('abcdefabcdef');
+    expect(screen.queryByText('Changed since you opened this')).not.toBeInTheDocument();
+  });
+
   it('reopening a decision shows the version on disk now, without a flash of the old text', async () => {
     const patch = { current: {} as Record<string, Moved> };
     const { user } = renderApp('/adr/ADR-0002', { fetch: movingFetch(() => patch.current) });

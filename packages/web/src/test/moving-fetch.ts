@@ -18,9 +18,10 @@ export function movingFetch(moved: () => Record<string, Moved>): typeof fetch {
   const json = (body: unknown) =>
     new Response(JSON.stringify(body), { status: 200, headers: { 'content-type': 'application/json' } });
   return async (input, init) => {
+    // Like the server, read the state when the request starts, however long the answer takes.
+    const patch = moved();
     const response = await inner(input, init);
     const { pathname } = new URL(String(input), 'http://localhost');
-    const patch = moved();
     if (pathname === '/api/adrs') {
       const body = await response.json();
       for (const row of body.results) {
