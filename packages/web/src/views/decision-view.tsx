@@ -325,7 +325,7 @@ function DetailSkeleton() {
 export function DecisionView() {
   const { id = '' } = useParams();
   const adr = useAdr(id);
-  const outOfDate = useChangedSinceOpened(id, adr.data?.revision);
+  const outOfDate = useChangedSinceOpened(id, { revision: adr.data?.revision, loadedAt: adr.dataUpdatedAt });
   const resolveFile = useFileResolver();
   const meta = useMeta();
   const graph = useGraph();
@@ -402,7 +402,14 @@ export function DecisionView() {
         {outOfDate && (
           <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-caution px-3 py-1 text-ink">
             <span className="font-heading">Changed since you opened this</span>
-            <Button variant="neutral" size="sm" onClick={() => void adr.refetch()}>
+            <Button
+              variant="neutral"
+              onClick={() => {
+                // The button goes away when the new version arrives: keep focus on the page.
+                document.getElementById('main')?.focus({ preventScroll: true });
+                void adr.refetch();
+              }}
+            >
               Reload
             </Button>
           </p>

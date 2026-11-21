@@ -72,6 +72,10 @@ export const useAdr = (id: string) =>
     queryKey: ['adr', id],
     queryFn: ({ signal }) => api.adr(id, signal),
     enabled: Boolean(id),
+    // Never stale and never kept once nobody looks at it: opening a decision always reads the file as it is now,
+    // and nothing re-reads it behind the reader's back (a cached copy swapped for a fresh one would do just that).
+    staleTime: Number.POSITIVE_INFINITY,
+    gcTime: 0,
     refetchInterval: false,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

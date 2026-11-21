@@ -1,4 +1,4 @@
-import { focusManager, type QueryClient } from '@tanstack/react-query';
+import { focusManager, onlineManager, type QueryClient } from '@tanstack/react-query';
 import { act, screen, waitFor } from '@testing-library/react';
 import { updateSettings } from '@/lib/settings.ts';
 import { type Moved, movingFetch } from '@/test/moving-fetch.ts';
@@ -45,16 +45,45 @@ describe('A decision that changes while it is open', () => {
     patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW } };
     await pollList(client);
     await screen.findByText('Changed since you opened this');
-    act(() => {
+    // Make the decision stale, so only the refetch triggers (and not the cache) decide whether the text moves.
+    await act(async () => {
+      await client.invalidateQueries({ queryKey: ['adr', 'ADR-0002'], refetchType: 'none' });
       focusManager.setFocused(false);
       focusManager.setFocused(true);
-      window.dispatchEvent(new Event('online'));
+      onlineManager.setOnline(false);
+      onlineManager.setOnline(true);
     });
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
+    focusManager.setFocused(undefined);
+    onlineManager.setOnline(true);
     expect(screen.getByRole('heading', { level: 1, name: OLD })).toBeInTheDocument();
     expect(screen.queryByRole('heading', { level: 1, name: NEW })).not.toBeInTheDocument();
+  });
+
+  it('does not call a decision out of date when it was fetched after the last reading of the list', async () => {
+    const patch = { current: {} as Record<string, Moved> };
+    const { client, user } = renderApp('/', { fetch: movingFetch(() => patch.current) });
+    await screen.findByRole('link', { name: OLD });
+    await waitFor(() => expect(client.getQueryData(['adrs', ''])).toBeDefined());
+    // The decision was edited after the list was read; opening it now loads the newer version.
+    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW, where: 'detail' } };
+    await user.click(screen.getByRole('link', { name: OLD }));
+    expect(await screen.findByRole('heading', { level: 1, name: NEW })).toBeInTheDocument();
+    expect(screen.queryByText('Changed since you opened this')).not.toBeInTheDocument();
+  });
+
+  it('reopening a decision shows the version on disk now, without a flash of the old text', async () => {
+    const patch = { current: {} as Record<string, Moved> };
+    const { user } = renderApp('/adr/ADR-0002', { fetch: movingFetch(() => patch.current) });
+    await screen.findByRole('heading', { level: 1, name: OLD });
+    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW, where: 'detail' } };
+    await user.click(screen.getByRole('link', { name: /All decisions/ }));
+    await screen.findByRole('link', { name: OLD });
+    await user.click(screen.getByRole('link', { name: OLD }));
+    expect(await screen.findByRole('heading', { level: 1, name: NEW })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: OLD })).not.toBeInTheDocument();
   });
 
   it('shows the new version, and says "Updated", once Reload is pressed', async () => {
@@ -77,18 +106,7 @@ describe('A decision that changes while it is open', () => {
     await user.click(screen.getByRole('button', { name: 'Reload' }));
     expect(await screen.findByRole('heading', { level: 1, name: NEW })).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
-  });
-
-  it('does not take the notice away by itself while the decision is out of date', async () => {
-    const patch = { current: {} as Record<string, Moved> };
-    const { client } = await openDecision(patch);
-    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW } };
-    await pollList(client);
-    await screen.findByText('Changed since you opened this');
-    await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 150));
-    });
-    expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
+    expect(document.getElementById('main')).toHaveFocus();
   });
 
   it('leaves the open decision alone when another one changes', async () => {
@@ -98,7 +116,7 @@ describe('A decision that changes while it is open', () => {
     await pollList(client);
     await waitFor(() => expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0001 changed.'));
     expect(screen.queryByText('Changed since you opened this')).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Reload' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Reload/ })).not.toBeInTheDocument();
   });
 
   it('still says so on the page when change notifications are off, but sends no notice', async () => {

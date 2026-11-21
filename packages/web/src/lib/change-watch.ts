@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { EMPTY_FILTERS } from './filters.ts';
 import { useAdrs } from './queries.ts';
 import { useSettings } from './settings.ts';
@@ -54,25 +54,26 @@ export function useChangeWatch(): {
     const ids = changedIds(before, next);
     if (ids.length > 0) setState((s) => ({ changed: new Set([...s.changed, ...ids]), version: s.version + 1 }));
   }, [data, collecting]);
-  return {
-    changed: [...state.changed].sort(),
-    version: state.version,
-    dismiss: () => setState((s) => ({ changed: new Set(), version: s.version })),
-    forget: (id) =>
+  const dismiss = useCallback(() => setState((s) => ({ changed: new Set(), version: s.version })), []);
+  const forget = useCallback(
+    (id: string) =>
       setState((s) =>
         s.changed.has(id) ? { changed: new Set([...s.changed].filter((x) => x !== id)), version: s.version } : s,
       ),
-  };
+    [],
+  );
+  return { changed: [...state.changed].sort(), version: state.version, dismiss, forget };
 }
 
 /**
- * Whether the decision on screen (loaded at revision `shown`) has changed since, according to the list the app keeps
- * refreshing. A decision that has left the list counts as changed. Unlike the notice, this is a state of the page, so it
- * does not depend on the notifications setting.
+ * Whether the decision on screen has changed since it was loaded, according to the list the app keeps refreshing. Only a
+ * reading of the list taken at or after the decision was loaded can say so: an older one predates what the reader sees.
+ * A decision that has left the list counts as changed. Unlike the notice, this is a state of the page, so it does not
+ * depend on the notifications setting.
  */
-export function useChangedSinceOpened(id: string, shown: string | null | undefined): boolean {
-  const { data } = useAdrs(EMPTY_FILTERS);
-  if (!data || shown === undefined) return false;
+export function useChangedSinceOpened(id: string, shown: { revision?: string | null; loadedAt: number }): boolean {
+  const { data, dataUpdatedAt } = useAdrs(EMPTY_FILTERS);
+  if (!data || shown.revision === undefined || dataUpdatedAt < shown.loadedAt) return false;
   const latest = data.results.find((row) => row.id === id)?.revision ?? null;
-  return latest !== shown;
+  return latest !== shown.revision;
 }

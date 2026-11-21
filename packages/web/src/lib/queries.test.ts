@@ -42,6 +42,8 @@ describe('query polling', () => {
     expect(options?.refetchInterval).toBe(false);
     expect(options?.refetchOnWindowFocus).toBe(false);
     expect(options?.refetchOnReconnect).toBe(false);
+    expect(options?.staleTime).toBe(Number.POSITIVE_INFINITY);
+    expect(options?.gcTime).toBe(0);
   });
 
   it('changes the interval of mounted queries when the setting changes', async () => {

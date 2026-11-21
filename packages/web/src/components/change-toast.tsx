@@ -33,10 +33,12 @@ export function ChangeToast({
   const { changed, version, dismiss, forget } = useChangeWatch();
   const client = useQueryClient();
   const match = useMatch('/adr/:id');
-  const openId = match?.params.id === undefined ? undefined : decodeURIComponent(match.params.id);
+  // The router has already decoded the id.
+  const openId = match?.params.id;
   // The decision on screen, as loaded: the notice is about the version the reader is looking at, not the latest one.
-  const shown = useAdr(openId ?? '').data?.revision;
-  const outOfDate = useChangedSinceOpened(openId ?? '', shown);
+  const adr = useAdr(openId ?? '');
+  const shown = adr.data?.revision;
+  const outOfDate = useChangedSinceOpened(openId ?? '', { revision: shown, loadedAt: adr.dataUpdatedAt });
   const openChanged = openId !== undefined && changed.includes(openId) && outOfDate;
   // Once the page shows the latest version, by either Reload, the notice about it is stale.
   useEffect(() => {
@@ -80,6 +82,8 @@ export function ChangeToast({
     if (!openId) return;
     handFocusToPage();
     await client.refetchQueries({ queryKey: ['adr', openId] });
+    // A failed reload leaves the old version on screen, so the notice stays and nothing is "Updated".
+    if (client.getQueryState(['adr', openId])?.status === 'error') return;
     forget(openId);
     setUpdated(true);
   };
@@ -102,7 +106,7 @@ export function ChangeToast({
         {showChanges ? message(changed, openChanged ? openId : undefined) : updated ? 'Updated.' : null}
       </p>
       {showChanges && openChanged && (
-        <Button size="sm" onClick={() => void reload()} aria-label={`Reload ${openId}`}>
+        <Button onClick={() => void reload()} aria-label={`Reload ${openId}`}>
           Reload
         </Button>
       )}

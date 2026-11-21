@@ -9,14 +9,14 @@ import { renderApp } from '@/test/render.tsx';
 import { ChangeToast } from './change-toast.tsx';
 
 /** The toast alone, against a fetch that can change its answers between polls. */
-function renderToast(fetchImpl: typeof fetch, dismissAfterMs?: number) {
+function renderToast(fetchImpl: typeof fetch, dismissAfterMs?: number, route = '/') {
   vi.stubGlobal('fetch', fetchImpl);
   const client = new QueryClient({
     defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
   });
   render(
     <QueryClientProvider client={client}>
-      <MemoryRouter>
+      <MemoryRouter initialEntries={[route]}>
         <ChangeToast dismissAfterMs={dismissAfterMs} />
         <main id="main" tabIndex={-1} />
       </MemoryRouter>
@@ -202,6 +202,59 @@ describe('The change toast', () => {
     await screen.findByText('ADR-0002 changed.');
     act(() => updateSettings({ changeNotifications: false }));
     await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
+  });
+
+  it('does not take a notice about the decision being read away by itself', async () => {
+    const patch = { current: {} as Record<string, Moved> };
+    const { client } = renderToast(
+      movingFetch(() => patch.current),
+      30,
+      '/adr/ADR-0002',
+    );
+    await waitFor(() => expect(client.getQueryData(['adr', 'ADR-0002'])).toBeDefined());
+    await firstReading(client);
+    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef' } };
+    await poll(client);
+    await screen.findByRole('button', { name: 'Reload ADR-0002' });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    });
+    expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
+  });
+
+  it('copes with a literal percent sign in the decision id', async () => {
+    const patch = { current: {} as Record<string, Moved> };
+    const { client } = renderToast(
+      movingFetch(() => patch.current),
+      undefined,
+      '/adr/100%25',
+    );
+    await firstReading(client);
+    expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement();
+  });
+
+  it('does not say "Updated" when the reload failed', async () => {
+    const patch = { current: {} as Record<string, Moved> };
+    let failing = false;
+    const inner = movingFetch(() => patch.current);
+    const { client, user } = renderToast(
+      (async (input, init) =>
+        failing && String(input).startsWith('/api/adrs/ADR-0002')
+          ? new Response(JSON.stringify({ error: { code: 'X', message: 'down' } }), { status: 500 })
+          : inner(input, init)) as typeof fetch,
+      undefined,
+      '/adr/ADR-0002',
+    );
+    await waitFor(() => expect(client.getQueryData(['adr', 'ADR-0002'])).toBeDefined());
+    await firstReading(client);
+    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef' } };
+    await poll(client);
+    failing = true;
+    await user.click(await screen.findByRole('button', { name: 'Reload ADR-0002' }));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(screen.getByTestId('change-toast')).not.toHaveTextContent('Updated.');
   });
 
   it('gives focus to the page when the button that had it goes away', async () => {
