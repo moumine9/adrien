@@ -186,7 +186,7 @@ export function DecisionsView() {
           <h2 id="results-heading" className="sr-only">
             Results
           </h2>
-          {adrs.isPending ? (
+          {adrs.isPending || meta.isPending ? (
             <LoadingBlocks label="Loading decisions" count={4} />
           ) : adrs.isError ? (
             <ErrorState title="Could not load the decisions" error={adrs.error} onRetry={() => adrs.refetch()} />

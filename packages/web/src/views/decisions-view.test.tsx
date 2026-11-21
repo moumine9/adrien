@@ -1,5 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react';
 import { failingFetch, hangingFetch, renderApp } from '@/test/render.tsx';
+import { createMockFetch } from '../../mock/handler.ts';
 
 const location = () => screen.getByTestId('location').textContent;
 const cards = () => screen.getAllByRole('article');
@@ -129,5 +130,19 @@ describe('Decisions view', () => {
   it('warns about a fork with no shared history', async () => {
     renderApp('/', { variant: 'fork' });
     expect(await screen.findByRole('alert')).toHaveTextContent('shares no history with the default branch');
+  });
+});
+
+describe('Decisions view while the log has not said whether statuses are verified', () => {
+  it('draws no card, so none flashes as unverified, until it has', async () => {
+    const inner = createMockFetch('default');
+    const metaNeverAnswers: typeof fetch = (input, init) =>
+      String(input).startsWith('/api/meta') ? new Promise<Response>(() => {}) : inner(input, init);
+    renderApp('/', { fetch: metaNeverAnswers });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    });
+    expect(screen.queryAllByRole('article')).toHaveLength(0);
+    expect(screen.getByRole('status', { name: 'Loading decisions' })).toBeInTheDocument();
   });
 });

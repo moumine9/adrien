@@ -3,13 +3,12 @@ import { Check, ChevronDown, Copy, Lock, Tag } from 'lucide-react';
 import { useId, useState } from 'react';
 import { Link } from 'react-router';
 import { Chip, InCheckoutBadge, LocalEditBadge, type LocalEditKind, STATUS_ICONS } from '@/components/badges.tsx';
-import { PendingBand } from '@/components/pending-band.tsx';
+import { DecisionSurface } from '@/components/decision-surface.tsx';
 import { ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { EMPTY_FILTERS } from '@/lib/filters.ts';
-import { useAdrs } from '@/lib/queries.ts';
-import { isRetired, STATUS_STYLES } from '@/lib/status.ts';
-import { cn } from '@/lib/utils.ts';
+import { useAdrs, useMeta } from '@/lib/queries.ts';
+import { bindingOf, isRetired, STATUS_STYLES, type Verification, verificationOf } from '@/lib/status.ts';
 
 /** The order of the columns. It is not the order statuses are counted in (`STATUS_ORDER`). */
 const COLUMNS: readonly Status[] = ['proposed', 'accepted', 'rejected', 'superseded', 'deprecated'];
@@ -95,25 +94,25 @@ function ApproveDisclosure({ id }: { id: string }) {
   );
 }
 
-function BoardCard({ row, localEdit }: { row: AdrRow; localEdit?: LocalEditKind }) {
+function BoardCard({
+  row,
+  verification,
+  localEdit,
+}: {
+  row: AdrRow;
+  verification: Verification;
+  localEdit?: LocalEditKind;
+}) {
   const pending = row.layer === 'pending';
-  const retired = isRetired(row.status);
   return (
-    <article
-      className={cn(
-        'flex flex-col overflow-hidden rounded-base border-2 border-border bg-secondary-background',
-        pending && 'border-dashed',
-        !pending && !retired && 'shadow-shadow',
-      )}
-    >
-      {pending && <PendingBand />}
+    <DecisionSurface as="article" binding={bindingOf(row, verification)} retired={isRetired(row.status)}>
       <div className="space-y-3 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-heading tabular-nums">{row.id}</span>
           {pending && <InCheckoutBadge />}
           {localEdit && <LocalEditBadge kind={localEdit} />}
         </div>
-        <h3 className={cn('text-base leading-snug', retired && 'text-muted-foreground')}>
+        <h3 className="text-base leading-snug">
           <Link
             to={`/adr/${encodeURIComponent(row.id)}`}
             className="rounded-base underline-offset-4 outline-none hover:underline hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring"
@@ -132,12 +131,22 @@ function BoardCard({ row, localEdit }: { row: AdrRow; localEdit?: LocalEditKind 
         )}
         {row.status === 'proposed' && <ApproveDisclosure id={row.id} />}
       </div>
-    </article>
+    </DecisionSurface>
   );
 }
 
 /** A column is named by its status and icon, so the status never depends on colour alone. */
-function Column({ status, rows, edits }: { status: Status; rows: AdrRow[]; edits: Map<string, LocalEditKind> }) {
+function Column({
+  status,
+  rows,
+  edits,
+  verification,
+}: {
+  status: Status;
+  rows: AdrRow[];
+  edits: Map<string, LocalEditKind>;
+  verification: Verification;
+}) {
   const headingId = useId();
   const listId = useId();
   const [expanded, setExpanded] = useState(false);
@@ -164,7 +173,11 @@ function Column({ status, rows, edits }: { status: Status; rows: AdrRow[]; edits
           <ul id={listId} className="space-y-4">
             {shown.map((row) => (
               <li key={`${row.layer}:${row.path}`}>
-                <BoardCard row={row} localEdit={row.layer === 'base' ? edits.get(row.path) : undefined} />
+                <BoardCard
+                  row={row}
+                  verification={verification}
+                  localEdit={row.layer === 'base' ? edits.get(row.path) : undefined}
+                />
               </li>
             ))}
           </ul>
@@ -187,6 +200,8 @@ function Column({ status, rows, edits }: { status: Status; rows: AdrRow[]; edits
 
 export function BoardView() {
   const adrs = useAdrs(EMPTY_FILTERS);
+  const meta = useMeta();
+  const verification = verificationOf(meta.data);
   const allRows = adrs.data?.results ?? [];
   const rows = boardRows(allRows);
   const edits = localEditsByPath(allRows);
@@ -203,14 +218,20 @@ export function BoardView() {
         </p>
       </div>
 
-      {adrs.isPending ? (
+      {adrs.isPending || meta.isPending ? (
         <LoadingBlocks label="Loading the board" count={3} />
       ) : adrs.isError ? (
         <ErrorState title="Could not load the board" error={adrs.error} onRetry={() => adrs.refetch()} />
       ) : (
-        <div className="grid grid-cols-1 gap-8 lg:grid-flow-col lg:grid-cols-[none] lg:auto-cols-[minmax(12.5rem,1fr)] lg:items-start lg:gap-5 lg:overflow-x-auto lg:pb-2">
+        <div className="grid grid-cols-1 gap-8 lg:grid-flow-col lg:grid-cols-[none] lg:auto-cols-[minmax(12.5rem,1fr)] lg:items-start lg:gap-5 lg:overflow-x-auto lg:pr-1 lg:pb-2">
           {COLUMNS.map((status) => (
-            <Column key={status} status={status} rows={rows.filter((r) => r.status === status)} edits={edits} />
+            <Column
+              key={status}
+              status={status}
+              rows={rows.filter((r) => r.status === status)}
+              edits={edits}
+              verification={verification}
+            />
           ))}
         </div>
       )}
