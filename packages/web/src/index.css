@@ -308,7 +308,7 @@
 
 /* The keyboard focus outline, in place of the browser's. */
 @utility focus-ring {
-  @apply outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring;
+  @apply outline-none focus-visible:outline-solid focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring;
 }
 
 /* Caution tape, for the banner that says statuses are not verified. */
