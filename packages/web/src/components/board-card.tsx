@@ -1,5 +1,4 @@
 import type { AdrRow } from '@adrien/api/contract';
-import { Tag } from 'lucide-react';
 import { Link } from 'react-router';
 import { ApproveDisclosure } from '@/components/approve-disclosure.tsx';
 import { Chip, InCheckoutBadge, LocalEditBadge, type LocalEditKind } from '@/components/badges.tsx';
@@ -32,7 +31,7 @@ export function BoardCard({
         {row.tags.length > 0 && (
           <div className="flex flex-wrap gap-2">
             {row.tags.map((t) => (
-              <Chip key={t} icon={Tag}>
+              <Chip key={t} iconId="tag">
                 {t}
               </Chip>
             ))}
