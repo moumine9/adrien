@@ -292,13 +292,13 @@
 }
 
 /* The frame of a small object inside a card (a chip, a path, a revision): the 4 px inset radius, so it nests in a card. */
-@utility inset-frame {
+@utility chip-frame {
   @apply rounded-inset border-2 border-border bg-secondary-background;
 }
 
 /* A small label in a frame, with an icon beside its text. */
 @utility pill {
-  @apply caption inset-frame inline-flex items-center gap-2 px-2 py-1 font-heading text-[0.8125rem];
+  @apply caption chip-frame inline-flex items-center gap-2 px-2 py-1 font-heading text-[0.8125rem];
 }
 
 /* How a link answers the pointer: underlined, with a thick line set a little away from the text. */

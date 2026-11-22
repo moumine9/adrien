@@ -14,7 +14,7 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe('frame classes', () => {
-  it.each(['frame', 'panel', 'notice', 'inset-frame', 'pill', 'hover-underline', 'focus-ring'])(
+  it.each(['frame', 'panel', 'notice', 'chip-frame', 'pill', 'hover-underline', 'focus-ring'])(
     'defines the %s utility',
     (name) => {
       expect(css).toMatch(new RegExp(`@utility ${name} \\{`));
@@ -29,8 +29,8 @@ describe('frame classes', () => {
   });
 
   it.each([
-    ['inset-frame', 'rounded-inset border-2 border-border bg-secondary-background'],
-    ['pill', 'inline-flex items-center gap-2 inset-frame'],
+    ['chip-frame', 'rounded-inset border-2 border-border bg-secondary-background'],
+    ['pill', 'inline-flex items-center gap-2 chip-frame'],
     ['hover-underline', 'hover:underline hover:decoration-2'],
     ['focus-ring', 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring'],
   ])('uses %s instead of repeating its classes', (_name, classes) => {

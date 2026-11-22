@@ -77,7 +77,7 @@ function ApproveDisclosure({ id }: { id: string }) {
       <div className="space-y-3 border-t border-rule p-4">
         <p className="text-sm">Approving is a merge: set the status to accepted in a merge request.</p>
         <div className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 break-all inset-frame px-2 py-1 font-mono text-sm">{command}</code>
+          <code className="min-w-0 break-all chip-frame px-2 py-1 font-mono text-sm">{command}</code>
           <Button variant="neutral" size="sm" onClick={copy}>
             {copied === 'copied' ? <Check aria-hidden strokeWidth={2.5} /> : <Copy aria-hidden strokeWidth={2.5} />}
             {copied === 'copied' ? 'Copied' : 'Copy'}
