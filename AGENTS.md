@@ -38,8 +38,8 @@ Before changing code, call the `adr_for_files` MCP tool with the files you will 
 
 ## Web code conventions (`packages/web/src`)
 
-Repeated styles are named `@utility` classes in `index.css` (ADR-0028, proposed), not long `className` chains. One component per
-file, except small components that belong together (ADR-0029, proposed). No wrapper element without a job.
+Repeated styles are named `@utility` classes in `index.css` (ADR-0028), not long `className` chains. One component per
+file, except small components that belong together (ADR-0029). No wrapper element without a job.
 
 ## How work flows
 
