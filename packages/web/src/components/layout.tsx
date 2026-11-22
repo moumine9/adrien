@@ -103,7 +103,7 @@ export function Layout() {
             Adrien
           </Link>
           <nav aria-label="Main" className="order-last w-full lg:order-none lg:w-auto">
-            <ul className="flex flex-wrap gap-2">
+            <ul className="grid grid-cols-3 gap-2 lg:flex">
               {NAV.map(({ to, label, icon: Icon, end }) => (
                 <li key={to}>
                   <NavLink
@@ -111,14 +111,14 @@ export function Layout() {
                     end={end}
                     className={({ isActive }) =>
                       cn(
-                        'inline-flex h-10 items-center gap-2 rounded-base border-2 px-4 font-heading whitespace-nowrap',
+                        'inline-flex h-10 w-full items-center justify-center gap-2 rounded-base border-2 px-2 font-heading whitespace-nowrap sm:px-4 lg:w-auto',
                         isActive || (to === '/' && pathname.startsWith('/adr/'))
                           ? 'border-border bg-main text-main-foreground shadow-shadow'
                           : 'border-transparent hover:border-border hover:bg-background',
                       )
                     }
                   >
-                    <Icon aria-hidden className="hidden size-4 opacity-70 lg:block" strokeWidth={2} />
+                    <Icon aria-hidden className="hidden size-4 opacity-70 sm:block" strokeWidth={2} />
                     {label}
                   </NavLink>
                 </li>

@@ -5,6 +5,7 @@ import { useMatch } from 'react-router';
 import { Button } from '@/components/ui/button.tsx';
 import { useChangedSinceOpened, useChangeWatch } from '@/lib/change-watch.ts';
 import { useAdr } from '@/lib/queries.ts';
+import { useSettings } from '@/lib/settings.ts';
 import { cn } from '@/lib/utils.ts';
 
 export const TOAST_SECONDS = 8;
@@ -31,6 +32,7 @@ export function ChangeToast({
   updatedForMs?: number;
 }) {
   const { changed, version, dismiss, forget } = useChangeWatch();
+  const [settings] = useSettings();
   const client = useQueryClient();
   const match = useMatch('/adr/:id');
   // The router has already decoded the id.
@@ -96,11 +98,14 @@ export function ChangeToast({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       className={cn(
-        // On a phone the notice is part of the page, last in the column and sticky to the bottom of the screen: it
-        // takes room at the end instead of covering the text. From sm up it floats over the bottom-left corner.
+        // On a phone the notice is part of the page, last in the column and sticky to the bottom of the screen. Its room
+        // (one bar) is kept whether the toast is shown or not, as long as notifications are on, so the page never changes
+        // length. From sm up it floats over the
+        // bottom-left corner.
         'sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 mx-[max(1rem,env(safe-area-inset-left))] sm:fixed sm:right-auto sm:left-[max(1rem,env(safe-area-inset-left))] sm:mx-0 sm:max-w-md',
+        settings.changeNotifications && 'mb-[max(1rem,env(safe-area-inset-bottom))] h-14 sm:mb-0 sm:h-auto',
         show &&
-          'toast-enter mt-4 mb-[max(1rem,env(safe-area-inset-bottom))] flex items-center gap-2 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-1 pr-1 pl-4 shadow-shadow sm:mt-0 sm:mb-0 sm:gap-4 sm:py-2 sm:pr-2',
+          'toast-enter flex items-center gap-2 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-1 pr-1 pl-4 shadow-shadow sm:gap-4 sm:py-2 sm:pr-2',
         !show && 'pointer-events-none',
       )}
     >

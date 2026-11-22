@@ -2,7 +2,12 @@ import { test } from '@playwright/test';
 import { moveAdr, seedSettings } from './support.ts';
 
 const THEMES = ['light', 'dark'] as const;
-const SIZES = { desktop: { width: 1280, height: 800 }, phone: { width: 390, height: 844 } } as const;
+const SIZES = {
+  desktop: { width: 1280, height: 800 },
+  tablet: { width: 660, height: 800 },
+  phone: { width: 390, height: 844 },
+  narrow: { width: 320, height: 640 },
+} as const;
 const PAGES = { decisions: '/', board: '/#/board', detail: '/#/adr/ADR-0002' } as const;
 
 for (const [sizeName, viewport] of Object.entries(SIZES)) {
