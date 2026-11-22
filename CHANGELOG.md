@@ -1,3 +1,13 @@
+## [0.8.2](https://github.com/moumine9/adrien/compare/v0.8.1...v0.8.2) (2026-11-22)
+
+### Bug Fixes
+
+* **web:** show the keyboard focus ring on the board summary and links ([1fecd1c](https://github.com/moumine9/adrien/commit/1fecd1ccc8ee76672e1e38235b8f537de232bc7f))
+
+### Performance Improvements
+
+* **web:** draw the status edge and dashed shadow without extra elements ([611a9cd](https://github.com/moumine9/adrien/commit/611a9cd18011199728545f74d803d6ca8ae031da))
+
 ## [0.8.1](https://github.com/moumine9/adrien/compare/v0.8.0...v0.8.1) (2026-11-22)
 
 ### Bug Fixes
