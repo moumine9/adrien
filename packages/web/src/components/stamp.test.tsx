@@ -71,3 +71,20 @@ describe('VersionStamp', () => {
     expect(container).toBeEmptyDOMElement();
   });
 });
+
+describe('VersionStamp over time', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('keeps "Changed ... ago" current while the page stays open', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-22T12:00:00Z'));
+    render(<VersionStamp revision={null} modifiedAt="2026-11-22T11:59:20Z" />);
+    expect(screen.getAllByText(/Changed just now/).length).toBeGreaterThan(0);
+    act(() => {
+      vi.advanceTimersByTime(60_000);
+    });
+    expect(screen.getAllByText(/Changed 1 minute ago/).length).toBeGreaterThan(0);
+  });
+});

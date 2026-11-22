@@ -1,11 +1,12 @@
 import { RevisionButton } from '@/components/revision-button.tsx';
 import { useSettings } from '@/lib/settings.ts';
 import { exactTime, relativeTime } from '@/lib/time.ts';
+import { useNow } from '@/lib/use-now.ts';
 import { cn } from '@/lib/utils.ts';
 
 /**
  * When the version in this checkout last changed, and its revision. The time is relative, with the exact one in a tooltip
- * and in the accessible name. The revision is hidden by the "Show revision" setting; with nothing to show, nothing renders.
+ * and in the accessible name, and it moves on while the page stays open. The revision is hidden by the "Show revision" setting; with nothing to show, nothing renders.
  */
 export function VersionStamp({
   revision,
@@ -17,10 +18,11 @@ export function VersionStamp({
   className?: string;
 }) {
   const [settings] = useSettings();
+  const now = useNow();
   const showRevision = settings.showRevision && !!revision;
   if (!modifiedAt && !showRevision) return null;
   const exact = modifiedAt ? exactTime(modifiedAt) : '';
-  const relativeText = modifiedAt ? relativeTime(modifiedAt) : '';
+  const relativeText = modifiedAt ? relativeTime(modifiedAt, now) : '';
   return (
     <p className={cn('flex flex-wrap items-center gap-x-4 gap-y-2 text-sm', className)}>
       {modifiedAt && (
