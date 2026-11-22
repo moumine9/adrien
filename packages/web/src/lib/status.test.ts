@@ -1,5 +1,6 @@
 import type { MetaResponse, Status } from '@adrien/api/contract';
 import {
+  authorityOf,
   bindingOf,
   contrastRatio,
   fileBindingOf,
@@ -99,5 +100,21 @@ describe('isReviewDue', () => {
   it('formats today from local date parts, not UTC', () => {
     expect(localToday(new Date(2026, 0, 5, 23, 59))).toBe('2026-01-05');
     expect(localToday(new Date(2026, 11, 31, 0, 1))).toBe('2026-12-31');
+  });
+});
+
+describe('authorityOf', () => {
+  it('uses the resolved base ref for a binding decision', () => {
+    expect(authorityOf({ status: 'accepted', layer: 'base' }, { ...meta(), baseRef: 'origin/trunk' })).toEqual({
+      binding: 'binding',
+      sentence: 'Binding on origin/trunk.',
+    });
+  });
+
+  it('reports a pending decision even when its status is accepted', () => {
+    expect(authorityOf({ status: 'accepted', layer: 'pending' }, undefined)).toEqual({
+      binding: 'pending',
+      sentence: 'Pending in this checkout and currently not in force.',
+    });
   });
 });
