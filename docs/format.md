@@ -233,7 +233,7 @@ reported as left in place.
 | `stale-anchor`                     | warning  | An anchor matches no file in a checkout.                                                           |
 | `pending-proposed`                 | warning  | (`--mr`) A changed ADR is still `proposed`.                                                        |
 | `review-due`                       | warning  | `review_on` is today or earlier, and the status is not retired (rejected, superseded, deprecated). |
-| `filename-convention`              | warning  | (`--lint`) File name is not `NNNN-lowercase-words.md`.                                             |
+| `filename-convention`              | warning  | (`--lint`) File name is not `<id>-lowercase-words.md`, as `adrien new` writes it.                  |
 | `anchors-not-verified`             | info     | Components with no local checkout.                                                                 |
 
 Exit codes: `0` ok, `1` check errors (or warnings with `--strict`) or duplicate titles on `new`, `2` a usage or
@@ -245,8 +245,8 @@ configuration error, `3` an unexpected error (set `ADRIEN_DEBUG=1` for the stack
 `--strict`. It runs [markdownlint](https://github.com/DavidAnson/markdownlint) over each ADR with settings tuned for
 ADRs (as MADR does: no line-length limit, repeated headings allowed, no required H1 because the title lives in the
 frontmatter), plus four Adrien rules: a template placeholder left in the text, an accepted ADR whose Decision section is
-empty, numbered headings, and a file name that is not `<prefix>NNNN-lowercase-words.md` (`filename-convention`, where the
-prefix is the one in `id_format`; a bare `0007-use-postgres.md` is accepted). Fenced code and inline code are ignored.
+empty, numbered headings, and a file name that is not `<id>-lowercase-words.md` (`filename-convention`, where the id
+follows `id_format`, suffix included: `ADR-0001-RFC-use-postgres.md`; a bare `0007-use-postgres.md` is accepted). Fenced code and inline code are ignored.
 
 ## `adrien export`
 

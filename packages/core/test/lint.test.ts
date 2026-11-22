@@ -1,10 +1,11 @@
 import type { Diagnostic } from '../src/check.ts';
-import { CONFIG_FILE } from '../src/config.ts';
+import { CONFIG_FILE, parseLogConfigText } from '../src/config.ts';
 import { resolveContext } from '../src/context.ts';
 import { bodyTemplate, serializeAdr } from '../src/frontmatter.ts';
+import { formatId } from '../src/ids.ts';
 import { lintAdrs } from '../src/lint.ts';
+import { adrFilePath } from '../src/log.ts';
 import { TEMPLATE_NAMES } from '../src/model.ts';
-import { slugify } from '../src/slug.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 
@@ -140,6 +141,20 @@ test.each([
   'Use 🚀 rockets',
   'x'.repeat(200),
 ])('a file name Adrien writes for the title %j passes filename-convention', async (title) => {
-  const name = `ADR-0001-${slugify(title)}.md`;
-  expect(await lint({ [`docs/adr/${name}`]: adrText({ id: 'ADR-0001', title: 'A' }, filled) })).toEqual([]);
+  const config = configYaml();
+  const path = adrFilePath(parseLogConfigText(config, 'test'), 'ADR-0001', title);
+  expect(await lint({ [path]: adrText({ id: 'ADR-0001', title }, filled) }, config)).toEqual([]);
+});
+
+test('a configured id suffix is part of the file name Adrien writes, and passes filename-convention', async () => {
+  const config = configYaml({ id_format: 'ADR-{n:4}-RFC' });
+  const id = formatId(1, 'ADR-{n:4}-RFC');
+  const path = adrFilePath(parseLogConfigText(config, 'test'), id, 'Use Postgres');
+  expect(path).toBe('docs/adr/ADR-0001-RFC-use-postgres.md');
+  expect(await lint({ [path]: adrText({ id, title: 'Use Postgres' }, filled) }, config)).toEqual([]);
+  const bad = await lint(
+    { 'docs/adr/ADR-0001-RFC-Use-Postgres.md': adrText({ id: 'ADR-0001-RFC', title: 'A' }, filled) },
+    config,
+  );
+  expect(codes(bad)).toEqual([['warning', 'filename-convention', 'ADR-0001-RFC']]);
 });
