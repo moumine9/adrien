@@ -261,6 +261,11 @@
   @apply frame bg-secondary-background;
 }
 
+/* A label too long for a narrow column: it wraps inside its box instead of being cut. For the checkout badges. */
+@utility wrap-label {
+  @apply max-w-full text-left whitespace-normal;
+}
+
 /* A short line of text in a frame that wraps, for a notice above the content. Add a colour and the vertical padding. */
 @utility notice {
   @apply frame inline-flex flex-wrap items-center gap-2 px-2;

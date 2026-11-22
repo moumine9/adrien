@@ -121,16 +121,16 @@ describe('layouts that must hold on narrow screens', () => {
     expect(src).not.toMatch(/<summary[^>]*(?<![\w-])h-10(?![\w-])/);
   });
 
-  it('only the checkout badges, which have long labels, wrap their label inside the card', () => {
+  it('only the checkout badges, which have long labels, use the wrap-label utility', () => {
     const src = read('components', 'badges.tsx');
-    const wraps = src.match(/const wraps = '([^']*)'/)?.[1] ?? '';
-    expect(wraps).toContain('whitespace-normal');
-    expect(wraps).toContain('max-w-full');
+    expect(css).toMatch(/@utility wrap-label \{[^}]*whitespace-normal[^}]*\}/);
+    expect(css).toMatch(/@utility wrap-label \{[^}]*max-w-full[^}]*\}/);
+    expect(src).not.toContain('const wraps');
     for (const name of ['PendingBadge', 'LocalEditBadge', 'InCheckoutBadge']) {
       const body = src.slice(src.indexOf(`export function ${name}`));
-      expect(body.slice(0, body.indexOf('\n}\n'))).toContain('cn(base, wraps,');
+      expect(body.slice(0, body.indexOf('\n}\n'))).toContain("cn(base, 'wrap-label',");
     }
-    expect(src.match(/cn\(base, wraps,/g)).toHaveLength(3);
+    expect(src.match(/'wrap-label'/g)).toHaveLength(3);
     expect(src.match(/const base = '([^']*)'/)?.[1]).not.toContain('whitespace-normal');
   });
 });

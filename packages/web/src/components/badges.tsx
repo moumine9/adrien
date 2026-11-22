@@ -32,9 +32,6 @@ export const STATUS_ICONS: Record<Status, LucideIcon> = {
 /* Badges sit inside cards, so they take the 4 px inset radius and 8 by 4 padding (horizontal is twice the vertical). */
 const base = 'caption rounded-inset gap-2 px-2 py-1 text-[0.8125rem] font-heading [&>svg]:size-3.5';
 
-/** The checkout badges have long labels: in a narrow board column they wrap inside the card rather than being cut. */
-const wraps = 'max-w-full text-left whitespace-normal';
-
 export function StatusBadge({ status, className }: { status: Status; className?: string }) {
   const style = STATUS_STYLES[status];
   const Icon = STATUS_ICONS[status];
@@ -104,7 +101,7 @@ export function PendingBadge({ kind, className }: { kind: 'added' | 'modified' |
     <Badge
       data-pending={kind}
       title={p.title}
-      className={cn(base, wraps, 'border-dashed bg-secondary-background text-foreground', className)}
+      className={cn(base, 'wrap-label', 'border-dashed bg-secondary-background text-foreground', className)}
     >
       <Icon aria-hidden strokeWidth={2.5} />
       {p.label}
@@ -127,7 +124,7 @@ export function LocalEditBadge({ kind, className }: { kind: LocalEditKind; class
     <Badge
       data-local-edit={kind}
       title={edit.title}
-      className={cn(base, wraps, 'border-dashed bg-secondary-background text-foreground', className)}
+      className={cn(base, 'wrap-label', 'border-dashed bg-secondary-background text-foreground', className)}
     >
       <Icon aria-hidden strokeWidth={2.5} />
       {edit.label}
@@ -140,7 +137,7 @@ export function InCheckoutBadge({ className }: { className?: string }) {
   return (
     <Badge
       title="A change in this checkout. It binds nothing until it is merged."
-      className={cn(base, wraps, 'border-dashed bg-secondary-background text-foreground', className)}
+      className={cn(base, 'wrap-label', 'border-dashed bg-secondary-background text-foreground', className)}
     >
       <GitPullRequestDraft aria-hidden strokeWidth={2.5} />
       Pending in this checkout
