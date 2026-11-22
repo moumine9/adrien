@@ -261,9 +261,13 @@
   @apply frame bg-secondary-background;
 }
 
-/* A label too long for a narrow column: it wraps inside its box instead of being cut. For the checkout badges. */
+/* A label too long for a narrow column: it wraps inside its box instead of being cut. For the checkout badges.
+   `[class]` adds one attribute of specificity, so it wins over the badge's own whitespace-nowrap whatever order
+   Tailwind emits the utilities in (tailwind-merge does not know this class and keeps both). */
 @utility wrap-label {
-  @apply max-w-full text-left whitespace-normal;
+  &[class] {
+    @apply max-w-full text-left whitespace-normal;
+  }
 }
 
 /* A short line of text in a frame that wraps, for a notice above the content. Add a colour and the vertical padding. */

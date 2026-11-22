@@ -123,8 +123,11 @@ describe('layouts that must hold on narrow screens', () => {
 
   it('only the checkout badges, which have long labels, use the wrap-label utility', () => {
     const src = read('components', 'badges.tsx');
-    expect(css).toMatch(/@utility wrap-label \{[^}]*whitespace-normal[^}]*\}/);
-    expect(css).toMatch(/@utility wrap-label \{[^}]*max-w-full[^}]*\}/);
+    const rule = css.slice(css.indexOf('@utility wrap-label'));
+    const block = rule.slice(0, rule.indexOf('\n}\n'));
+    expect(block).toContain('&[class]');
+    expect(block).toContain('whitespace-normal');
+    expect(block).toContain('max-w-full');
     expect(src).not.toContain('const wraps');
     for (const name of ['PendingBadge', 'LocalEditBadge', 'InCheckoutBadge']) {
       const body = src.slice(src.indexOf(`export function ${name}`));

@@ -53,6 +53,10 @@ for (const width of [1024, 1280]) {
       const box = await badge.boundingBox();
       const row = await badge.locator('xpath=..').boundingBox();
       expect((box?.x ?? 0) + (box?.width ?? 0)).toBeLessThanOrEqual((row?.x ?? 0) + (row?.width ?? 0));
+      // And the label inside it is not clipped by the badge's own edge.
+      expect(await badge.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight)).toBe(
+        true,
+      );
     });
   });
 }
