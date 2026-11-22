@@ -1,3 +1,10 @@
+## [0.8.1](https://github.com/moumine9/adrien/compare/v0.8.0...v0.8.1) (2026-11-22)
+
+### Bug Fixes
+
+* **web:** keep the out-of-date banner off a printed decision ([38857a9](https://github.com/moumine9/adrien/commit/38857a94df958e83a1f11244c972702029e6f3a3))
+* **web:** say when decisions cannot be verified against the default branch ([1d8a9e6](https://github.com/moumine9/adrien/commit/1d8a9e64c7645ee6e3f2a948f9b9ecbd62309d76))
+
 ## [0.8.0](https://github.com/moumine9/adrien/compare/v0.7.0...v0.8.0) (2026-11-22)
 
 ### Features
