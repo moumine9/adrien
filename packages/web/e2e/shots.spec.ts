@@ -5,6 +5,7 @@ const THEMES = ['light', 'dark'] as const;
 const SIZES = {
   desktop: { width: 1280, height: 800 },
   tablet: { width: 660, height: 800 },
+  laptop: { width: 1000, height: 800 },
   phone: { width: 390, height: 844 },
   narrow: { width: 320, height: 640 },
 } as const;
