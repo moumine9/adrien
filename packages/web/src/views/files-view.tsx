@@ -35,7 +35,7 @@ export function FilesView() {
         The decisions that apply to each file, binding ones first, with the rule to check the code against.
       </PageHeader>
 
-      <form onSubmit={submit} className="max-w-3xl space-y-3">
+      <form onSubmit={submit} className="max-w-3xl space-y-4">
         <label htmlFor={fieldId} className="block font-heading">
           File paths
         </label>

@@ -13,7 +13,7 @@ const ORIGIN: Record<AdrMeta['origin'], { label: string; icon: typeof Bot }> = {
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid gap-1 border-b border-rule py-3 last:border-b-0">
+    <div className="grid gap-1 border-b border-rule py-2 last:border-b-0">
       <dt className="text-sm font-heading text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words">{children}</dd>
     </div>
@@ -145,7 +145,7 @@ export function FactsPanel({ file, nodes }: { file: AdrFile; nodes: Map<string, 
       </section>
 
       {links.some(([, ids]) => ids.length > 0) && (
-        <section aria-labelledby="links-heading" className="space-y-3">
+        <section aria-labelledby="links-heading" className="space-y-4">
           <h2 id="links-heading" className="text-lg">
             Linked decisions
           </h2>

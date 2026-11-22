@@ -7,7 +7,7 @@ export function FileResult({ entry, hasNotes }: { entry: FileDecisions; hasNotes
   const binding = entry.decisions.filter((d) => d.binding).length;
   return (
     <section aria-label={entry.file} className="overflow-hidden panel shadow-shadow">
-      <header className="space-y-2 border-b border-rule bg-background px-5 py-3">
+      <header className="space-y-2 border-b border-rule bg-background px-5 py-4">
         <div className="flex items-start gap-2">
           <FileCode aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
           <h2 className="min-w-0 flex-1 font-mono text-base font-semibold break-all">{entry.file}</h2>

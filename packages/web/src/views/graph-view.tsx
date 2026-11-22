@@ -83,8 +83,8 @@ export function GraphView() {
           )}
           {visible && visible.edges.length > 0 && (
             <details className="panel">
-              <summary className="cursor-pointer px-4 py-3 font-heading">The links as a list</summary>
-              <ul className="space-y-1 border-t-2 border-border px-4 py-3">
+              <summary className="cursor-pointer px-4 py-4 font-heading">The links as a list</summary>
+              <ul className="space-y-1 border-t-2 border-border px-4 py-4">
                 {visible.edges.map((e) => (
                   <li key={`${e.type}:${e.from}>${e.to}`}>
                     <Link

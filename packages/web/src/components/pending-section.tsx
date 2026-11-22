@@ -22,7 +22,7 @@ export function PendingSection({ data }: { data: AdrResponse }) {
     >
       <PendingBand />
       <div className="space-y-5 p-5 sm:p-6">
-        <div className="space-y-3">
+        <div className="space-y-4">
           <PendingBadge kind={pending.kind} />
           <h2 id="pending-heading" className="text-2xl">
             Pending in this checkout, not binding until merged
@@ -48,7 +48,7 @@ export function PendingSection({ data }: { data: AdrResponse }) {
         {pending.kind === 'modified' && data.base && file && <ChangesPanel before={data.base.meta} after={file.meta} />}
         {pending.kind === 'modified' && file && (
           <details className="panel">
-            <summary className="cursor-pointer px-4 py-3 font-heading">Read the edited text</summary>
+            <summary className="cursor-pointer px-4 py-4 font-heading">Read the edited text</summary>
             <div className="border-t border-rule px-4 py-4">
               <AdrMarkdown source={file.body} resolveFile={resolveFile} />
             </div>

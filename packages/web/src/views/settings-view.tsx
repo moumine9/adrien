@@ -36,7 +36,7 @@ function SwitchRow({
   const hintId = `${id}-hint`;
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <Switch id={id} checked={checked} aria-describedby={hintId} onCheckedChange={onChange} />
         <Label htmlFor={id}>{label}</Label>
       </div>

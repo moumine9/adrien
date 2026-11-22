@@ -31,7 +31,7 @@ export function ErrorState({
       <div className="min-w-0 space-y-2">
         <h2 className="text-lg">{title}</h2>
         <p className="break-words text-muted-foreground">{message}</p>
-        <div className="flex flex-wrap gap-3 pt-1">
+        <div className="flex flex-wrap gap-2 pt-1">
           {onRetry && (
             <Button variant="neutral" onClick={onRetry}>
               Try again
@@ -53,7 +53,7 @@ export function VerificationNotice({ onRetry }: { onRetry: () => void }) {
     <div
       role="status"
       aria-label="Decisions could not be verified"
-      className="flex flex-wrap items-center gap-3 frame bg-caution px-4 py-2 text-ink"
+      className="flex flex-wrap items-center gap-2 frame bg-caution px-4 py-2 text-ink"
     >
       <p className="min-w-0 flex-1">
         Could not check the default branch, so accepted decisions are shown as unverified.

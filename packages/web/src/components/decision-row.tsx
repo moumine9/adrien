@@ -43,7 +43,7 @@ export function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean })
         </Link>
       </h3>
       {d.review_rule && (
-        <p className="max-w-[72ch] border-l-4 border-border pl-3">
+        <p className="max-w-[72ch] border-l-4 border-border pl-4">
           <span className="font-heading">Rule: </span>
           {d.review_rule}
         </p>

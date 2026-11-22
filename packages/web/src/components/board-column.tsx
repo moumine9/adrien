@@ -31,7 +31,7 @@ export function BoardColumn({
     <section aria-labelledby={headingId} className="min-w-0 space-y-4">
       <h2
         id={headingId}
-        className="flex items-center gap-2 frame px-3 py-2 text-lg text-ink"
+        className="flex items-center gap-2 frame px-2 py-2 text-lg text-ink"
         style={{ backgroundColor: fill }}
       >
         <Icon aria-hidden className="size-4 shrink-0" strokeWidth={2.75} />

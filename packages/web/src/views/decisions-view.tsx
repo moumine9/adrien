@@ -132,7 +132,7 @@ export function DecisionsView() {
                 />
               </>
             )}
-            <label className="flex items-center gap-3 font-heading">
+            <label className="flex items-center gap-2 font-heading">
               <Switch checked={filters.pending} onCheckedChange={(on) => update({ pending: on })} />
               Only pending changes
             </label>

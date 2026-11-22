@@ -7,7 +7,7 @@ export function UnverifiedBanner({ meta }: { meta: MetaResponse }) {
     <div role="alert" className="bg-secondary-background">
       {/* The tape strip is the only divide between the header rule above and this banner. */}
       <div aria-hidden className="caution-tape h-2.5" />
-      <div className="mx-auto flex max-w-6xl gap-3 px-4 py-4 sm:px-6">
+      <div className="mx-auto flex max-w-6xl gap-2 px-4 py-4 sm:px-6">
         <TriangleAlert aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
         {meta.baseUnresolved ? (
           <p className="max-w-[80ch]">

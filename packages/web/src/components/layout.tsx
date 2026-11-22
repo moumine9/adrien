@@ -88,12 +88,12 @@ export function Layout() {
       <button
         type="button"
         onClick={() => document.getElementById('main')?.focus()}
-        className="sr-only z-50 panel px-4 py-2 font-heading focus:not-sr-only focus:absolute focus:top-3 focus:left-3"
+        className="sr-only z-50 panel px-4 py-2 font-heading focus:not-sr-only focus:absolute focus:top-2 focus:left-2"
       >
         Skip to content
       </button>
       <header className="border-b-4 border-border bg-secondary-background">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 py-3 sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 py-4 sm:px-6">
           <Link
             to="/"
             className="flex items-center gap-2 rounded-base text-[1.75rem] leading-none font-black tracking-[-0.02em]"
