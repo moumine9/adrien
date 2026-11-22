@@ -1,8 +1,10 @@
 import type { Diagnostic } from '../src/check.ts';
-import { CONFIG_FILE } from '../src/config.ts';
+import { CONFIG_FILE, parseLogConfigText } from '../src/config.ts';
 import { resolveContext } from '../src/context.ts';
 import { bodyTemplate, serializeAdr } from '../src/frontmatter.ts';
+import { formatId } from '../src/ids.ts';
 import { lintAdrs } from '../src/lint.ts';
+import { adrFilePath } from '../src/log.ts';
 import { TEMPLATE_NAMES } from '../src/model.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
@@ -106,4 +108,53 @@ test('numbered headings are flagged', async () => {
 test('only the ADRs in the working tree are linted, and files that do not parse are left to check', async () => {
   const diags = await lint({ 'docs/adr/ADR-0001-a.md': '---\n: bad: [\n---\n##x\n' });
   expect(diags).toEqual([]);
+});
+
+test.each([
+  ['ADR-0001-use-postgres.md'],
+  ['0001-use-postgres.md'],
+  ['2026-03-04-use-postgres.md'],
+  ['ADR-0001.md'],
+  // `adrien new` writes `<id>-<slug>.md`, and a title with no Latin letters has an empty slug.
+  ['ADR-0001-.md'],
+])('the file name %s is accepted by filename-convention', async (name) => {
+  expect(await lint({ [`docs/adr/${name}`]: adrText({ id: 'ADR-0001', title: 'A' }, filled) })).toEqual([]);
+});
+
+test.each([
+  ['ADR-0001-Use-Postgres.md'],
+  ['ADR-0001-use_postgres.md'],
+  ['ADR-0001-use postgres.md'],
+  ['use-postgres.md'],
+])('the file name %s is flagged by filename-convention', async (name) => {
+  const diags = await lint({ [`docs/adr/${name}`]: adrText({ id: 'ADR-0001', title: 'A' }, filled) });
+  expect(codes(diags)).toEqual([['warning', 'filename-convention', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain(name);
+});
+
+test.each([
+  'Utiliser Postgres pour la facturation',
+  "Don't use the cloud: it's 100% risky!",
+  '  --Leading and trailing punctuation--  ',
+  'Café crème à la façon d’Œdipe',
+  '日本語のタイトル',
+  'Use 🚀 rockets',
+  'x'.repeat(200),
+])('a file name Adrien writes for the title %j passes filename-convention', async (title) => {
+  const config = configYaml();
+  const path = adrFilePath(parseLogConfigText(config, 'test'), 'ADR-0001', title);
+  expect(await lint({ [path]: adrText({ id: 'ADR-0001', title }, filled) }, config)).toEqual([]);
+});
+
+test('a configured id suffix is part of the file name Adrien writes, and passes filename-convention', async () => {
+  const config = configYaml({ id_format: 'ADR-{n:4}-RFC' });
+  const id = formatId(1, 'ADR-{n:4}-RFC');
+  const path = adrFilePath(parseLogConfigText(config, 'test'), id, 'Use Postgres');
+  expect(path).toBe('docs/adr/ADR-0001-RFC-use-postgres.md');
+  expect(await lint({ [path]: adrText({ id, title: 'Use Postgres' }, filled) }, config)).toEqual([]);
+  const bad = await lint(
+    { 'docs/adr/ADR-0001-RFC-Use-Postgres.md': adrText({ id: 'ADR-0001-RFC', title: 'A' }, filled) },
+    config,
+  );
+  expect(codes(bad)).toEqual([['warning', 'filename-convention', 'ADR-0001-RFC']]);
 });

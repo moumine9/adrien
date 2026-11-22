@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import type { Diagnostic } from './check.ts';
 import type { Context } from './context.ts';
+import { parseIdFormat } from './ids.ts';
 import type { Adr } from './model.ts';
 import { type LogView, workingAdrs } from './view.ts';
 
@@ -40,9 +41,34 @@ function decisionText(body: string): string | null {
     .trim();
 }
 
-function adrienRules(adr: Adr): Diagnostic[] {
+/**
+ * The file name is the id prefix from the config (or none), a number, the id suffix from the config (or none), then
+ * lowercase dash-separated words. The prefix and suffix are matched literally. The words may be left out, and so may their dash: `adrien new` writes `<id>-<slug>.md`, which is `ADR-0001-.md` for a title
+ * with no Latin letters.
+ */
+const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+function fileNameRule(adr: Adr, prefix: string, suffix: string): Diagnostic[] {
+  const name = basename(adr.path);
+  if (
+    new RegExp(`^(?:${literal(prefix)})?\\d+(?:${literal(suffix)})?(?:-[a-z0-9]+(?:-[a-z0-9]+)*)?-?\\.md$`).test(name)
+  ) {
+    return [];
+  }
+  return [
+    {
+      severity: 'warning',
+      code: 'filename-convention',
+      id: adr.meta.id,
+      path: adr.path,
+      message: `File name ${name} should be ${prefix}NNNN${suffix}-lowercase-words.md (lowercase, dash-separated)`,
+    },
+  ];
+}
+
+function adrienRules(adr: Adr, prefix: string, suffix: string): Diagnostic[] {
   const at = { id: adr.meta.id, path: adr.path };
-  const out: Diagnostic[] = [];
+  const out: Diagnostic[] = [...fileNameRule(adr, prefix, suffix)];
   const text = prose(adr.body);
   const placeholder = PLACEHOLDER.exec(text)?.[0];
   if (placeholder) {
@@ -79,6 +105,7 @@ function adrienRules(adr: Adr): Diagnostic[] {
  */
 export async function lintAdrs(ctx: Context, view: LogView): Promise<Diagnostic[]> {
   const adrs = workingAdrs(view);
+  const { prefix, suffix } = parseIdFormat(ctx.config.id_format);
   const strings = Object.fromEntries(
     adrs.map((adr) => [adr.path, readFileSync(join(ctx.logRoot, ...adr.path.split('/')), 'utf8')]),
   );
@@ -98,7 +125,7 @@ export async function lintAdrs(ctx: Context, view: LogView): Promise<Diagnostic[
         message: `${e.ruleNames[0]} ${e.ruleNames[1]}: ${e.ruleDescription}${detail} (line ${e.lineNumber})`,
       });
     }
-    out.push(...adrienRules(adr));
+    out.push(...adrienRules(adr, prefix, suffix));
   }
   return out;
 }
