@@ -34,7 +34,10 @@ describe('A decision that changes while it is open', () => {
     expect(screen.queryByText('Changed since you opened this')).not.toBeInTheDocument();
     patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW } };
     await pollList(client);
-    expect(await screen.findByText('Changed since you opened this')).toBeInTheDocument();
+    const banner = (await screen.findByText('Changed since you opened this')).closest('p');
+    expect(banner).toBeInTheDocument();
+    // A printout is a record, not a live page: the whole banner stays off the paper, not only its button.
+    expect(banner).toHaveClass('print:hidden');
     expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
     expect(screen.getByRole('heading', { level: 1, name: OLD })).toBeInTheDocument();
   });
