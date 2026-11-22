@@ -236,6 +236,21 @@
   }
 }
 
+/* The frame every object shares: rounded corners and a thick outline. */
+@utility frame {
+  @apply rounded-base border-2 border-border;
+}
+
+/* A frame on the raised surface colour. Add shadow-shadow when it should stand off the page. */
+@utility panel {
+  @apply frame bg-secondary-background;
+}
+
+/* A short line of text in a frame that wraps, for a notice above the content. Add a colour and the vertical padding. */
+@utility notice {
+  @apply frame inline-flex flex-wrap items-center gap-2 px-3;
+}
+
 /* Diagonal hatching: work in progress, not poured yet. Used only for a band along the top of a pending object, never under text. */
 @utility hatch {
   background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 2px, transparent 2px 9px);

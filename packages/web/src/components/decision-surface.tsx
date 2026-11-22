@@ -51,7 +51,7 @@ export function DecisionSurface<T extends ElementType = 'div'>({
       <div
         data-surface-box
         className={cn(
-          'relative flex flex-col overflow-hidden rounded-base border-2 border-border bg-secondary-background',
+          'relative flex flex-col overflow-hidden panel',
           traits.border === 'dashed' && 'border-dashed',
           traits.shadow === 'solid' && 'shadow-shadow',
           interactive &&

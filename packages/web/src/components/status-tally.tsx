@@ -20,7 +20,7 @@ export function StatusTally({
   return (
     <div className="space-y-3">
       {total > 0 && (
-        <div aria-hidden className="flex h-5 overflow-hidden rounded-base border-2 border-border shadow-shadow">
+        <div aria-hidden className="flex h-5 overflow-hidden frame shadow-shadow">
           {STATUS_ORDER.filter((s) => counts.byStatus[s]).map((s) => (
             <div
               key={s}
@@ -43,7 +43,7 @@ export function StatusTally({
                 aria-pressed={on}
                 onClick={() => onToggle(s)}
                 className={cn(
-                  'inline-flex items-center gap-2 rounded-base border-2 border-border py-2 pr-4 pl-2 font-heading',
+                  'inline-flex items-center gap-2 frame py-2 pr-4 pl-2 font-heading',
                   on ? 'text-ink shadow-shadow' : 'bg-secondary-background hover:bg-background',
                 )}
                 style={on ? { backgroundColor: STATUS_STYLES[s].fill } : undefined}

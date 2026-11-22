@@ -51,16 +51,9 @@ function Group({ severity, items }: { severity: Severity; items: Diagnostic[] })
   const s = SEVERITY[severity];
   const headingId = `severity-${severity}`;
   return (
-    <section
-      aria-labelledby={headingId}
-      className="overflow-hidden rounded-base border-2 border-border bg-secondary-background shadow-shadow"
-    >
+    <section aria-labelledby={headingId} className="overflow-hidden panel shadow-shadow">
       <header className="flex flex-wrap items-center gap-3 border-b-2 border-border bg-background px-5 py-3">
-        <span
-          aria-hidden
-          className="grid size-8 place-items-center rounded-base border-2 border-border text-ink"
-          style={{ backgroundColor: s.fill }}
-        >
+        <span aria-hidden className="grid size-8 place-items-center frame text-ink" style={{ backgroundColor: s.fill }}>
           <s.icon className="size-4" strokeWidth={2.5} />
         </span>
         <h2 id={headingId} className="text-xl">

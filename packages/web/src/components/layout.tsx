@@ -62,7 +62,7 @@ function BaseRef({ meta }: { meta: MetaResponse }) {
     <span
       title={title}
       className={cn(
-        'inline-flex h-10 max-w-48 items-center gap-2 rounded-base border-2 border-border px-4 text-sm font-semibold',
+        'inline-flex h-10 max-w-48 items-center gap-2 frame px-4 text-sm font-semibold',
         unverified ? 'bg-caution text-ink' : 'bg-background',
       )}
     >
@@ -124,7 +124,7 @@ export function Layout() {
       <button
         type="button"
         onClick={() => document.getElementById('main')?.focus()}
-        className="sr-only z-50 rounded-base border-2 border-border bg-secondary-background px-4 py-2 font-heading focus:not-sr-only focus:absolute focus:top-3 focus:left-3"
+        className="sr-only z-50 panel px-4 py-2 font-heading focus:not-sr-only focus:absolute focus:top-3 focus:left-3"
       >
         Skip to content
       </button>

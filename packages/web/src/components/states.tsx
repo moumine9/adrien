@@ -20,13 +20,10 @@ export function ErrorState({
 }) {
   const message = error instanceof Error ? error.message : 'Something went wrong.';
   return (
-    <div
-      role="alert"
-      className="flex gap-4 rounded-base border-2 border-border bg-secondary-background p-5 shadow-shadow sm:p-6"
-    >
+    <div role="alert" className="flex gap-4 panel p-5 shadow-shadow sm:p-6">
       <span
         aria-hidden
-        className="grid size-10 shrink-0 place-items-center rounded-base border-2 border-border text-ink"
+        className="grid size-10 shrink-0 place-items-center frame text-ink"
         style={{ backgroundColor: STATUS_STYLES.rejected.fill }}
       >
         <CircleAlert className="size-5" strokeWidth={2.5} />
@@ -56,7 +53,7 @@ export function VerificationNotice({ onRetry }: { onRetry: () => void }) {
     <div
       role="status"
       aria-label="Decisions could not be verified"
-      className="flex flex-wrap items-center gap-3 rounded-base border-2 border-border bg-caution px-4 py-2 text-ink"
+      className="flex flex-wrap items-center gap-3 frame bg-caution px-4 py-2 text-ink"
     >
       <p className="min-w-0 flex-1">
         Could not check the default branch, so accepted decisions are shown as unverified.
