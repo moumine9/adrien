@@ -96,9 +96,11 @@ export function ChangeToast({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       className={cn(
-        'fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-40 sm:right-auto sm:max-w-md',
+        // On a phone the notice is part of the page, last in the column and sticky to the bottom of the screen: it
+        // takes room at the end instead of covering the text. From sm up it floats over the bottom-left corner.
+        'sticky bottom-[max(1rem,env(safe-area-inset-bottom))] z-40 mx-[max(1rem,env(safe-area-inset-left))] sm:fixed sm:right-auto sm:left-[max(1rem,env(safe-area-inset-left))] sm:mx-0 sm:max-w-md',
         show &&
-          'toast-enter flex items-center gap-2 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-1 pr-1 pl-4 shadow-shadow sm:gap-4 sm:py-2 sm:pr-2',
+          'toast-enter mt-4 mb-[max(1rem,env(safe-area-inset-bottom))] flex items-center gap-2 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-1 pr-1 pl-4 shadow-shadow sm:mt-0 sm:mb-0 sm:gap-4 sm:py-2 sm:pr-2',
         !show && 'pointer-events-none',
       )}
     >

@@ -136,4 +136,10 @@ describe('layouts that must hold on narrow screens', () => {
     expect(src.match(/'wrap-label'/g)).toHaveLength(3);
     expect(src.match(/const base = '([^']*)'/)?.[1]).not.toContain('whitespace-normal');
   });
+
+  it('the change toast is in the page flow on phones and floats only from sm up', () => {
+    const src = read('components', 'change-toast.tsx');
+    expect(src).toMatch(/'sticky bottom-\[[^']*sm:fixed /);
+    expect(src).not.toMatch(/'fixed /);
+  });
 });
