@@ -1,6 +1,6 @@
 import type { AdrFile, AdrResponse } from '@adrien/api/contract';
 import { PendingBadge } from '@/components/badges.tsx';
-import { Changes } from '@/components/changes-panel.tsx';
+import { ChangesPanel } from '@/components/changes-panel.tsx';
 import { AdrMarkdown } from '@/components/markdown.tsx';
 import { PendingBand } from '@/components/pending-band.tsx';
 import { useFileResolver } from '@/lib/queries.ts';
@@ -45,7 +45,7 @@ export function PendingSection({ data }: { data: AdrResponse }) {
             </p>
           )}
         </div>
-        {pending.kind === 'modified' && data.base && file && <Changes before={data.base.meta} after={file.meta} />}
+        {pending.kind === 'modified' && data.base && file && <ChangesPanel before={data.base.meta} after={file.meta} />}
         {pending.kind === 'modified' && file && (
           <details className="panel">
             <summary className="cursor-pointer px-4 py-3 font-heading">Read the edited text</summary>

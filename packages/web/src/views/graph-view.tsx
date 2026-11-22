@@ -3,7 +3,7 @@ import { Tag, Waypoints } from 'lucide-react';
 import { useId, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { GraphCanvas } from '@/components/graph-canvas.tsx';
-import { Legend } from '@/components/graph-legend.tsx';
+import { GraphLegend } from '@/components/graph-legend.tsx';
 import { EmptyState, ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Toggle } from '@/components/ui/toggle.tsx';
@@ -73,7 +73,7 @@ export function GraphView() {
               </div>
             </fieldset>
           )}
-          <Legend />
+          <GraphLegend />
           {layout && layout.nodes.length > 0 ? (
             <GraphCanvas layout={layout} titleId={titleId} />
           ) : (

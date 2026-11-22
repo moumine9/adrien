@@ -1,7 +1,7 @@
 import { STATUS_ICONS } from '@/components/badges.tsx';
 import { STATUS_ORDER, STATUS_STYLES } from '@/lib/status.ts';
 
-export function Legend() {
+export function GraphLegend() {
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
       {STATUS_ORDER.map((s) => {

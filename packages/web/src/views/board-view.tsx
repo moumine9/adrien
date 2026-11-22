@@ -1,7 +1,7 @@
 import type { AdrRow, Status } from '@adrien/api/contract';
 import { Lock } from 'lucide-react';
 import type { LocalEditKind } from '@/components/badges.tsx';
-import { Column } from '@/components/board-column.tsx';
+import { BoardColumn } from '@/components/board-column.tsx';
 import { ErrorState, LoadingBlocks, PageHeader, VerificationNotice } from '@/components/states.tsx';
 import { EMPTY_FILTERS } from '@/lib/filters.ts';
 import { useAdrs, useMeta } from '@/lib/queries.ts';
@@ -72,7 +72,7 @@ export function BoardView() {
           {meta.isError && !meta.data && <VerificationNotice onRetry={() => meta.refetch()} />}
           <div className="grid grid-cols-1 gap-8 lg:grid-flow-col lg:grid-cols-[none] lg:auto-cols-[minmax(12.5rem,1fr)] lg:items-start lg:gap-5 lg:overflow-x-auto lg:pr-1 lg:pb-2">
             {COLUMNS.map((status) => (
-              <Column
+              <BoardColumn
                 key={status}
                 status={status}
                 rows={rows.filter((r) => r.status === status)}

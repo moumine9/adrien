@@ -21,7 +21,7 @@ function show(v: unknown): string {
 }
 
 /** What a pending edit changes, field by field: the default branch on the left, this checkout on the right. */
-export function Changes({ before, after }: { before: AdrMeta; after: AdrMeta }) {
+export function ChangesPanel({ before, after }: { before: AdrMeta; after: AdrMeta }) {
   const changed = CHANGED_FIELDS.filter(([k]) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
   if (changed.length === 0) return <p>The frontmatter is unchanged; only the text differs.</p>;
   return (

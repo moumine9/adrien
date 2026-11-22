@@ -9,7 +9,7 @@ import { STATUS_STYLES, type Verification } from '@/lib/status.ts';
 const COLUMN_LIMIT = 15;
 
 /** A column is named by its status and icon, so the status never depends on colour alone. */
-export function Column({
+export function BoardColumn({
   status,
   rows,
   edits,
