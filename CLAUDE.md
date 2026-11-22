@@ -17,6 +17,6 @@ person's explicit word; the orchestrator merges, under the rules in `AGENTS.md`,
 
 ## The PR watcher
 
-Start one with the Agent tool: `model: "haiku"`, `run_in_background: true`. Tell it to run the local script
-(`.local/pr-watch/pr-watch.mjs` in the main checkout: untracked, so a branch switch does not change it), to hand back on
-every event except `timeout`, and to wait for your instructions. Resume it with `SendMessage` to give it a fix to implement (it hands the fix back unpushed; push only after the sage has reviewed it) or the word to continue. It reports `ready`; the orchestrator then merges (see `AGENTS.md`).
+A Haiku watcher (`model: "haiku"`, `run_in_background: true`) runs a local script that reports when a pull request needs
+a decision. It never merges, force-pushes or tags, and pushes a fix only on the orchestrator's word; the orchestrator
+merges under the rules in `AGENTS.md`.
