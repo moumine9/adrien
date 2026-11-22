@@ -38,7 +38,7 @@ function RuleBlock({ rule, binding }: { rule: string | undefined; binding: Bindi
     <section
       aria-labelledby="rule-heading"
       className={cn(
-        'overflow-hidden rounded-base border-2 border-border',
+        'overflow-hidden frame',
         strong ? 'bg-foreground text-background shadow-shadow' : 'bg-secondary-background',
         binding === 'pending' && 'border-dashed',
       )}
@@ -105,10 +105,7 @@ function FactsPanel({ file, nodes }: { file: AdrFile; nodes: Map<string, GraphNo
   ];
   return (
     <div className="space-y-6">
-      <section
-        aria-labelledby="facts-heading"
-        className="rounded-base border-2 border-border bg-secondary-background px-5 py-2"
-      >
+      <section aria-labelledby="facts-heading" className="panel px-5 py-2">
         <h2 id="facts-heading" className="sr-only">
           Facts
         </h2>
@@ -249,7 +246,7 @@ function Changes({ before, after }: { before: AdrMeta; after: AdrMeta }) {
       {changed.map(([k, label]) => (
         <div key={k} className="grid gap-2 sm:grid-cols-[8rem_1fr_1fr]">
           <dt className="font-heading">{label}</dt>
-          <dd className="rounded-base border-2 border-border bg-secondary-background p-3">
+          <dd className="panel p-3">
             <span className="block text-sm font-heading text-muted-foreground">On the default branch</span>
             {show(before[k])}
           </dd>
@@ -300,7 +297,7 @@ function PendingSection({ data }: { data: AdrResponse }) {
         </div>
         {pending.kind === 'modified' && data.base && file && <Changes before={data.base.meta} after={file.meta} />}
         {pending.kind === 'modified' && file && (
-          <details className="rounded-base border-2 border-border bg-secondary-background">
+          <details className="panel">
             <summary className="cursor-pointer px-4 py-3 font-heading">Read the edited text</summary>
             <div className="border-t border-rule px-4 py-4">
               <AdrMarkdown source={file.body} resolveFile={resolveFile} />
@@ -401,7 +398,7 @@ export function DecisionView() {
         <p className="text-lg font-heading">{sentence}</p>
         <VersionStamp revision={data.revision} modifiedAt={data.modifiedAt} />
         {outOfDate && (
-          <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-caution px-3 py-1 text-ink print:hidden">
+          <p className="notice bg-caution py-1 text-ink print:hidden">
             <span className="font-heading">Changed since you opened this</span>
             <Button
               variant="neutral"
@@ -416,7 +413,7 @@ export function DecisionView() {
           </p>
         )}
         {m.status === 'superseded' && m.superseded_by && (
-          <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-secondary-background px-3 py-2">
+          <p className="notice bg-secondary-background py-2">
             <Replace aria-hidden className="size-4" strokeWidth={2.5} />
             Replaced by
             <Link
@@ -436,10 +433,7 @@ export function DecisionView() {
       <div className="decision-record-content grid gap-8 lg:grid-cols-12">
         <section
           aria-label="Decision record"
-          className={cn(
-            'min-w-0 rounded-base border-2 border-border bg-secondary-background p-5 sm:p-8 lg:col-span-8 lg:self-start',
-            onlyPending && 'border-dashed',
-          )}
+          className={cn('min-w-0 panel p-5 sm:p-8 lg:col-span-8 lg:self-start', onlyPending && 'border-dashed')}
         >
           {primary.body.trim() ? (
             <AdrMarkdown source={primary.body} resolveFile={resolveFile} />

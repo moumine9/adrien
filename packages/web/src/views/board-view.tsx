@@ -65,7 +65,7 @@ function ApproveDisclosure({ id }: { id: string }) {
   };
 
   return (
-    <details className="group rounded-base border-2 border-border bg-background">
+    <details className="group frame bg-background">
       <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-base px-4 font-heading outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
         How to approve
         <ChevronDown
@@ -158,7 +158,7 @@ function Column({
     <section aria-labelledby={headingId} className="min-w-0 space-y-4">
       <h2
         id={headingId}
-        className="flex items-center gap-2 rounded-base border-2 border-border px-3 py-2 text-lg text-ink"
+        className="flex items-center gap-2 frame px-3 py-2 text-lg text-ink"
         style={{ backgroundColor: fill }}
       >
         <Icon aria-hidden className="size-4 shrink-0" strokeWidth={2.75} />
@@ -211,7 +211,7 @@ export function BoardView() {
       <title>Board | Adrien</title>
       <PageHeader title="Board">Every decision in the log, grouped by status.</PageHeader>
 
-      <div className="flex gap-3 rounded-base border-2 border-border bg-secondary-background p-4 shadow-shadow">
+      <div className="flex gap-3 panel p-4 shadow-shadow">
         <Lock aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
         <p className="max-w-[72ch]">
           This board is read-only. A decision is approved by merging, never by moving a card.

@@ -6,7 +6,7 @@ import { Switch } from '@/components/ui/switch.tsx';
 import { type RefreshSeconds, type ThemeSetting, useSettings } from '@/lib/settings.ts';
 
 const selectClass =
-  'flex h-10 w-full rounded-base border-2 border-border bg-secondary-background px-3 py-2 text-sm font-base text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 sm:w-64';
+  'flex h-10 w-full panel px-3 py-2 text-sm font-base text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 sm:w-64';
 
 interface Option {
   value: string;

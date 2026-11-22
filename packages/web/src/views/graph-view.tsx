@@ -61,7 +61,7 @@ function Legend() {
 function GraphCanvas({ layout, titleId }: { layout: GraphLayout; titleId: string }) {
   const { width, height } = layout;
   return (
-    <div className="overflow-x-auto rounded-base border-2 border-border bg-secondary-background shadow-shadow">
+    <div className="overflow-x-auto panel shadow-shadow">
       <svg
         aria-labelledby={titleId}
         viewBox={`0 0 ${width} ${height}`}
@@ -230,7 +230,7 @@ export function GraphView() {
             </EmptyState>
           )}
           {visible && visible.edges.length > 0 && (
-            <details className="rounded-base border-2 border-border bg-secondary-background">
+            <details className="panel">
               <summary className="cursor-pointer px-4 py-3 font-heading">The links as a list</summary>
               <ul className="space-y-1 border-t-2 border-border px-4 py-3">
                 {visible.edges.map((e) => (

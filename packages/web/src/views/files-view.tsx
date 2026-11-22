@@ -69,10 +69,7 @@ function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean }) {
 function FileResult({ entry, hasNotes }: { entry: FileDecisions; hasNotes: boolean }) {
   const binding = entry.decisions.filter((d) => d.binding).length;
   return (
-    <section
-      aria-label={entry.file}
-      className="overflow-hidden rounded-base border-2 border-border bg-secondary-background shadow-shadow"
-    >
+    <section aria-label={entry.file} className="overflow-hidden panel shadow-shadow">
       <header className="space-y-2 border-b border-rule bg-background px-5 py-3">
         <div className="flex items-start gap-2">
           <FileCode aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
