@@ -51,6 +51,7 @@ describe('Decision view', () => {
     expect(await heading('Use PostgreSQL as the system of record for billing')).toBeInTheDocument();
     const rule = (await heading('The binding rule')).closest('section') as HTMLElement;
     expect(within(rule).getByText(/Persist billing state in PostgreSQL only/)).toBeInTheDocument();
+    expect(screen.getByText('Binding on origin/main.')).toBeInTheDocument();
     expect(screen.getAllByText('Binding').length).toBeGreaterThan(0);
     expect(screen.getByRole('table')).toBeInTheDocument();
 
@@ -85,6 +86,7 @@ describe('Decision view', () => {
     expect(await screen.findByRole('link', { name: /ADR-0011: Publish notification events/ })).toBeInTheDocument();
     const links = (await heading('Linked decisions')).closest('section') as HTMLElement;
     expect(within(links).getByRole('link', { name: /ADR-0003/ })).toHaveAttribute('href', '/adr/ADR-0003');
+    expect(screen.getByText('Replaced by a later decision.')).toBeInTheDocument();
     expect(screen.getByText('The rule, not in force')).toBeInTheDocument();
     await user.click(within(links).getByRole('link', { name: /ADR-0011/ }));
     expect(await heading('Publish notification events to the event bus')).toBeInTheDocument();
@@ -106,6 +108,10 @@ describe('Decision view', () => {
   it('shows a decision that exists only in this checkout as not binding', async () => {
     renderApp('/adr/ADR-0013');
     await heading('Move product search to a dedicated index');
+    expect(screen.getByText('Pending in this checkout and currently not in force.')).toBeInTheDocument();
+    const rule = screen.getByRole('region', { name: 'Proposed rule, not binding' });
+    const changes = screen.getByRole('region', { name: 'Pending in this checkout, not binding until merged' });
+    expect(rule.compareDocumentPosition(changes) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByText('Proposed rule, not binding')).toBeInTheDocument();
     expect(screen.getByText('Not binding')).toBeInTheDocument();
     expect(screen.queryByText('Binding')).toBeNull();
@@ -125,6 +131,7 @@ describe('Decision view', () => {
     await heading('Use PostgreSQL as the system of record for billing');
     await waitFor(() => expect(screen.getByText('The rule, binding if merged')).toBeInTheDocument());
     expect(screen.queryByText('Binding')).toBeNull();
+    expect(screen.getByText('Accepted, but not verified against a default branch.')).toBeInTheDocument();
   });
 
   it('says when the id does not exist, without offering a retry', async () => {
