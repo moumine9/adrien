@@ -20,7 +20,7 @@ export function ChipGroup({
   return (
     <fieldset className="space-y-2">
       <legend className="font-heading">{legend}</legend>
-      <p className="text-sm text-muted-foreground">{hint}</p>
+      <p className="text-muted-foreground">{hint}</p>
       <div className="flex flex-wrap gap-2">
         {values.map((v) => (
           <Toggle

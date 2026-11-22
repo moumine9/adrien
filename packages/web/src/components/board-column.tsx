@@ -38,7 +38,7 @@ export function BoardColumn({
         {label} <span className="tabular-nums">({rows.length})</span>
       </h2>
       {rows.length === 0 ? (
-        <p className="rounded-base border-2 border-dashed border-border p-4 text-sm text-muted-foreground">
+        <p className="rounded-base border-2 border-dashed border-border p-4 text-muted-foreground">
           No decision is {label.toLowerCase()}.
         </p>
       ) : (

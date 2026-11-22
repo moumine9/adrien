@@ -39,7 +39,7 @@ export function FilesView() {
         <label htmlFor={fieldId} className="block font-heading">
           File paths
         </label>
-        <p id={helpId} className="text-sm text-muted-foreground">
+        <p id={helpId} className="text-muted-foreground">
           One per line, relative to the folder where <code className="font-mono">adrien serve</code> was started.
         </p>
         <Textarea

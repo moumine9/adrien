@@ -27,7 +27,7 @@ export function DecisionCard({ row, verification }: { row: AdrListRow; verificat
           </Link>
         </h3>
         {row.review_rule && (
-          <p className="line-clamp-2 max-w-[72ch] border-l-4 border-border pl-4 text-[0.9375rem]">
+          <p className="line-clamp-2 max-w-[72ch] border-l-4 border-border pl-4">
             <span className="font-heading">Rule: </span>
             {row.review_rule}
           </p>
