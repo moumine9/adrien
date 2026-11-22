@@ -12,7 +12,7 @@ import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { ApiRequestError } from '@/lib/api.ts';
 import { useChangedSinceOpened } from '@/lib/change-watch.ts';
 import { useAdr, useFileResolver, useGraph, useMeta } from '@/lib/queries.ts';
-import { type Binding, bindingOf, isReviewDue, STATUS_STYLES, verificationOf } from '@/lib/status.ts';
+import { authorityOf, type Binding, isReviewDue, STATUS_STYLES } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
 
 const ORIGIN: Record<AdrMeta['origin'], { label: string; icon: typeof Bot }> = {
@@ -329,7 +329,6 @@ export function DecisionView() {
   const resolveFile = useFileResolver();
   const meta = useMeta();
   const graph = useGraph();
-  const verification = verificationOf(meta.data);
 
   const back = (
     <Link
@@ -374,13 +373,7 @@ export function DecisionView() {
   }
   const m = primary.meta;
   const onlyPending = !data.base;
-  const binding = bindingOf({ status: m.status, layer: onlyPending ? 'pending' : 'base' }, verification);
-  const authority: Record<Binding, string> = {
-    binding: `Binding on ${meta.data?.baseRef ?? 'the default branch'}.`,
-    pending: 'Pending in this checkout and currently not in force.',
-    unverified: 'Accepted, but not verified against a default branch.',
-    'not-binding': STATUS_STYLES[m.status].meaning,
-  };
+  const { binding, sentence } = authorityOf({ status: m.status, layer: onlyPending ? 'pending' : 'base' }, meta.data);
   const nodes = new Map((graph.data?.nodes ?? []).map((n) => [n.id, n]));
 
   return (
@@ -404,7 +397,7 @@ export function DecisionView() {
         <h1 className="display max-w-[24ch] text-3xl sm:text-5xl" style={{ fontStretch: '115%' }}>
           {m.title}
         </h1>
-        <p className="text-lg font-heading">{authority[binding]}</p>
+        <p className="text-lg font-heading">{sentence}</p>
         <VersionStamp revision={data.revision} modifiedAt={data.modifiedAt} />
         {outOfDate && (
           <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-caution px-3 py-1 text-ink">

@@ -54,6 +54,20 @@ export function bindingOf(adr: { status: Status; layer: 'base' | 'pending' }, ve
   return verification === 'verified' ? 'binding' : 'unverified';
 }
 
+export function authorityOf(
+  adr: Parameters<typeof bindingOf>[0],
+  meta: Pick<MetaResponse, 'mode' | 'baseUnresolved' | 'forkUnresolved' | 'baseRef'> | undefined,
+): { binding: Binding; sentence: string } {
+  const binding = bindingOf(adr, verificationOf(meta));
+  const sentences: Record<Binding, string> = {
+    binding: `Binding on ${meta?.baseRef ?? 'the default branch'}.`,
+    pending: 'Pending in this checkout and currently not in force.',
+    unverified: 'Accepted, but not verified against a default branch.',
+    'not-binding': STATUS_STYLES[adr.status].meaning,
+  };
+  return { binding, sentence: sentences[binding] };
+}
+
 /**
  * For `/api/for`, the server already decides `binding`; it adds `notes` when it could not verify against a default
  * branch, which turns a binding row into an unverified one.
