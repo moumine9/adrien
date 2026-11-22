@@ -3,7 +3,7 @@
 Only the `adrien` package (`packages/cli`) is published. Releases are tagged `vX.Y.Z` and published by the release
 workflow, with provenance, when the tag is pushed.
 
-`main` is protected: every change, a release included, goes through a pull request with the four `test` checks green.
+`main` is protected: every change, a release included, goes through a pull request with the four `test` checks and the `e2e` check green.
 
 ## Steps
 
