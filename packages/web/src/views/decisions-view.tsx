@@ -4,7 +4,8 @@ import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'rea
 import { useSearchParams } from 'react-router';
 import { ChipGroup } from '@/components/chip-group.tsx';
 import { DecisionCard } from '@/components/decision-card.tsx';
-import { EmptyState, ErrorState, LoadingBlocks, PageHeader, VerificationNotice } from '@/components/states.tsx';
+import { ErrorState } from '@/components/error-state.tsx';
+import { EmptyState, LoadingBlocks, PageHeader, VerificationNotice } from '@/components/states.tsx';
 import { StatusTally } from '@/components/status-tally.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';

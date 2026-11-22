@@ -1,7 +1,8 @@
 import type { Diagnostic } from '@adrien/api/contract';
 import { CircleCheckBig, CircleX, Info, type LucideIcon, TriangleAlert } from 'lucide-react';
 import { Link, useSearchParams } from 'react-router';
-import { EmptyState, ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
+import { ErrorState } from '@/components/error-state.tsx';
+import { EmptyState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
 import { Switch } from '@/components/ui/switch.tsx';
 import { useCheck } from '@/lib/queries.ts';
 import { STATUS_STYLES } from '@/lib/status.ts';

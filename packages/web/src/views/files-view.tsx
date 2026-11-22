@@ -1,8 +1,9 @@
 import { Info } from 'lucide-react';
 import { type FormEvent, useEffect, useId, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { ErrorState } from '@/components/error-state.tsx';
 import { FileResult } from '@/components/file-result.tsx';
-import { ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
+import { LoadingBlocks, PageHeader } from '@/components/states.tsx';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Textarea } from '@/components/ui/textarea.tsx';
