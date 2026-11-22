@@ -291,6 +291,26 @@
   line-height: 1.4;
 }
 
+/* The frame of a small object inside a card (a chip, a path, a revision): the 4 px inset radius, so it nests in a card. */
+@utility inset-frame {
+  @apply rounded-inset border-2 border-border bg-secondary-background;
+}
+
+/* A small label in a frame, with an icon beside its text. */
+@utility pill {
+  @apply caption inset-frame inline-flex items-center gap-2 px-2 py-1 font-heading text-[0.8125rem];
+}
+
+/* How a link answers the pointer: underlined, with a thick line set a little away from the text. */
+@utility hover-underline {
+  @apply hover:underline hover:decoration-2 hover:underline-offset-4;
+}
+
+/* The keyboard focus outline, in place of the browser's. */
+@utility focus-ring {
+  @apply outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring;
+}
+
 /* Caution tape, for the banner that says statuses are not verified. */
 @utility caution-tape {
   background-image: repeating-linear-gradient(-45deg, var(--caution) 0 10px, var(--ink) 10px 20px);

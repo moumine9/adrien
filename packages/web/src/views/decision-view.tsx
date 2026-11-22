@@ -73,7 +73,7 @@ function AdrLink({ id, node }: { id: string; node: GraphNode | undefined }) {
   return (
     <Link
       to={`/adr/${encodeURIComponent(id)}`}
-      className="group flex items-start gap-2 rounded-base py-1 hover:underline hover:decoration-2 hover:underline-offset-4"
+      className="group flex items-start gap-2 rounded-base py-1 hover-underline"
     >
       {node && Icon && (
         <span
@@ -329,10 +329,7 @@ export function DecisionView() {
   const graph = useGraph();
 
   const back = (
-    <Link
-      to="/"
-      className="inline-flex items-center gap-2 rounded-base font-heading hover:underline hover:decoration-2 hover:underline-offset-4 print:hidden"
-    >
+    <Link to="/" className="inline-flex items-center gap-2 rounded-base font-heading hover-underline print:hidden">
       <ArrowLeft aria-hidden className="size-4" strokeWidth={2.5} />
       All decisions
     </Link>
@@ -385,7 +382,7 @@ export function DecisionView() {
           <BindingBadge binding={binding} />
           {data.pending && <PendingBadge kind={data.pending.kind} />}
           {m.contested && (
-            <span className="caption inline-flex items-center gap-2 rounded-inset border-2 border-border bg-secondary-background px-2 py-1 text-[0.8125rem] font-heading">
+            <span className="pill">
               <Swords aria-hidden className="size-3.5" strokeWidth={2.5} />
               Contested
             </span>
