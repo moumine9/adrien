@@ -102,8 +102,8 @@ export function Layout() {
             <BrandMark className="size-9 shrink-0" />
             Adrien
           </Link>
-          <nav aria-label="Main" className="order-last -mx-1 w-full overflow-x-auto px-1 pb-1 md:order-none md:w-auto">
-            <ul className="flex gap-2">
+          <nav aria-label="Main" className="order-last w-full lg:order-none lg:w-auto">
+            <ul className="flex flex-wrap gap-2">
               {NAV.map(({ to, label, icon: Icon, end }) => (
                 <li key={to}>
                   <NavLink
@@ -118,7 +118,7 @@ export function Layout() {
                       )
                     }
                   >
-                    <Icon aria-hidden className="hidden size-4 opacity-70 sm:block" strokeWidth={2} />
+                    <Icon aria-hidden className="hidden size-4 opacity-70 lg:block" strokeWidth={2} />
                     {label}
                   </NavLink>
                 </li>

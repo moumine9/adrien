@@ -101,7 +101,7 @@ export function PendingBadge({ kind, className }: { kind: 'added' | 'modified' |
     <Badge
       data-pending={kind}
       title={p.title}
-      className={cn(base, 'border-dashed bg-secondary-background text-foreground', className)}
+      className={cn(base, 'wrap-label', 'border-dashed bg-secondary-background text-foreground', className)}
     >
       <Icon aria-hidden strokeWidth={2.5} />
       {p.label}
@@ -124,7 +124,7 @@ export function LocalEditBadge({ kind, className }: { kind: LocalEditKind; class
     <Badge
       data-local-edit={kind}
       title={edit.title}
-      className={cn(base, 'border-dashed bg-secondary-background text-foreground', className)}
+      className={cn(base, 'wrap-label', 'border-dashed bg-secondary-background text-foreground', className)}
     >
       <Icon aria-hidden strokeWidth={2.5} />
       {edit.label}
@@ -137,7 +137,7 @@ export function InCheckoutBadge({ className }: { className?: string }) {
   return (
     <Badge
       title="A change in this checkout. It binds nothing until it is merged."
-      className={cn(base, 'border-dashed bg-secondary-background text-foreground', className)}
+      className={cn(base, 'wrap-label', 'border-dashed bg-secondary-background text-foreground', className)}
     >
       <GitPullRequestDraft aria-hidden strokeWidth={2.5} />
       Pending in this checkout

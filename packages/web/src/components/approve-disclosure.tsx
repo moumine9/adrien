@@ -19,7 +19,7 @@ export function ApproveDisclosure({ id }: { id: string }) {
 
   return (
     <details className="group frame bg-background">
-      <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-base px-4 font-heading focus-ring [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-base ps-4 pe-2 py-2 text-sm leading-snug font-heading whitespace-nowrap focus-ring [&::-webkit-details-marker]:hidden">
         How to approve
         <ChevronDown
           aria-hidden
