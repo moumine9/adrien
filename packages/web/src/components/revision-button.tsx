@@ -26,7 +26,7 @@ export function RevisionButton({ revision }: { revision: string }) {
         onClick={copy}
         title="Copy revision"
         aria-label={`Copy revision ${revision}`}
-        className="relative z-10 inline-flex items-center gap-1.5 chip-frame px-2 py-0.5 font-mono text-[0.8125rem] outline-none hover:bg-main focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
+        className="relative z-10 inline-flex items-center gap-1 chip-frame px-2 py-0.5 font-mono text-[0.8125rem] outline-none hover:bg-main focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background"
       >
         {copied ? <Check aria-hidden className="size-3.5" /> : <Copy aria-hidden className="size-3.5" />}
         {revision}

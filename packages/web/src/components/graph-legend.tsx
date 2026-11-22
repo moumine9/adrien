@@ -7,7 +7,7 @@ export function GraphLegend() {
       {STATUS_ORDER.map((s) => {
         const Icon = STATUS_ICONS[s];
         return (
-          <span key={s} className="inline-flex items-center gap-1.5 font-semibold">
+          <span key={s} className="inline-flex items-center gap-2 font-semibold">
             <span
               aria-hidden
               className="grid size-5 place-items-center rounded-[3px] border-2 border-border text-ink"

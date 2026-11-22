@@ -59,7 +59,7 @@ export function GraphView() {
                     size="sm"
                     pressed={tags.includes(t)}
                     onPressedChange={() => setTags(toggle(tags, t))}
-                    className="gap-1.5 font-semibold data-pressed:shadow-shadow"
+                    className="gap-2 font-semibold data-pressed:shadow-shadow"
                   >
                     <Tag aria-hidden className="size-3.5" strokeWidth={2.5} />
                     {t}

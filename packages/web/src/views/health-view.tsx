@@ -29,9 +29,9 @@ const ORDER: Severity[] = ['error', 'warning', 'info'];
 
 function DiagnosticItem({ d }: { d: Diagnostic }) {
   return (
-    <li className="space-y-1.5 px-5 py-4">
+    <li className="space-y-2 px-5 py-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <code className="rounded-[3px] border-2 border-border bg-background px-1.5 font-mono text-sm">{d.code}</code>
+        <code className="rounded-[3px] border-2 border-border bg-background px-2 font-mono text-sm">{d.code}</code>
         {d.id && (
           <Link
             to={`/adr/${encodeURIComponent(d.id)}`}

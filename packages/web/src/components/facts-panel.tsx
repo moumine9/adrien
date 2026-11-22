@@ -76,7 +76,7 @@ export function FactsPanel({ file, nodes }: { file: AdrFile; nodes: Map<string, 
           )}
           {m.tags.length > 0 && (
             <Fact label="Tags">
-              <span className="flex flex-wrap gap-1.5">
+              <span className="flex flex-wrap gap-1">
                 {m.tags.map((t) => (
                   <Chip key={t} icon={Tag}>
                     {t}
@@ -87,7 +87,7 @@ export function FactsPanel({ file, nodes }: { file: AdrFile; nodes: Map<string, 
           )}
           {m.components.length > 0 && (
             <Fact label="Components">
-              <span className="flex flex-wrap gap-1.5">
+              <span className="flex flex-wrap gap-1">
                 {m.components.map((c) => (
                   <Chip key={c} icon={Box}>
                     {c}

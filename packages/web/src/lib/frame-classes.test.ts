@@ -42,4 +42,10 @@ describe('frame classes', () => {
     const rule = css.match(/@utility focus-ring \{[^}]*\}/)?.[0] ?? '';
     expect(rule).toContain('focus-visible:outline-solid');
   });
+
+  it('keeps spacing off the 6, 10 and 14 px values', () => {
+    const offScale = /\b(m|p|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap|gap-x|gap-y|space-x|space-y)-(1\.5|2\.5|3\.5)\b/;
+    const offending = sourceFiles(SRC).filter((file) => offScale.test(readFileSync(file, 'utf8')));
+    expect(offending.map((file) => relative(SRC, file))).toEqual([]);
+  });
 });
