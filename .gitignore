@@ -7,4 +7,4 @@ site-dist/
 packages/cli/LICENSE
 packages/cli/README.md
 coverage/
-local.CLAUDE.md
+CLAUDE.local.md
