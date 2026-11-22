@@ -15,7 +15,7 @@ function surface(binding: Binding, extra: { retired?: boolean; interactive?: boo
     band: root.querySelector('.hatch'),
     notch: root.querySelector('[data-surface-notch]'),
     edge: root.querySelector('[data-surface-edge]'),
-    dashedShadow: root.querySelector('[data-surface-shadow="dashed"]'),
+    dashedShadow: root.matches('[data-surface-shadow="dashed"]') ? root : null,
   };
 }
 
@@ -25,7 +25,9 @@ describe('DecisionSurface', () => {
     expect(s.root).toHaveAttribute('data-binding', 'binding');
     expect(s.box).not.toHaveClass('border-dashed');
     expect(s.box).toHaveClass('shadow-shadow');
-    expect(s.edge).toHaveStyle({ backgroundColor: '#3dd68c' });
+    expect(s.edge).toBe(s.box);
+    expect(s.edge).toHaveClass('status-edge');
+    expect(s.edge).toHaveStyle('--edge: #3dd68c');
     expect(s.band).toBeNull();
     expect(s.notch).toBeNull();
     expect(s.dashedShadow).toBeNull();
@@ -36,9 +38,9 @@ describe('DecisionSurface', () => {
     expect(s.root).toHaveAttribute('data-binding', 'unverified');
     expect(s.box).not.toHaveClass('border-dashed');
     expect(s.box).not.toHaveClass('shadow-shadow');
-    expect(s.dashedShadow).toHaveAttribute('aria-hidden', 'true');
-    // Drawn in the colour of the solid shadows, so it is not heavier than they are in the dark theme.
-    expect(s.dashedShadow).toHaveClass('border-(--shadow-color)');
+    // Drawn by the root's own ::before, so it costs no element; in the colour of the solid shadows.
+    expect(s.dashedShadow).toHaveClass('dashed-shadow');
+    expect(s.root.querySelector('span[aria-hidden]:not([data-surface-notch])')).toBeNull();
     expect(s.notch).toHaveAttribute('aria-hidden', 'true');
     expect(s.edge).toBeNull();
   });
@@ -76,7 +78,18 @@ describe('DecisionSurface', () => {
   it('moves into its shadow on hover only when it is interactive, and the dashed shadow goes with it', () => {
     expect(surface('binding').box).not.toHaveClass('group-hover:shadow-none');
     expect(surface('binding', { interactive: true }).box).toHaveClass('group-hover:shadow-none');
-    expect(surface('unverified', { interactive: true }).dashedShadow).toHaveClass('group-hover:opacity-0');
-    expect(surface('unverified').dashedShadow).not.toHaveClass('group-hover:opacity-0');
+    expect(surface('unverified', { interactive: true }).dashedShadow).toHaveClass('hover:before:opacity-0');
+    expect(surface('unverified').dashedShadow).not.toHaveClass('hover:before:opacity-0');
+  });
+
+  it('adds no wrapper around its children, with or without an edge', () => {
+    for (const binding of ['binding', 'unverified', 'not-binding'] as const) {
+      const s = surface(binding);
+      expect(screen.getAllByText('Content').at(-1)?.parentElement).toBe(s.box);
+    }
+    const { box } = surface('binding');
+    expect(box.parentElement).toHaveAttribute('data-binding', 'binding');
+    // The outer element, the box and the children: three levels, nothing else.
+    expect(box.parentElement?.children).toHaveLength(1);
   });
 });

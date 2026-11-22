@@ -1,4 +1,4 @@
-import type { ComponentPropsWithoutRef, ElementType, ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, CSSProperties, ElementType, ReactNode } from 'react';
 import { type Binding, STATUS_STYLES } from '@/lib/status.ts';
 import { surfaceTraits } from '@/lib/surface.ts';
 import { cn } from '@/lib/utils.ts';
@@ -17,8 +17,9 @@ type SurfaceProps<T extends ElementType> = {
 
 /**
  * The frame a decision is drawn in. `surfaceTraits` decides how a binding state looks; this component draws it. The
- * outer element carries the semantics and the dashed shadow of an unverified decision (an outline offset behind the
- * box, which `box-shadow` cannot draw); the box inside clips the band and the edge to its rounded corners.
+ * outer element carries the semantics and the dashed shadow of an unverified decision (its `::before`, an outline
+ * offset behind the box, which `box-shadow` cannot draw); the box inside clips the band and the edge to its rounded
+ * corners. The edge is the box's own `::before`, so neither costs an element.
  */
 export function DecisionSurface<T extends ElementType = 'div'>({
   binding,
@@ -35,23 +36,23 @@ export function DecisionSurface<T extends ElementType = 'div'>({
     <Tag
       data-binding={binding}
       data-retired={retired || undefined}
-      className={cn('group relative', className)}
+      data-surface-shadow={traits.shadow === 'dashed' ? 'dashed' : undefined}
+      className={cn(
+        'group relative',
+        traits.shadow === 'dashed' && 'dashed-shadow',
+        traits.shadow === 'dashed' && interactive && 'hover:before:opacity-0',
+        className,
+      )}
       {...rest}
     >
-      {traits.shadow === 'dashed' && (
-        <span
-          aria-hidden
-          data-surface-shadow="dashed"
-          className={cn(
-            'pointer-events-none absolute inset-0 translate-x-boxShadowX translate-y-boxShadowY rounded-base border-2 border-dashed border-(--shadow-color)',
-            interactive && 'group-hover:opacity-0',
-          )}
-        />
-      )}
       <div
         data-surface-box
+        // Only a binding decision has an edge, and binding means accepted: the colour is the accepted one.
+        data-surface-edge={traits.statusEdge || undefined}
+        style={traits.statusEdge ? ({ '--edge': STATUS_STYLES.accepted.fill } as CSSProperties) : undefined}
         className={cn(
           'relative flex flex-col overflow-hidden panel',
+          traits.statusEdge && 'status-edge',
           traits.border === 'dashed' && 'border-dashed',
           traits.shadow === 'solid' && 'shadow-shadow',
           interactive &&
@@ -67,18 +68,7 @@ export function DecisionSurface<T extends ElementType = 'div'>({
           />
         )}
         {traits.band && <PendingBand />}
-        <div className="flex min-w-0 flex-1">
-          {/* Only a binding decision has an edge, and binding means accepted: the colour is the accepted one. */}
-          {traits.statusEdge && (
-            <div
-              aria-hidden
-              data-surface-edge
-              className="w-2.5 shrink-0 border-r border-rule"
-              style={{ backgroundColor: STATUS_STYLES.accepted.fill }}
-            />
-          )}
-          <div className="min-w-0 flex-1">{children}</div>
-        </div>
+        {children}
       </div>
     </Tag>
   );
