@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { seedSettings } from './support.ts';
+import { moveAdr, seedSettings } from './support.ts';
 
 // The three flaws found on the screenshots, checked as geometry: no tab, button label or badge may be cut or wrapped.
 
@@ -64,3 +64,25 @@ for (const width of [1024, 1280]) {
     });
   });
 }
+
+test('on a phone, the change toast takes room at the end of the page instead of covering it', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await seedSettings(page, { refreshSeconds: 5, changeNotifications: true });
+  const change = await moveAdr(page);
+  await page.goto('/');
+  await page.getByText('Use PostgreSQL as the system of record for billing').first().waitFor();
+  change();
+  await page.getByText('ADR-0002 changed.').first().waitFor({ timeout: 15000 });
+  const container = page.getByTestId('change-toast').locator('xpath=..');
+  // At the top of a long page it is on screen, stuck to the bottom edge.
+  const stuck = await container.boundingBox();
+  expect((stuck?.y ?? 0) + (stuck?.height ?? 0), 'on screen at the top of the page').toBeLessThanOrEqual(844);
+  expect(stuck?.y, 'on screen at the top of the page').toBeGreaterThan(0);
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  const bar = await container.boundingBox();
+  const footer = await page.locator('footer').boundingBox();
+  expect(bar?.y, 'the toast starts below the footer').toBeGreaterThanOrEqual(
+    (footer?.y ?? 0) + (footer?.height ?? 0) + 8,
+  );
+  expect((bar?.y ?? 0) + (bar?.height ?? 0), 'the toast stays inside the screen').toBeLessThanOrEqual(844);
+});
