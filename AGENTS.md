@@ -23,7 +23,7 @@ Before changing code, call the `adr_for_files` MCP tool with the files you will 
   100% statements, branches, functions and lines; remove an unreachable branch rather than ignoring it.
 - **Run the gates yourself** (`lint`, `typecheck`, `test:coverage`) before you say a task is done, and say which you ran.
 - **Conventional Commits.** The changelog is generated from commit subjects, and they are public text.
-- **`main` is protected.** Everything goes through a pull request with the four `test` checks green. Agents do not push to
+- **`main` is protected.** Everything goes through a pull request with the four `test` checks and the `e2e` check green. Agents do not push to
   `main`, tag or publish; the person decides releases. Codex's approval of the exact head commit, with green checks, is the
   owner's go-ahead to merge; a merge is pinned to that commit, and a merge the permission
   classifier refuses is never worked around.
