@@ -1,3 +1,23 @@
+## [0.8.3](https://github.com/moumine9/adrien/compare/v0.8.2...v0.8.3) (2026-11-22)
+
+### Features
+
+* **web:** fade the change toast in ([d6d1800](https://github.com/moumine9/adrien/commit/d6d1800415007ec3df42b8f4808686df3efa0a6e))
+
+### Bug Fixes
+
+* **web:** centre the icons beside text exactly and match the two notice banners ([c1b87ef](https://github.com/moumine9/adrien/commit/c1b87efd63f40bc4e525bbc53e0ef9fca168379b))
+* **web:** keep "Changed ... ago" current while the page stays open ([133656c](https://github.com/moumine9/adrien/commit/133656c58d8ff1644f31e3e64bc82bb93c929743))
+* **web:** keep the nav, the approve button and pending badges whole on narrow screens ([f942cc7](https://github.com/moumine9/adrien/commit/f942cc7382ed76be9d99121929f7ace45540ff3f))
+* **web:** soften placeholder text and icons beside labels, and even out small corner and toggle text sizes ([d9fe80d](https://github.com/moumine9/adrien/commit/d9fe80d242dcb2535e9d24f42c7ce5cb0edf69a3))
+* **web:** set running sentences at the 16 px body size ([75e2420](https://github.com/moumine9/adrien/commit/75e2420bf7eeafc2b7277420bbf2ccbbbde9b192))
+* **web:** show the change toast as one compact line on phones ([2b7ee9f](https://github.com/moumine9/adrien/commit/2b7ee9f886a0fe85ce2da01f8772dfb3835c9a1b))
+* **web:** the change toast takes room at the end of the page on phones ([9d979f3](https://github.com/moumine9/adrien/commit/9d979f330fc1c0e4b42ef3eda328de809be3c368))
+
+### Performance Improvements
+
+* **web:** draw card icons from one shared SVG sprite ([8dfc67f](https://github.com/moumine9/adrien/commit/8dfc67f81601c14e0685181e7b434e8c0599dd6f))
+
 ## [0.8.2](https://github.com/moumine9/adrien/compare/v0.8.1...v0.8.2) (2026-11-22)
 
 ### Bug Fixes
