@@ -251,6 +251,26 @@
   @apply frame inline-flex flex-wrap items-center gap-2 px-3;
 }
 
+/* The dashed shadow of an unverified decision: an outline offset behind the box, drawn by the element's own ::before. */
+@utility dashed-shadow {
+  &::before {
+    content: "";
+    pointer-events: none;
+    @apply absolute inset-0 translate-x-boxShadowX translate-y-boxShadowY rounded-base border-2 border-dashed border-(--shadow-color);
+  }
+}
+
+/* The strip in the status colour along the left edge of a decision in force: the box's ::before, in --edge. */
+@utility status-edge {
+  padding-left: 0.625rem;
+  &::before {
+    content: "";
+    pointer-events: none;
+    @apply absolute inset-y-0 left-0 w-2.5 border-r border-rule;
+    background-color: var(--edge);
+  }
+}
+
 /* Diagonal hatching: work in progress, not poured yet. Used only for a band along the top of a pending object, never under text. */
 @utility hatch {
   background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 2px, transparent 2px 9px);
