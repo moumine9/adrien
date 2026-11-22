@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -40,7 +42,31 @@ beforeEach(() => {
   updateSettings({ changeNotifications: true });
 });
 
+const css = readFileSync(join(__dirname, '..', 'index.css'), 'utf8');
+
 describe('The change toast', () => {
+  it('keeps its offsets clear of the safe area on notched and home-indicator devices', () => {
+    renderToast(movingFetch(() => ({})));
+    const container = screen.getByTestId('change-toast').parentElement;
+    expect(container?.className).toContain('bottom-[max(1rem,env(safe-area-inset-bottom))]');
+  });
+
+  it('fades and rises in when shown, and not otherwise', async () => {
+    let patch: Record<string, Moved> = {};
+    const { client } = renderToast(movingFetch(() => patch));
+    await firstReading(client);
+    expect(screen.getByTestId('change-toast').parentElement?.className).not.toContain('toast-enter');
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
+    await poll(client);
+    await screen.findByText('ADR-0002 changed.');
+    expect(screen.getByTestId('change-toast').parentElement?.className).toContain('toast-enter');
+  });
+
+  it('defines the toast-enter utility and its keyframes in the stylesheet', () => {
+    expect(css).toMatch(/@utility toast-enter \{/);
+    expect(css).toMatch(/@keyframes [\w-]+ \{/);
+  });
+
   it('keeps a live region mounted from the first render, empty until something changes', async () => {
     renderApp('/', { fetch: movingFetch(() => ({})) });
     const region = screen.getByTestId('change-toast');

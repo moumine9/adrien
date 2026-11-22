@@ -96,9 +96,9 @@ export function ChangeToast({
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
       className={cn(
-        'fixed right-4 bottom-4 left-4 z-40 sm:right-auto sm:max-w-md',
+        'fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-40 sm:right-auto sm:max-w-md',
         show &&
-          'flex items-center gap-3 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-2 pr-2 pl-4 shadow-shadow',
+          'toast-enter flex items-center gap-3 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-2 pr-2 pl-4 shadow-shadow',
         !show && 'pointer-events-none',
       )}
     >
