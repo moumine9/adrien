@@ -68,6 +68,7 @@ export function DecisionSurface<T extends ElementType = 'div'>({
         )}
         {traits.band && <PendingBand />}
         <div className="flex min-w-0 flex-1">
+          {/* Only a binding decision has an edge, and binding means accepted: the colour is the accepted one. */}
           {traits.statusEdge && (
             <div
               aria-hidden

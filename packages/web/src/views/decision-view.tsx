@@ -401,11 +401,10 @@ export function DecisionView() {
         <p className="text-lg font-heading">{sentence}</p>
         <VersionStamp revision={data.revision} modifiedAt={data.modifiedAt} />
         {outOfDate && (
-          <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-caution px-3 py-1 text-ink">
+          <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-caution px-3 py-1 text-ink print:hidden">
             <span className="font-heading">Changed since you opened this</span>
             <Button
               variant="neutral"
-              className="print:hidden"
               onClick={() => {
                 // The button goes away when the new version arrives: keep focus on the page.
                 document.getElementById('main')?.focus({ preventScroll: true });
