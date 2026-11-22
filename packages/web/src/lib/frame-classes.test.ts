@@ -103,3 +103,34 @@ describe('icons, placeholders and radii in the shared UI', () => {
     for (const key of ['icon', 'icon-xs', 'icon-sm', 'icon-lg']) expect(lineFor(key)).not.toContain('opacity-70');
   });
 });
+
+describe('layouts that must hold on narrow screens', () => {
+  const read = (...parts: string[]) => readFileSync(join(SRC, ...parts), 'utf8');
+
+  it('the main navigation wraps instead of scrolling, so no tab is cut at the screen edge', () => {
+    const src = read('components', 'layout.tsx');
+    const nav = src.slice(src.indexOf('<nav aria-label="Main"'), src.indexOf('</nav>'));
+    expect(nav).not.toContain('overflow-x-auto');
+    expect(nav).toContain('flex-wrap');
+  });
+
+  it('the approve summary grows with its label rather than clipping it in a fixed height', () => {
+    const src = read('components', 'approve-disclosure.tsx');
+    expect(src).toContain('min-h-10');
+    expect(src).toContain('whitespace-nowrap');
+    expect(src).not.toMatch(/<summary[^>]*(?<![\w-])h-10(?![\w-])/);
+  });
+
+  it('only the checkout badges, which have long labels, wrap their label inside the card', () => {
+    const src = read('components', 'badges.tsx');
+    const wraps = src.match(/const wraps = '([^']*)'/)?.[1] ?? '';
+    expect(wraps).toContain('whitespace-normal');
+    expect(wraps).toContain('max-w-full');
+    for (const name of ['PendingBadge', 'LocalEditBadge', 'InCheckoutBadge']) {
+      const body = src.slice(src.indexOf(`export function ${name}`));
+      expect(body.slice(0, body.indexOf('\n}\n'))).toContain('cn(base, wraps,');
+    }
+    expect(src.match(/cn\(base, wraps,/g)).toHaveLength(3);
+    expect(src.match(/const base = '([^']*)'/)?.[1]).not.toContain('whitespace-normal');
+  });
+});
