@@ -37,4 +37,9 @@ describe('frame classes', () => {
     const repeated = sourceFiles(SRC).filter((file) => readFileSync(file, 'utf8').includes(classes));
     expect(repeated.map((file) => relative(SRC, file))).toEqual([]);
   });
+
+  it('focus-ring sets the outline style back to solid, because outline-none leaves it at none and hides the ring', () => {
+    const rule = css.match(/@utility focus-ring \{[^}]*\}/)?.[0] ?? '';
+    expect(rule).toContain('focus-visible:outline-solid');
+  });
 });
