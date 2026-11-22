@@ -31,7 +31,7 @@ function AdrLink({ id, node }: { id: string; node: GraphNode | undefined }) {
         <span
           data-status={node.status}
           title={STATUS_STYLES[node.status].label}
-          className="mt-1 grid size-5 shrink-0 place-items-center rounded-inset border-2 border-border text-ink"
+          className="mt-[calc((1lh-1.25rem)/2)] grid size-5 shrink-0 place-items-center rounded-inset border-2 border-border text-ink"
           style={{ backgroundColor: STATUS_STYLES[node.status].fill }}
         >
           <Icon aria-hidden className="size-3" strokeWidth={3} />

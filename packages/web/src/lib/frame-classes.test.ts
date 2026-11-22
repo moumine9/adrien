@@ -51,7 +51,7 @@ describe('frame classes', () => {
 
   it('keeps spacing off the 12 px value, which sits between the 8 and 16 px steps', () => {
     const twelvePx =
-      /(?<![\w-])-?(?:m|p|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap|gap-x|gap-y|space-x|space-y|inset|top|right|bottom|left)-3(?![\d.])/;
+      /(?<![\w-])-?(?:m|p|px|py|pt|pb|pl|pr|ps|pe|mx|my|mt|mb|ml|mr|ms|me|gap|gap-x|gap-y|space-x|space-y|inset|inset-x|inset-y|top|right|bottom|left)-3(?![\d.])/;
     const offending = sourceFiles(SRC).filter((file) => twelvePx.test(readFileSync(file, 'utf8')));
     expect(offending.map((file) => relative(SRC, file))).toEqual([]);
     expect(css).not.toMatch(twelvePx);
@@ -61,5 +61,6 @@ describe('frame classes', () => {
     const twoPx = /\b(m|p|px|py|pt|pb|pl|pr|mx|my|mt|mb|ml|mr|gap|gap-x|gap-y|space-x|space-y)-0\.5\b/;
     const offending = sourceFiles(SRC).filter((file) => twoPx.test(readFileSync(file, 'utf8')));
     expect(offending.map((file) => relative(SRC, file))).toEqual([]);
+    expect(css).not.toMatch(twoPx);
   });
 });
