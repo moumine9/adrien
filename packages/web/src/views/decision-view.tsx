@@ -375,6 +375,12 @@ export function DecisionView() {
   const m = primary.meta;
   const onlyPending = !data.base;
   const binding = bindingOf({ status: m.status, layer: onlyPending ? 'pending' : 'base' }, verification);
+  const authority: Record<Binding, string> = {
+    binding: `Binding on ${meta.data?.baseRef ?? 'the default branch'}.`,
+    pending: 'Pending in this checkout and currently not in force.',
+    unverified: 'Accepted, but not verified against a default branch.',
+    'not-binding': STATUS_STYLES[m.status].meaning,
+  };
   const nodes = new Map((graph.data?.nodes ?? []).map((n) => [n.id, n]));
 
   return (
@@ -398,6 +404,7 @@ export function DecisionView() {
         <h1 className="display max-w-[24ch] text-3xl sm:text-5xl" style={{ fontStretch: '115%' }}>
           {m.title}
         </h1>
+        <p className="text-lg font-heading">{authority[binding]}</p>
         <VersionStamp revision={data.revision} modifiedAt={data.modifiedAt} />
         {outOfDate && (
           <p className="inline-flex flex-wrap items-center gap-2 rounded-base border-2 border-border bg-caution px-3 py-1 text-ink">
@@ -429,8 +436,8 @@ export function DecisionView() {
         )}
       </header>
 
-      {onlyPending && <PendingSection data={data} />}
       <RuleBlock rule={m.review_rule} binding={binding} />
+      {onlyPending && <PendingSection data={data} />}
 
       <div className="grid gap-8 lg:grid-cols-12">
         <section
