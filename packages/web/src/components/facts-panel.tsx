@@ -13,7 +13,7 @@ const ORIGIN: Record<AdrMeta['origin'], { label: string; icon: typeof Bot }> = {
 
 function Fact({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="grid gap-1 border-b border-rule py-3 last:border-b-0">
+    <div className="grid gap-1 border-b border-rule py-2 last:border-b-0">
       <dt className="text-sm font-heading text-muted-foreground">{label}</dt>
       <dd className="min-w-0 break-words">{children}</dd>
     </div>
@@ -31,7 +31,7 @@ function AdrLink({ id, node }: { id: string; node: GraphNode | undefined }) {
         <span
           data-status={node.status}
           title={STATUS_STYLES[node.status].label}
-          className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-inset border-2 border-border text-ink"
+          className="mt-[calc((1lh-1.25rem)/2)] grid size-5 shrink-0 place-items-center rounded-inset border-2 border-border text-ink"
           style={{ backgroundColor: STATUS_STYLES[node.status].fill }}
         >
           <Icon aria-hidden className="size-3" strokeWidth={3} />
@@ -145,7 +145,7 @@ export function FactsPanel({ file, nodes }: { file: AdrFile; nodes: Map<string, 
       </section>
 
       {links.some(([, ids]) => ids.length > 0) && (
-        <section aria-labelledby="links-heading" className="space-y-3">
+        <section aria-labelledby="links-heading" className="space-y-4">
           <h2 id="links-heading" className="text-lg">
             Linked decisions
           </h2>

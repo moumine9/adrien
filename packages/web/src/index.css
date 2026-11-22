@@ -263,7 +263,7 @@
 
 /* A short line of text in a frame that wraps, for a notice above the content. Add a colour and the vertical padding. */
 @utility notice {
-  @apply frame inline-flex flex-wrap items-center gap-2 px-3;
+  @apply frame inline-flex flex-wrap items-center gap-2 px-2;
 }
 
 /* The dashed shadow of an unverified decision: an outline offset behind the box, drawn by the element's own ::before. */

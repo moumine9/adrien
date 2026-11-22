@@ -18,7 +18,7 @@ export function StatusTally({
 }) {
   const total = STATUS_ORDER.reduce((n, s) => n + (counts.byStatus[s] ?? 0), 0);
   return (
-    <div className="space-y-3">
+    <div className="space-y-2">
       {total > 0 && (
         <div aria-hidden className="flex h-5 overflow-hidden frame shadow-shadow">
           {STATUS_ORDER.filter((s) => counts.byStatus[s]).map((s) => (

@@ -27,9 +27,9 @@ export function RuleBlock({ rule, binding }: { rule: string | undefined; binding
           {heading[binding]}
         </h2>
         {rule ? (
-          <p className="mt-3 max-w-[60ch] text-xl leading-snug font-semibold sm:text-2xl">{rule}</p>
+          <p className="mt-4 max-w-[60ch] text-xl leading-snug font-semibold sm:text-2xl">{rule}</p>
         ) : (
-          <p className="mt-3 opacity-80">No review rule is written for this decision.</p>
+          <p className="mt-4 opacity-80">No review rule is written for this decision.</p>
         )}
       </div>
     </section>

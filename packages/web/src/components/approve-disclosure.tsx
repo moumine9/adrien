@@ -27,7 +27,7 @@ export function ApproveDisclosure({ id }: { id: string }) {
           strokeWidth={2.5}
         />
       </summary>
-      <div className="space-y-3 border-t border-rule p-4">
+      <div className="space-y-4 border-t border-rule p-4">
         <p className="text-sm">Approving is a merge: set the status to accepted in a merge request.</p>
         <div className="flex flex-wrap items-center gap-2">
           <code className="min-w-0 break-all chip-frame px-2 py-1 font-mono text-sm">{command}</code>

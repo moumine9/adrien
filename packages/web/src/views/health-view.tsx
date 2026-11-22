@@ -30,7 +30,7 @@ const ORDER: Severity[] = ['error', 'warning', 'info'];
 function DiagnosticItem({ d }: { d: Diagnostic }) {
   return (
     <li className="space-y-2 px-5 py-4">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <code className="rounded-[3px] border-2 border-border bg-background px-2 font-mono text-sm">{d.code}</code>
         {d.id && (
           <Link
@@ -52,7 +52,7 @@ function Group({ severity, items }: { severity: Severity; items: Diagnostic[] })
   const headingId = `severity-${severity}`;
   return (
     <section aria-labelledby={headingId} className="overflow-hidden panel shadow-shadow">
-      <header className="flex flex-wrap items-center gap-3 border-b-2 border-border bg-background px-5 py-3">
+      <header className="flex flex-wrap items-center gap-4 border-b-2 border-border bg-background px-5 py-4">
         <span aria-hidden className="grid size-8 place-items-center frame text-ink" style={{ backgroundColor: s.fill }}>
           <s.icon className="size-4" strokeWidth={2.5} />
         </span>
@@ -84,7 +84,7 @@ export function HealthView() {
         anchors, review dates that have passed.
       </PageHeader>
 
-      <label className="flex w-fit items-center gap-3 font-heading">
+      <label className="flex w-fit items-center gap-2 font-heading">
         <Switch
           checked={lint}
           onCheckedChange={(on) => setParams(on ? new URLSearchParams({ lint: '1' }) : new URLSearchParams())}

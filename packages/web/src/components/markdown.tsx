@@ -67,7 +67,7 @@ const components: Components = {
       return (
         <a href={href} target="_blank" rel="noopener noreferrer" {...rest}>
           {children}
-          <ExternalLink aria-hidden className="ml-0.5 inline size-3.5 align-[-2px]" />
+          <ExternalLink aria-hidden className="ml-1 inline size-3.5 align-[-2px]" />
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
       );

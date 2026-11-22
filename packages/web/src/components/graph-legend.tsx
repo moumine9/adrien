@@ -3,7 +3,7 @@ import { STATUS_ORDER, STATUS_STYLES } from '@/lib/status.ts';
 
 export function GraphLegend() {
   return (
-    <div className="flex flex-wrap items-center gap-x-5 gap-y-3 text-sm">
+    <div className="flex flex-wrap items-center gap-x-5 gap-y-4 text-sm">
       {STATUS_ORDER.map((s) => {
         const Icon = STATUS_ICONS[s];
         return (

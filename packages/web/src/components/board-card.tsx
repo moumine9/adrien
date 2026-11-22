@@ -18,7 +18,7 @@ export function BoardCard({
   const pending = row.layer === 'pending';
   return (
     <DecisionSurface as="article" binding={bindingOf(row, verification)} retired={isRetired(row.status)}>
-      <div className="space-y-3 p-4">
+      <div className="space-y-2 p-4">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-heading tabular-nums">{row.id}</span>
           {pending && <InCheckoutBadge />}

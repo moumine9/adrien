@@ -12,7 +12,7 @@ export function DecisionCard({ row, verification }: { row: AdrListRow; verificat
   const binding = bindingOf(row, verification);
   return (
     <DecisionSurface as="article" binding={binding} retired={isRetired(row.status)} interactive data-layer={row.layer}>
-      <div className="space-y-3 p-4 sm:p-5">
+      <div className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-wrap items-center gap-2">
           <span className="mr-1 font-heading tabular-nums">{row.id}</span>
           <StatusBadge status={row.status} />
@@ -28,7 +28,7 @@ export function DecisionCard({ row, verification }: { row: AdrListRow; verificat
           </Link>
         </h3>
         {row.review_rule && (
-          <p className="line-clamp-2 max-w-[72ch] border-l-4 border-border pl-3 text-[0.9375rem]">
+          <p className="line-clamp-2 max-w-[72ch] border-l-4 border-border pl-4 text-[0.9375rem]">
             <span className="font-heading">Rule: </span>
             {row.review_rule}
           </p>

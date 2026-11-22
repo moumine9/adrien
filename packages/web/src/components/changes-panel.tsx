@@ -25,15 +25,15 @@ export function ChangesPanel({ before, after }: { before: AdrMeta; after: AdrMet
   const changed = CHANGED_FIELDS.filter(([k]) => JSON.stringify(before[k]) !== JSON.stringify(after[k]));
   if (changed.length === 0) return <p>The frontmatter is unchanged; only the text differs.</p>;
   return (
-    <dl className="space-y-3">
+    <dl className="space-y-2">
       {changed.map(([k, label]) => (
         <div key={k} className="grid gap-2 sm:grid-cols-[8rem_1fr_1fr]">
           <dt className="font-heading">{label}</dt>
-          <dd className="panel p-3">
+          <dd className="panel p-4">
             <span className="block text-sm font-heading text-muted-foreground">On the default branch</span>
             {show(before[k])}
           </dd>
-          <dd className="rounded-base border-2 border-dashed border-border bg-secondary-background p-3">
+          <dd className="rounded-base border-2 border-dashed border-border bg-secondary-background p-4">
             <span className="block text-sm font-heading text-muted-foreground">In this checkout</span>
             {show(after[k])}
           </dd>

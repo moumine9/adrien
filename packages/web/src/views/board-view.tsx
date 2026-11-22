@@ -56,8 +56,8 @@ export function BoardView() {
       <title>Board | Adrien</title>
       <PageHeader title="Board">Every decision in the log, grouped by status.</PageHeader>
 
-      <div className="flex gap-3 panel p-4 shadow-shadow">
-        <Lock aria-hidden className="mt-0.5 size-5 shrink-0" strokeWidth={2.5} />
+      <div className="flex gap-4 panel p-4 shadow-shadow">
+        <Lock aria-hidden className="mt-[calc((1lh-1.25rem)/2)] size-5 shrink-0" strokeWidth={2.5} />
         <p className="max-w-[72ch]">
           This board is read-only. A decision is approved by merging, never by moving a card.
         </p>
