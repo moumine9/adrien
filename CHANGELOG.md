@@ -1,3 +1,27 @@
+## [0.8.0](https://github.com/moumine9/adrien/compare/v0.7.0...v0.8.0) (2026-11-22)
+
+### Features
+
+* **api:** return each ADR's revision and when it was last modified ([b4d8b19](https://github.com/moumine9/adrien/commit/b4d8b195a6bea7825f2f4606894f3c0e2cda7a0e))
+* **web:** add the change notifications setting ([1523a54](https://github.com/moumine9/adrien/commit/1523a54ea2d8ef0700c3eecd49410efa928ec723))
+* **web:** draw decisions in a frame that matches their binding state ([54a114d](https://github.com/moumine9/adrien/commit/54a114dcde6918dde9917a7fafbb73047e394019))
+* **web:** explain decision authority on the detail page ([d9d8c87](https://github.com/moumine9/adrien/commit/d9d8c87719dc1c9ab1a6f6dadedc28ecf2f54b81))
+* **web:** format ADR detail pages for printing ([21ce4a2](https://github.com/moumine9/adrien/commit/21ce4a2f7d868e5d5db6962d2f3735c00e370d13))
+* **web:** say when the open decision is out of date, and reload it only on request ([8042853](https://github.com/moumine9/adrien/commit/8042853c3086072f00f997df4b0346aeb356c2b2))
+* **web:** show each decision's revision and when it changed, with a Show revision setting ([18545b5](https://github.com/moumine9/adrien/commit/18545b50e3dc9931aaf822e838cb249ef02e10d6))
+* **web:** tell the reader when decisions change while the page is open ([0acd7c2](https://github.com/moumine9/adrien/commit/0acd7c24b356ab685a30cc8f9ce236ac667fc54f))
+
+### Bug Fixes
+
+* **api:** date an unchanged ADR by this checkout, not by the default branch ([0af2ce8](https://github.com/moumine9/adrien/commit/0af2ce84acccb85efeba1da91008ee6839ab2e4e))
+* **core:** date an ADR settled in a merge conflict by that merge ([0b062e5](https://github.com/moumine9/adrien/commit/0b062e564e45841bf4de5dd326791807f9ea1f49))
+* **web:** date a reading of the list by when its request was sent, not when the answer arrived ([0064732](https://github.com/moumine9/adrien/commit/00647324b2966aba259978964dba4b2d8e5f3874))
+* **web:** follow every poll of the list, and keep the send times of the unfiltered list only ([0d2a7d1](https://github.com/moumine9/adrien/commit/0d2a7d19ff05a1239aac63b7b2e6f5c84533cf9c))
+* **web:** give the demo API valid revisions, and none for a deleted decision ([e5ec66f](https://github.com/moumine9/adrien/commit/e5ec66f235070a3a22beb64af4a727a0865c002f))
+* **web:** keep the change notice honest: merge, hold on hover or focus, and honour the setting ([c72905f](https://github.com/moumine9/adrien/commit/c72905f2cd587cba07d4958e5c4f1a7a7ca4de08))
+* **web:** keep the open decision from changing without Reload, and from being called out of date by an older reading ([a493b93](https://github.com/moumine9/adrien/commit/a493b93060089db754c1c4870ebe353a0ff9e3e0))
+* **web:** pause the change notice for hover and focus separately, and clear it when notifications go off ([f4026b6](https://github.com/moumine9/adrien/commit/f4026b61c4883566a49e64c90f2a1deb3b6e6124))
+
 ## [0.7.0](https://github.com/moumine9/adrien/compare/v0.6.0...v0.7.0) (2026-11-20)
 
 ### Features
