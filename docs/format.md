@@ -220,18 +220,21 @@ reported as left in place.
 
 ## `adrien check`
 
-| Code                               | Severity | Meaning                                                                      |
-| ---------------------------------- | -------- | ---------------------------------------------------------------------------- |
-| `parse-error`                      | error    | A file could not be read as an ADR.                                          |
-| `unknown-tag`, `unknown-component` | error    | Not in the config.                                                           |
-| `invalid-anchor`                   | error    | Not `component:glob`, or an unknown component.                               |
-| `duplicate-id`                     | error    | Two ADRs share an id, across the default branch and your changes.            |
-| `broken-link`                      | error    | `supersedes`, `superseded_by` or `related` names an ADR that does not exist. |
-| `supersede-asymmetry`              | error    | One side of a supersession is missing.                                       |
-| `missing-review-rule`              | error    | An accepted ADR has no `review_rule`.                                        |
-| `stale-anchor`                     | warning  | An anchor matches no file in a checkout.                                     |
-| `pending-proposed`                 | warning  | (`--mr`) A changed ADR is still `proposed`.                                  |
-| `anchors-not-verified`             | info     | Components with no local checkout.                                           |
+| Code                               | Severity | Meaning                                                                                            |
+| ---------------------------------- | -------- | -------------------------------------------------------------------------------------------------- |
+| `parse-error`                      | error    | A file could not be read as an ADR.                                                                |
+| `unknown-tag`, `unknown-component` | error    | Not in the config.                                                                                 |
+| `invalid-anchor`                   | error    | Not `component:glob`, or an unknown component.                                                     |
+| `duplicate-id`                     | error    | Two ADRs share an id, across the default branch and your changes.                                  |
+| `broken-link`                      | error    | `supersedes`, `superseded_by` or `related` names an ADR that does not exist.                       |
+| `supersede-asymmetry`              | error    | One side of a supersession is missing.                                                             |
+| `superseded-without-successor`     | warning  | Status is `superseded`, but `superseded_by` is empty and no ADR lists it.                          |
+| `missing-review-rule`              | error    | An accepted ADR has no `review_rule`.                                                              |
+| `stale-anchor`                     | warning  | An anchor matches no file in a checkout.                                                           |
+| `pending-proposed`                 | warning  | (`--mr`) A changed ADR is still `proposed`.                                                        |
+| `review-due`                       | warning  | `review_on` is today or earlier, and the status is not retired (rejected, superseded, deprecated). |
+| `filename-convention`              | warning  | (`--lint`) File name is not `NNNN-lowercase-words.md`.                                             |
+| `anchors-not-verified`             | info     | Components with no local checkout.                                                                 |
 
 Exit codes: `0` ok, `1` check errors (or warnings with `--strict`) or duplicate titles on `new`, `2` a usage or
 configuration error, `3` an unexpected error (set `ADRIEN_DEBUG=1` for the stack).
@@ -241,8 +244,9 @@ configuration error, `3` an unexpected error (set `ADRIEN_DEBUG=1` for the stack
 `adrien lint` (or `adrien check --lint`) reports how the ADRs read, as warnings that never fail the build unless you pass
 `--strict`. It runs [markdownlint](https://github.com/DavidAnson/markdownlint) over each ADR with settings tuned for
 ADRs (as MADR does: no line-length limit, repeated headings allowed, no required H1 because the title lives in the
-frontmatter), plus three Adrien rules: a template placeholder left in the text, an accepted ADR whose Decision section is
-empty, and numbered headings. Fenced code and inline code are ignored.
+frontmatter), plus four Adrien rules: a template placeholder left in the text, an accepted ADR whose Decision section is
+empty, numbered headings, and a file name that is not `<prefix>NNNN-lowercase-words.md` (`filename-convention`, where the
+prefix is the one in `id_format`; a bare `0007-use-postgres.md` is accepted). Fenced code and inline code are ignored.
 
 ## `adrien export`
 

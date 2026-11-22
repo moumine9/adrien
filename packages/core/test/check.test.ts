@@ -218,3 +218,26 @@ test('--here reports a deleted tracked anchor target as stale', async () => {
   rmSync(join(root, 'apps/web/src/a.ts'));
   expect(codes(await checkAt(root, { here: true }))).toEqual([['warning', 'stale-anchor', 'ADR-0001']]);
 });
+
+test('superseded without a superseded_by → superseded-without-successor; deprecated is not that case', async () => {
+  const diags = await check({
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { status: 'superseded' }),
+    'docs/adr/ADR-0002-b.md': ok('ADR-0002', { status: 'deprecated' }),
+  });
+  expect(codes(diags)).toEqual([['warning', 'superseded-without-successor', 'ADR-0001']]);
+});
+
+test('superseded without a superseded_by but listed by a newer ADR → only supersede-asymmetry, once', async () => {
+  const diags = await check({
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { status: 'superseded' }),
+    'docs/adr/ADR-0002-b.md': ok('ADR-0002', { supersedes: ['ADR-0001'] }),
+  });
+  expect(codes(diags)).toEqual([['error', 'supersede-asymmetry', 'ADR-0002']]);
+});
+test('superseded with a successor that lists it → no superseded-without-successor', async () => {
+  const diags = await check({
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { status: 'superseded', superseded_by: 'ADR-0002' }),
+    'docs/adr/ADR-0002-b.md': ok('ADR-0002', { supersedes: ['ADR-0001'] }),
+  });
+  expect(codes(diags)).toEqual([]);
+});

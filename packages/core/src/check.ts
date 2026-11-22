@@ -16,6 +16,7 @@ export type DiagnosticCode =
   | 'duplicate-id'
   | 'broken-link'
   | 'supersede-asymmetry'
+  | 'superseded-without-successor'
   | 'missing-review-rule'
   | 'stale-anchor'
   | 'anchors-not-verified'
@@ -26,7 +27,8 @@ export type DiagnosticCode =
   | 'unfilled-placeholder'
   | 'empty-decision'
   | 'numbered-heading'
-  | 'review-due';
+  | 'review-due'
+  | 'filename-convention';
 
 export interface Diagnostic {
   severity: Severity;
@@ -128,6 +130,16 @@ function checkLinks(adrs: Adr[], out: Diagnostic[]): void {
           message: `${adr.meta.id} supersedes ${oldId}, but ${oldId} is not "superseded" with superseded_by: ${adr.meta.id}`,
         });
       }
+    }
+    // When another ADR lists this one in `supersedes`, `supersede-asymmetry` already reports the missing field.
+    const listed = adrs.some((other) => other.meta.supersedes.includes(adr.meta.id));
+    if (adr.meta.status === 'superseded' && !adr.meta.superseded_by && !listed) {
+      out.push({
+        severity: 'warning',
+        code: 'superseded-without-successor',
+        ...at(adr),
+        message: `${adr.meta.id} is superseded but names no superseded_by: set the ADR that replaces it`,
+      });
     }
     const newId = adr.meta.superseded_by;
     const replacement = newId ? byId.get(newId)?.[0] : undefined;
