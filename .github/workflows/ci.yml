@@ -48,9 +48,9 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm --filter @adrien/web test:e2e
-      # A failure on the runner leaves no screen to look at: keep the traces and screenshots.
+      # A failure on the runner leaves no screen to look at: keep the traces and screenshots (also of a flaky test that passed on retry).
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: ${{ !cancelled() }}
         with:
           name: playwright-results
           path: packages/web/.shots/.results

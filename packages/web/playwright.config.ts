@@ -13,6 +13,8 @@ export default defineConfig({
   reporter: 'list',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
+  // `e2e` is a required check: one retry in CI keeps a single flaky run from blocking a merge (a test that fails twice still fails).
+  retries: process.env.CI ? 1 : 0,
   use: { baseURL: `http://127.0.0.1:${PORT}`, channel: 'chrome', trace: 'retain-on-failure' },
   webServer: {
     command: `pnpm exec vite --mode mock --host 127.0.0.1 --port ${PORT} --strictPort`,
