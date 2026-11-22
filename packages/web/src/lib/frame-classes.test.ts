@@ -107,11 +107,13 @@ describe('icons, placeholders and radii in the shared UI', () => {
 describe('layouts that must hold on narrow screens', () => {
   const read = (...parts: string[]) => readFileSync(join(SRC, ...parts), 'utf8');
 
-  it('the main navigation wraps instead of scrolling, so no tab is cut at the screen edge', () => {
+  it('the main navigation is an even grid below lg instead of scrolling or wrapping, so no tab is cut or left alone', () => {
     const src = read('components', 'layout.tsx');
     const nav = src.slice(src.indexOf('<nav aria-label="Main"'), src.indexOf('</nav>'));
     expect(nav).not.toContain('overflow-x-auto');
-    expect(nav).toContain('flex-wrap');
+    expect(nav).not.toContain('flex-wrap');
+    expect(nav).toContain('grid grid-cols-3');
+    expect(nav).toContain('lg:flex');
   });
 
   it('the approve summary grows with its label rather than clipping it in a fixed height', () => {
@@ -140,6 +142,8 @@ describe('layouts that must hold on narrow screens', () => {
   it('the change toast is in the page flow on phones and floats only from sm up', () => {
     const src = read('components', 'change-toast.tsx');
     expect(src).toMatch(/'sticky bottom-\[[^']*sm:fixed /);
+    // The room for one bar is kept whether the toast is shown or not, so dismissing it never shortens the page.
+    expect(src).toMatch(/settings\.changeNotifications && '[^']*\bh-14\b[^']*sm:h-auto/);
     expect(src).not.toMatch(/'fixed /);
   });
 
