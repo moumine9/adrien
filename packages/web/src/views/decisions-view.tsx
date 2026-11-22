@@ -2,6 +2,7 @@ import type { MetaResponse } from '@adrien/api/contract';
 import { Box, FilePlus2, SearchX, SlidersHorizontal, Tag } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
+import { ChipGroup } from '@/components/chip-group.tsx';
 import { DecisionCard } from '@/components/decision-card.tsx';
 import { EmptyState, ErrorState, LoadingBlocks, PageHeader, VerificationNotice } from '@/components/states.tsx';
 import { StatusTally } from '@/components/status-tally.tsx';
@@ -9,7 +10,6 @@ import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { Switch } from '@/components/ui/switch.tsx';
-import { Toggle } from '@/components/ui/toggle.tsx';
 import {
   activeFilterCount,
   type DecisionFilters,
@@ -23,44 +23,6 @@ import { verificationOf } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
 
 export const SEARCH_DEBOUNCE_MS = 300;
-
-function ChipGroup({
-  legend,
-  hint,
-  values,
-  selected,
-  icon: Icon,
-  onToggle,
-}: {
-  legend: string;
-  hint: string;
-  values: string[];
-  selected: string[];
-  icon: typeof Tag;
-  onToggle: (value: string) => void;
-}) {
-  if (values.length === 0) return null;
-  return (
-    <fieldset className="space-y-2">
-      <legend className="font-heading">{legend}</legend>
-      <p className="text-sm text-muted-foreground">{hint}</p>
-      <div className="flex flex-wrap gap-2">
-        {values.map((v) => (
-          <Toggle
-            key={v}
-            size="sm"
-            pressed={selected.includes(v)}
-            onPressedChange={() => onToggle(v)}
-            className="gap-2 font-semibold data-pressed:shadow-shadow"
-          >
-            <Icon aria-hidden className="size-3.5" strokeWidth={2.5} />
-            {v}
-          </Toggle>
-        ))}
-      </div>
-    </fieldset>
-  );
-}
 
 function summary(meta: MetaResponse): ReactNode {
   const { total, pending } = meta.counts;

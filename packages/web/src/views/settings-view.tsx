@@ -1,17 +1,10 @@
 import type { ReactNode } from 'react';
+import { type Option, SelectRow } from '@/components/select-row.tsx';
 import { PageHeader } from '@/components/states.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Label } from '@/components/ui/label.tsx';
 import { Switch } from '@/components/ui/switch.tsx';
 import { type RefreshSeconds, type ThemeSetting, useSettings } from '@/lib/settings.ts';
-
-const selectClass =
-  'flex h-10 w-full panel px-3 py-2 text-sm font-base text-foreground focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 sm:w-64';
-
-interface Option {
-  value: string;
-  label: string;
-}
 
 const THEME_OPTIONS: Option[] = [
   { value: 'system', label: 'System' },
@@ -26,45 +19,6 @@ const REFRESH_OPTIONS: Option[] = [
   { value: '30', label: '30 seconds' },
   { value: '60', label: '1 minute' },
 ];
-
-function SelectRow({
-  id,
-  label,
-  hint,
-  value,
-  options,
-  onChange,
-}: {
-  id: string;
-  label: string;
-  hint: string;
-  value: string;
-  options: Option[];
-  onChange: (value: string) => void;
-}) {
-  const hintId = `${id}-hint`;
-  return (
-    <div className="space-y-2">
-      <Label htmlFor={id}>{label}</Label>
-      <select
-        id={id}
-        value={value}
-        aria-describedby={hintId}
-        onChange={(event) => onChange(event.target.value)}
-        className={selectClass}
-      >
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-      <p id={hintId} className="text-sm text-muted-foreground">
-        {hint}
-      </p>
-    </div>
-  );
-}
 
 function SwitchRow({
   id,
