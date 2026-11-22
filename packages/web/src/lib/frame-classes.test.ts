@@ -14,14 +14,27 @@ function sourceFiles(dir: string): string[] {
 }
 
 describe('frame classes', () => {
-  it.each(['frame', 'panel', 'notice'])('defines the %s utility', (name) => {
-    expect(css).toMatch(new RegExp(`@utility ${name} \\{`));
-  });
+  it.each(['frame', 'panel', 'notice', 'chip-frame', 'pill', 'hover-underline', 'focus-ring'])(
+    'defines the %s utility',
+    (name) => {
+      expect(css).toMatch(new RegExp(`@utility ${name} \\{`));
+    },
+  );
 
   it('is used instead of repeating the frame, so a change to the frame is made in one place', () => {
     const repeated = sourceFiles(SRC).filter((file) =>
       readFileSync(file, 'utf8').includes('rounded-base border-2 border-border'),
     );
+    expect(repeated.map((file) => relative(SRC, file))).toEqual([]);
+  });
+
+  it.each([
+    ['chip-frame', 'rounded-inset border-2 border-border bg-secondary-background'],
+    ['pill', 'inline-flex items-center gap-2 chip-frame'],
+    ['hover-underline', 'hover:underline hover:decoration-2'],
+    ['focus-ring', 'focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring'],
+  ])('uses %s instead of repeating its classes', (_name, classes) => {
+    const repeated = sourceFiles(SRC).filter((file) => readFileSync(file, 'utf8').includes(classes));
     expect(repeated.map((file) => relative(SRC, file))).toEqual([]);
   });
 });

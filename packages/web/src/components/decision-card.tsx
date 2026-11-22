@@ -22,7 +22,7 @@ export function DecisionCard({ row, verification }: { row: AdrListRow; verificat
         <h3 className="text-lg leading-snug sm:text-xl">
           <Link
             to={`/adr/${encodeURIComponent(row.id)}`}
-            className="outline-none after:absolute after:inset-0 hover:underline hover:decoration-2 hover:underline-offset-4"
+            className="outline-none after:absolute after:inset-0 hover-underline"
           >
             {row.title}
           </Link>

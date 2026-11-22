@@ -66,7 +66,7 @@ function ApproveDisclosure({ id }: { id: string }) {
 
   return (
     <details className="group frame bg-background">
-      <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-base px-4 font-heading outline-none focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring [&::-webkit-details-marker]:hidden">
+      <summary className="flex h-10 cursor-pointer list-none items-center justify-between gap-2 rounded-base px-4 font-heading focus-ring [&::-webkit-details-marker]:hidden">
         How to approve
         <ChevronDown
           aria-hidden
@@ -77,9 +77,7 @@ function ApproveDisclosure({ id }: { id: string }) {
       <div className="space-y-3 border-t border-rule p-4">
         <p className="text-sm">Approving is a merge: set the status to accepted in a merge request.</p>
         <div className="flex flex-wrap items-center gap-2">
-          <code className="min-w-0 break-all rounded-inset border-2 border-border bg-secondary-background px-2 py-1 font-mono text-sm">
-            {command}
-          </code>
+          <code className="min-w-0 break-all chip-frame px-2 py-1 font-mono text-sm">{command}</code>
           <Button variant="neutral" size="sm" onClick={copy}>
             {copied === 'copied' ? <Check aria-hidden strokeWidth={2.5} /> : <Copy aria-hidden strokeWidth={2.5} />}
             {copied === 'copied' ? 'Copied' : 'Copy'}
@@ -113,10 +111,7 @@ function BoardCard({
           {localEdit && <LocalEditBadge kind={localEdit} />}
         </div>
         <h3 className="text-base leading-snug">
-          <Link
-            to={`/adr/${encodeURIComponent(row.id)}`}
-            className="rounded-base underline-offset-4 outline-none hover:underline hover:decoration-2 focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-ring"
-          >
+          <Link to={`/adr/${encodeURIComponent(row.id)}`} className="rounded-base focus-ring hover-underline">
             {row.title}
           </Link>
         </h3>

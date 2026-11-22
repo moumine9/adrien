@@ -36,10 +36,7 @@ function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean }) {
       <div className="flex flex-wrap items-center gap-2">
         <BindingBadge binding={binding} />
         {binding === 'not-binding' && (
-          <span
-            title="Not accepted on the default branch: worth knowing, not a rule."
-            className="caption inline-flex items-center gap-2 rounded-inset border-2 border-border bg-secondary-background px-2 py-1 text-[0.8125rem] font-heading"
-          >
+          <span title="Not accepted on the default branch: worth knowing, not a rule." className="pill">
             <Lightbulb aria-hidden className="size-3.5" strokeWidth={2.5} />
             Hint only
           </span>
@@ -48,10 +45,7 @@ function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean }) {
         {d.pending_kind && <PendingBadge kind={d.pending_kind} />}
       </div>
       <h3 className="text-lg leading-snug">
-        <Link
-          to={`/adr/${encodeURIComponent(d.id)}`}
-          className="hover:underline hover:decoration-2 hover:underline-offset-4"
-        >
+        <Link to={`/adr/${encodeURIComponent(d.id)}`} className="hover-underline">
           <span className="tabular-nums">{d.id}</span> {d.title}
         </Link>
       </h3>
