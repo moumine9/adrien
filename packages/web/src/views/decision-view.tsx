@@ -1,12 +1,13 @@
 import { ArrowLeft, Replace, Swords } from 'lucide-react';
 import { Link, useParams } from 'react-router';
 import { BindingBadge, DueBadge, PendingBadge, StatusBadge } from '@/components/badges.tsx';
+import { ErrorState } from '@/components/error-state.tsx';
 import { FactsPanel } from '@/components/facts-panel.tsx';
 import { AdrMarkdown } from '@/components/markdown.tsx';
 import { PendingSection, pendingFileOf } from '@/components/pending-section.tsx';
 import { RuleBlock } from '@/components/rule-block.tsx';
 import { VersionStamp } from '@/components/stamp.tsx';
-import { ErrorState, LoadingBlocks } from '@/components/states.tsx';
+import { LoadingBlocks } from '@/components/states.tsx';
 import { Button, buttonVariants } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { ApiRequestError } from '@/lib/api.ts';

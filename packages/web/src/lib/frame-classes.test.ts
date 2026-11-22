@@ -158,3 +158,10 @@ describe('layouts that must hold on narrow screens', () => {
     expect(read('components', 'decision-card.tsx')).not.toContain('text-[0.9375rem]');
   });
 });
+
+describe('one component per file (ADR-0029)', () => {
+  it('ErrorState, over 30 lines, has its own file and is not defined in the file of small states', () => {
+    expect(readdirSync(join(SRC, 'components'))).toContain('error-state.tsx');
+    expect(readFileSync(join(SRC, 'components', 'states.tsx'), 'utf8')).not.toContain('function ErrorState');
+  });
+});
