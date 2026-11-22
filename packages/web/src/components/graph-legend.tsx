@@ -10,7 +10,7 @@ export function GraphLegend() {
           <span key={s} className="inline-flex items-center gap-2 font-semibold">
             <span
               aria-hidden
-              className="grid size-5 place-items-center rounded-[3px] border-2 border-border text-ink"
+              className="grid size-5 place-items-center rounded-inset border-2 border-border text-ink"
               style={{ backgroundColor: STATUS_STYLES[s].fill }}
             >
               <Icon className="size-3" strokeWidth={3} />
@@ -33,7 +33,7 @@ export function GraphLegend() {
         Related
       </span>
       <span className="inline-flex items-center gap-2 font-semibold">
-        <span aria-hidden className="hatch inline-block h-4 w-7 rounded-[3px] border-2 border-dashed border-border" />
+        <span aria-hidden className="hatch inline-block h-4 w-7 rounded-inset border-2 border-dashed border-border" />
         Pending in this checkout
       </span>
     </div>

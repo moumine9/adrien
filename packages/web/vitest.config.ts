@@ -9,6 +9,7 @@ export default defineProject({
     name: 'web',
     environment: 'jsdom',
     globals: true,
+    exclude: ['e2e/**', '**/node_modules/**'],
     include: ['src/**/*.test.{ts,tsx}', 'mock/**/*.test.ts'],
     setupFiles: ['./src/test/setup.ts'],
     testTimeout: 20000,

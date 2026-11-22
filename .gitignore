@@ -7,4 +7,5 @@ site-dist/
 packages/cli/LICENSE
 packages/cli/README.md
 coverage/
+packages/web/.shots/
 CLAUDE.local.md

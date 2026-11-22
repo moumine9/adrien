@@ -63,4 +63,43 @@ describe('frame classes', () => {
     expect(offending.map((file) => relative(SRC, file))).toEqual([]);
     expect(css).not.toMatch(twoPx);
   });
+
+  it('dims the icon of a pill, because it sits beside text and must read below the text', () => {
+    const rule = css.match(/@utility pill \{[^}]*\}/)?.[0] ?? '';
+    expect(rule).toContain('[&_svg]:opacity-70');
+  });
+});
+
+describe('icons, placeholders and radii in the shared UI', () => {
+  it.each(['input', 'textarea'])('%s placeholder uses the muted foreground token, not half-opacity text', (name) => {
+    const src = readFileSync(join(SRC, 'components', 'ui', `${name}.tsx`), 'utf8');
+    expect(src).toContain('placeholder:text-muted-foreground');
+    expect(src).not.toContain('placeholder:text-foreground/50');
+  });
+
+  it('graph legend swatches use the inset radius token, not a fixed 3 px', () => {
+    const src = readFileSync(join(SRC, 'components', 'graph-legend.tsx'), 'utf8');
+    expect(src).not.toContain('rounded-[3px]');
+    expect(src.match(/rounded-inset/g)).toHaveLength(2);
+  });
+
+  it('badge icons are dimmed, as they sit beside text', () => {
+    const src = readFileSync(join(SRC, 'components', 'ui', 'badge.tsx'), 'utf8');
+    expect(src).toContain('[&>svg]:opacity-70');
+  });
+
+  it('toggle small text is 0.8125rem (13 px), not 0.8rem', () => {
+    const src = readFileSync(join(SRC, 'components', 'ui', 'toggle.tsx'), 'utf8');
+    expect(src).toContain('text-[0.8125rem]');
+    expect(src).not.toContain('text-[0.8rem]');
+  });
+
+  it('button icons are dimmed only in the sizes that carry text, not in icon-only sizes', () => {
+    const src = readFileSync(join(SRC, 'components', 'ui', 'button.tsx'), 'utf8');
+    const sizes = src.slice(src.indexOf('size: {'), src.indexOf('defaultVariants'));
+    const lineFor = (key: string) =>
+      sizes.split('\n').find((line) => line.trim().replace(/['"]/g, '').startsWith(`${key}:`)) ?? '';
+    for (const key of ['default', 'xs', 'sm', 'lg']) expect(lineFor(key)).toContain('[&_svg]:opacity-70');
+    for (const key of ['icon', 'icon-xs', 'icon-sm', 'icon-lg']) expect(lineFor(key)).not.toContain('opacity-70');
+  });
 });
