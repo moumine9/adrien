@@ -1,7 +1,7 @@
 ---
 id: ADR-0028
 title: Name repeated styling as reusable CSS classes instead of long className chains
-status: proposed
+status: accepted
 date: 2026-11-22
 review_on: 2027-05-22
 tags: [ui]
