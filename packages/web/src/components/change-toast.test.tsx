@@ -51,6 +51,33 @@ describe('The change toast', () => {
     expect(container?.className).toContain('bottom-[max(1rem,env(safe-area-inset-bottom))]');
   });
 
+  it('is a compact single line below the sm breakpoint, and the full notice from sm up', async () => {
+    let patch: Record<string, Moved> = {};
+    const { client } = renderToast(movingFetch(() => patch));
+    await firstReading(client);
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
+    await poll(client);
+    await screen.findByText('ADR-0002 changed.');
+    const container = screen.getByTestId('change-toast').parentElement;
+    expect(container?.className).toContain('py-1');
+    expect(container?.className).toContain('sm:py-2');
+    const text = screen.getByTestId('change-toast');
+    expect(text.className).toContain('truncate');
+    expect(text.className).toContain('sm:whitespace-normal');
+    expect(text.className).toContain('sm:overflow-visible');
+  });
+
+  it('keeps both buttons from shrinking on a narrow screen', async () => {
+    let patch: Record<string, Moved> = {};
+    const { client } = renderToast(movingFetch(() => patch));
+    await firstReading(client);
+    patch = { 'ADR-0002': { revision: 'abcdefabcdef' } };
+    await poll(client);
+    const dismiss = await screen.findByRole('button', { name: 'Dismiss' });
+    expect(dismiss.className).toContain('shrink-0');
+    expect(dismiss.className).not.toContain('size-8');
+  });
+
   it('fades and rises in when shown, and not otherwise', async () => {
     let patch: Record<string, Moved> = {};
     const { client } = renderToast(movingFetch(() => patch));
