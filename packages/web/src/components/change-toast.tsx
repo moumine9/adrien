@@ -98,20 +98,25 @@ export function ChangeToast({
       className={cn(
         'fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-40 sm:right-auto sm:max-w-md',
         show &&
-          'toast-enter flex items-center gap-3 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-2 pr-2 pl-4 shadow-shadow',
+          'toast-enter flex items-center gap-2 rounded-base border-2 border-l-8 border-border border-l-caution bg-secondary-background py-1 pr-1 pl-4 shadow-shadow sm:gap-4 sm:py-2 sm:pr-2',
         !show && 'pointer-events-none',
       )}
     >
-      <p data-testid="change-toast" aria-live="polite" className="flex-1 font-heading">
+      {/* On a phone the notice is one line, cut short with an ellipsis; from sm up it wraps as before. */}
+      <p
+        data-testid="change-toast"
+        aria-live="polite"
+        className="min-w-0 flex-1 truncate font-heading sm:overflow-visible sm:whitespace-normal"
+      >
         {showChanges ? message(changed, openChanged ? openId : undefined) : updated ? 'Updated.' : null}
       </p>
       {showChanges && openChanged && (
-        <Button onClick={() => void reload()} aria-label={`Reload ${openId}`}>
+        <Button onClick={() => void reload()} aria-label={`Reload ${openId}`} className="shrink-0">
           Reload
         </Button>
       )}
       {showChanges && (
-        <Button variant="neutral" size="icon" onClick={close} aria-label="Dismiss" title="Dismiss">
+        <Button variant="neutral" size="icon" onClick={close} aria-label="Dismiss" title="Dismiss" className="shrink-0">
           <X aria-hidden />
         </Button>
       )}
