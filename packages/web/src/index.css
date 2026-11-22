@@ -313,7 +313,7 @@
 
 /* A small label in a frame, with an icon beside its text. */
 @utility pill {
-  @apply caption chip-frame inline-flex items-center gap-2 px-2 py-1 font-heading text-[0.8125rem];
+  @apply caption chip-frame inline-flex items-center gap-2 px-2 py-1 font-heading text-[0.8125rem] [&_svg]:opacity-70;
 }
 
 /* How a link answers the pointer: underlined, with a thick line set a little away from the text. */
