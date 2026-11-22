@@ -8,7 +8,9 @@
     "dev:mock": "vite --mode mock",
     "build": "vite build",
     "build:demo": "vite build --mode demo --outDir dist-demo",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:e2e": "playwright test smoke",
+    "shots": "playwright test shots"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -27,6 +29,7 @@
   },
   "devDependencies": {
     "@adrien/api": "workspace:*",
+    "@playwright/test": "^1.65.1",
     "@tailwindcss/vite": "^4.3.5",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
