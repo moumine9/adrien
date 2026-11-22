@@ -55,10 +55,21 @@ describe('Decisions view', () => {
     expect(within(pending[0] as HTMLElement).getByText('Pending edit')).toBeInTheDocument();
   });
 
+  it('says so when the log cannot say whether decisions are verified', async () => {
+    const inner = createMockFetch('default');
+    const metaFails: typeof fetch = async (input, init) =>
+      String(input).startsWith('/api/meta')
+        ? new Response(JSON.stringify({ error: { code: 'X', message: 'down' } }), { status: 500 })
+        : inner(input, init);
+    renderApp('/', { fetch: metaFails });
+    expect(await screen.findByRole('status', { name: 'Decisions could not be verified' })).toBeInTheDocument();
+  });
+
   it('shows the API error message, and retries', async () => {
     const { user, calls } = renderApp('/', { fetch: failingFetch(500, 'INTERNAL', 'The log could not be read.') });
     expect(await screen.findByText('Could not load the decisions')).toBeInTheDocument();
     expect(screen.getByText('The log could not be read.')).toBeInTheDocument();
+    expect(screen.queryByRole('status', { name: 'Decisions could not be verified' })).toBeNull();
     const before = calls.filter((c) => c.startsWith('/api/adrs')).length;
     await user.click(screen.getByRole('button', { name: 'Try again' }));
     await waitFor(() => expect(calls.filter((c) => c.startsWith('/api/adrs')).length).toBeGreaterThan(before));

@@ -3,7 +3,7 @@ import { Box, FilePlus2, SearchX, SlidersHorizontal, Tag } from 'lucide-react';
 import { type ReactNode, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router';
 import { DecisionCard } from '@/components/decision-card.tsx';
-import { EmptyState, ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
+import { EmptyState, ErrorState, LoadingBlocks, PageHeader, VerificationNotice } from '@/components/states.tsx';
 import { StatusTally } from '@/components/status-tally.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { Input } from '@/components/ui/input.tsx';
@@ -210,6 +210,7 @@ export function DecisionsView() {
             )
           ) : (
             <>
+              {meta.isError && !meta.data && <VerificationNotice onRetry={() => meta.refetch()} />}
               <p aria-live="polite" className="text-sm font-semibold text-muted-foreground">
                 {results?.length} {results?.length === 1 ? 'result' : 'results'}
                 {adrs.isFetching ? ', updating…' : ''}

@@ -104,6 +104,50 @@ describe('Board view', () => {
     expect(card).toHaveAttribute('data-binding', 'unverified');
   });
 
+  it('says so, and retries, when the log cannot say whether decisions are verified', async () => {
+    const inner = createMockFetch('default');
+    const metaFails: typeof fetch = async (input, init) =>
+      String(input).startsWith('/api/meta')
+        ? new Response(JSON.stringify({ error: { code: 'X', message: 'down' } }), { status: 500 })
+        : inner(input, init);
+    const { user, calls } = renderApp('/board', { fetch: metaFails });
+    await settledCard('Use PostgreSQL as the system of record for billing');
+    expect(screen.getByRole('status', { name: 'Decisions could not be verified' })).toHaveTextContent(
+      'shown as unverified',
+    );
+    const before = calls.filter((c) => c.startsWith('/api/meta')).length;
+    await user.click(screen.getByRole('button', { name: 'Check again' }));
+    await waitFor(() => expect(calls.filter((c) => c.startsWith('/api/meta')).length).toBeGreaterThan(before));
+  });
+
+  it('keeps the last verified answer, and shows no notice, when a later refresh of the log fails', async () => {
+    const inner = createMockFetch('default');
+    let metaCalls = 0;
+    const metaFailsLater: typeof fetch = async (input, init) => {
+      if (!String(input).startsWith('/api/meta')) return inner(input, init);
+      metaCalls += 1;
+      return metaCalls === 1
+        ? inner(input, init)
+        : new Response(JSON.stringify({ error: { code: 'X', message: 'down' } }), { status: 500 });
+    };
+    renderApp('/board', { fetch: metaFailsLater });
+    const card = await settledCard('Use PostgreSQL as the system of record for billing');
+    await waitFor(() => expect(card).toHaveAttribute('data-binding', 'binding'));
+    // The default refresh setting re-reads the log every 5 seconds.
+    await waitFor(() => expect(metaCalls).toBeGreaterThan(1), { timeout: 8_000 });
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(screen.queryByRole('status', { name: 'Decisions could not be verified' })).toBeNull();
+    expect(card).toHaveAttribute('data-binding', 'binding');
+  }, 12_000);
+
+  it('shows no such notice when the log can say', async () => {
+    renderApp('/board');
+    await settledCard('Use PostgreSQL as the system of record for billing');
+    expect(screen.queryByRole('status', { name: 'Decisions could not be verified' })).toBeNull();
+  });
+
   it('shows skeletons while loading', () => {
     renderApp('/board', { fetch: hangingFetch });
     expect(screen.getByRole('status', { name: 'Loading the board' })).toBeInTheDocument();

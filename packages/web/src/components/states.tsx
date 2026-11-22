@@ -47,6 +47,34 @@ export function ErrorState({
   );
 }
 
+/**
+ * Shown when the log's metadata could not be fetched: accepted decisions are then drawn as unverified (never as
+ * binding), and this says why, with a way to ask again.
+ */
+export function VerificationNotice({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div
+      role="status"
+      aria-label="Decisions could not be verified"
+      className="flex flex-wrap items-center gap-3 rounded-base border-2 border-border bg-caution px-4 py-2 text-ink"
+    >
+      <p className="min-w-0 flex-1">
+        Could not check the default branch, so accepted decisions are shown as unverified.
+      </p>
+      <Button
+        variant="neutral"
+        onClick={() => {
+          // The notice goes away when the check succeeds: keep focus on the page, not on the removed button.
+          document.getElementById('main')?.focus({ preventScroll: true });
+          onRetry();
+        }}
+      >
+        Check again
+      </Button>
+    </div>
+  );
+}
+
 export function EmptyState({
   icon: Icon,
   title,

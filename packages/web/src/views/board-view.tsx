@@ -4,7 +4,7 @@ import { useId, useState } from 'react';
 import { Link } from 'react-router';
 import { Chip, InCheckoutBadge, LocalEditBadge, type LocalEditKind, STATUS_ICONS } from '@/components/badges.tsx';
 import { DecisionSurface } from '@/components/decision-surface.tsx';
-import { ErrorState, LoadingBlocks, PageHeader } from '@/components/states.tsx';
+import { ErrorState, LoadingBlocks, PageHeader, VerificationNotice } from '@/components/states.tsx';
 import { Button } from '@/components/ui/button.tsx';
 import { EMPTY_FILTERS } from '@/lib/filters.ts';
 import { useAdrs, useMeta } from '@/lib/queries.ts';
@@ -223,17 +223,20 @@ export function BoardView() {
       ) : adrs.isError ? (
         <ErrorState title="Could not load the board" error={adrs.error} onRetry={() => adrs.refetch()} />
       ) : (
-        <div className="grid grid-cols-1 gap-8 lg:grid-flow-col lg:grid-cols-[none] lg:auto-cols-[minmax(12.5rem,1fr)] lg:items-start lg:gap-5 lg:overflow-x-auto lg:pr-1 lg:pb-2">
-          {COLUMNS.map((status) => (
-            <Column
-              key={status}
-              status={status}
-              rows={rows.filter((r) => r.status === status)}
-              edits={edits}
-              verification={verification}
-            />
-          ))}
-        </div>
+        <>
+          {meta.isError && !meta.data && <VerificationNotice onRetry={() => meta.refetch()} />}
+          <div className="grid grid-cols-1 gap-8 lg:grid-flow-col lg:grid-cols-[none] lg:auto-cols-[minmax(12.5rem,1fr)] lg:items-start lg:gap-5 lg:overflow-x-auto lg:pr-1 lg:pb-2">
+            {COLUMNS.map((status) => (
+              <Column
+                key={status}
+                status={status}
+                rows={rows.filter((r) => r.status === status)}
+                edits={edits}
+                verification={verification}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
