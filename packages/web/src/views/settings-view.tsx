@@ -40,7 +40,7 @@ function SwitchRow({
         <Switch id={id} checked={checked} aria-describedby={hintId} onCheckedChange={onChange} />
         <Label htmlFor={id}>{label}</Label>
       </div>
-      <p id={hintId} className="text-sm text-muted-foreground">
+      <p id={hintId} className="text-muted-foreground">
         {hint}
       </p>
     </div>

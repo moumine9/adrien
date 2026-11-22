@@ -40,7 +40,7 @@ export function SelectRow({
           </option>
         ))}
       </select>
-      <p id={hintId} className="text-sm text-muted-foreground">
+      <p id={hintId} className="text-muted-foreground">
         {hint}
       </p>
     </div>

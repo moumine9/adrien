@@ -28,7 +28,7 @@ export function ApproveDisclosure({ id }: { id: string }) {
         />
       </summary>
       <div className="space-y-4 border-t border-rule p-4">
-        <p className="text-sm">Approving is a merge: set the status to accepted in a merge request.</p>
+        <p>Approving is a merge: set the status to accepted in a merge request.</p>
         <div className="flex flex-wrap items-center gap-2">
           <code className="min-w-0 break-all chip-frame px-2 py-1 font-mono text-sm">{command}</code>
           <Button variant="neutral" size="sm" onClick={copy}>
@@ -36,7 +36,7 @@ export function ApproveDisclosure({ id }: { id: string }) {
             {copied === 'copied' ? 'Copied' : 'Copy'}
           </Button>
         </div>
-        <p role="status" className="text-sm">
+        <p role="status">
           {copied === 'copied' && 'Command copied.'}
           {copied === 'failed' && 'Could not copy. Select the command and copy it by hand.'}
         </p>

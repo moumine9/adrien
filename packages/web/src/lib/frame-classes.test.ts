@@ -142,4 +142,19 @@ describe('layouts that must hold on narrow screens', () => {
     expect(src).toMatch(/'sticky bottom-\[[^']*sm:fixed /);
     expect(src).not.toMatch(/'fixed /);
   });
+
+  it('running sentences are set at the 16 px body size, not in text-sm', () => {
+    // Two facts, not sentences: the result count (its paragraph is a live region) and the stamp line.
+    const small = sourceFiles(SRC).filter((file) => {
+      if (file.endsWith('stamp.tsx')) return false;
+      const tags = readFileSync(file, 'utf8').match(/<p\b[^>]*?\btext-sm\b[^>]*>/g) ?? [];
+      return tags.some((tag) => !tag.includes('aria-live'));
+    });
+    expect(small).toEqual([]);
+  });
+
+  it('the shared empty-state and alert text, and the review rule, are 16 px too', () => {
+    for (const name of ['empty', 'alert']) expect(read('components', 'ui', `${name}.tsx`)).not.toMatch(/text-sm/);
+    expect(read('components', 'decision-card.tsx')).not.toContain('text-[0.9375rem]');
+  });
 });

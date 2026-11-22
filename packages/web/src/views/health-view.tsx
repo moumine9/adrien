@@ -42,7 +42,7 @@ function DiagnosticItem({ d }: { d: Diagnostic }) {
         )}
       </div>
       <p className="max-w-[80ch]">{d.message}</p>
-      {d.path && <p className="font-mono text-sm break-all text-muted-foreground">{d.path}</p>}
+      {d.path && <code className="block font-mono text-sm break-all text-muted-foreground">{d.path}</code>}
     </li>
   );
 }
@@ -59,7 +59,7 @@ function Group({ severity, items }: { severity: Severity; items: Diagnostic[] })
         <h2 id={headingId} className="text-xl">
           {s.title} <span className="tabular-nums">({items.length})</span>
         </h2>
-        <p className="text-sm text-muted-foreground">{s.hint}</p>
+        <p className="text-muted-foreground">{s.hint}</p>
       </header>
       <ul className="divide-y-2 divide-border">
         {items.map((d, i) => (
