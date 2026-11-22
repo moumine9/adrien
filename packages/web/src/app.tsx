@@ -1,6 +1,7 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { useState } from 'react';
 import { HashRouter } from 'react-router';
+import { IconSprite } from './components/icon.tsx';
 import { createQueryClient } from './lib/queries.ts';
 import { AppRoutes } from './routes.tsx';
 
@@ -12,6 +13,7 @@ export function App() {
   const [client] = useState(createQueryClient);
   return (
     <QueryClientProvider client={client}>
+      <IconSprite />
       <HashRouter>
         <AppRoutes />
       </HashRouter>

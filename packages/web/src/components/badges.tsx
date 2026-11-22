@@ -15,6 +15,7 @@ import {
   Stamp,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { type IconName, Icon as SpriteIcon } from '@/components/icon.tsx';
 import { Badge } from '@/components/ui/badge.tsx';
 import { type Binding, STATUS_STYLES } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
@@ -160,10 +161,14 @@ export function DueBadge({ className }: { className?: string }) {
 export function Chip({
   children,
   icon: Icon,
+  iconId,
   className,
 }: {
   children: ReactNode;
+  /** A Lucide icon, for one-off places. */
   icon?: LucideIcon;
+  /** A sprite icon, for chips on the cards (one shared drawing in the DOM). */
+  iconId?: IconName;
   className?: string;
 }) {
   return (
@@ -174,6 +179,7 @@ export function Chip({
       )}
     >
       {Icon && <Icon aria-hidden className="size-3.5 opacity-70" strokeWidth={2.5} />}
+      {iconId && <SpriteIcon name={iconId} className="size-3.5 opacity-70" strokeWidth={2.5} />}
       {children}
     </span>
   );

@@ -1,5 +1,4 @@
 import type { AdrListRow } from '@adrien/api/contract';
-import { Box, Tag } from 'lucide-react';
 import { Link } from 'react-router';
 import { bindingOf, isRetired, type Verification } from '@/lib/status.ts';
 import { BindingBadge, Chip, PendingBadge, StatusBadge } from './badges.tsx';
@@ -37,13 +36,13 @@ export function DecisionCard({ row, verification }: { row: AdrListRow; verificat
           <div className="flex flex-wrap gap-2">
             {row.tags.length > 0 && <span className="sr-only">Tags:</span>}
             {row.tags.map((t) => (
-              <Chip key={`t-${t}`} icon={Tag}>
+              <Chip key={`t-${t}`} iconId="tag">
                 {t}
               </Chip>
             ))}
             {row.components.length > 0 && <span className="sr-only">Components:</span>}
             {row.components.map((c) => (
-              <Chip key={`c-${c}`} icon={Box} className="bg-secondary-background">
+              <Chip key={`c-${c}`} iconId="box" className="bg-secondary-background">
                 {c}
               </Chip>
             ))}
