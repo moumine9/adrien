@@ -142,6 +142,100 @@
   }
 }
 
+@media print {
+  :root:has(.decision-record) {
+    --background: #fff;
+    --secondary-background: #fff;
+    --foreground: var(--ink);
+    --muted-foreground: var(--ink);
+    --border: var(--ink);
+    --rule: var(--ink);
+    --caution: #fff;
+    color-scheme: light;
+  }
+
+  :has(> #main > .decision-record) {
+    display: block;
+    min-height: 0;
+
+    & > :not(#main) {
+      display: none;
+    }
+  }
+
+  #main:has(> .decision-record) {
+    max-width: none;
+    padding: 0;
+  }
+
+  .decision-record {
+    overflow-wrap: anywhere;
+
+    & * {
+      box-shadow: none;
+    }
+
+    & .bg-foreground {
+      background-color: var(--background);
+      color: var(--foreground);
+    }
+
+    & [data-status] {
+      /* biome-ignore lint/complexity/noImportantStyles: override the inline status fill for print. */
+      background-color: var(--background) !important;
+    }
+
+    & .hatch {
+      display: none;
+    }
+
+    & > header,
+    & h2,
+    & h3,
+    & h4 {
+      break-after: avoid;
+    }
+
+    & > header h1 {
+      max-width: none;
+      font-size: 24pt;
+    }
+
+    & [aria-labelledby="rule-heading"],
+    & [aria-labelledby="pending-heading"] {
+      overflow: visible;
+    }
+
+    & .decision-record-content {
+      display: block;
+    }
+
+    & .decision-record-content > aside {
+      margin-block-start: 1rem;
+    }
+
+    & .decision-record-content > aside dl > div {
+      break-inside: avoid;
+      padding-block: 0.25rem;
+    }
+
+    & .prose-adr {
+      max-width: none;
+    }
+
+    & .prose-adr pre {
+      overflow: visible;
+      white-space: pre-wrap;
+    }
+
+    & .prose-adr table {
+      display: table;
+      overflow: visible;
+      width: 100%;
+    }
+  }
+}
+
 /* Diagonal hatching: work in progress, not poured yet. Used only for a band along the top of a pending object, never under text. */
 @utility hatch {
   background-image: repeating-linear-gradient(-45deg, var(--hatch) 0 2px, transparent 2px 9px);

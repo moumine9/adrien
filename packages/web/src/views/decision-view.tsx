@@ -77,6 +77,7 @@ function AdrLink({ id, node }: { id: string; node: GraphNode | undefined }) {
     >
       {node && Icon && (
         <span
+          data-status={node.status}
           title={STATUS_STYLES[node.status].label}
           className="mt-0.5 grid size-5 shrink-0 place-items-center rounded-inset border-2 border-border text-ink"
           style={{ backgroundColor: STATUS_STYLES[node.status].fill }}
@@ -333,7 +334,7 @@ export function DecisionView() {
   const back = (
     <Link
       to="/"
-      className="inline-flex items-center gap-2 rounded-base font-heading hover:underline hover:decoration-2 hover:underline-offset-4"
+      className="inline-flex items-center gap-2 rounded-base font-heading hover:underline hover:decoration-2 hover:underline-offset-4 print:hidden"
     >
       <ArrowLeft aria-hidden className="size-4" strokeWidth={2.5} />
       All decisions
@@ -377,7 +378,7 @@ export function DecisionView() {
   const nodes = new Map((graph.data?.nodes ?? []).map((n) => [n.id, n]));
 
   return (
-    <article className="space-y-8">
+    <article className="decision-record space-y-8">
       <title>{`${m.id}: ${m.title} | Adrien`}</title>
       {back}
       <header className="space-y-4">
@@ -404,6 +405,7 @@ export function DecisionView() {
             <span className="font-heading">Changed since you opened this</span>
             <Button
               variant="neutral"
+              className="print:hidden"
               onClick={() => {
                 // The button goes away when the new version arrives: keep focus on the page.
                 document.getElementById('main')?.focus({ preventScroll: true });
@@ -432,7 +434,7 @@ export function DecisionView() {
       <RuleBlock rule={m.review_rule} binding={binding} />
       {onlyPending && <PendingSection data={data} />}
 
-      <div className="grid gap-8 lg:grid-cols-12">
+      <div className="decision-record-content grid gap-8 lg:grid-cols-12">
         <section
           aria-label="Decision record"
           className={cn(
