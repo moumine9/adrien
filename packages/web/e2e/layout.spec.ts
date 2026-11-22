@@ -7,6 +7,8 @@ test('on a phone, every navigation tab fits inside the screen', async ({ page })
   await page.setViewportSize({ width: 390, height: 844 });
   await seedSettings(page, { changeNotifications: false });
   await page.goto('/');
+  await page.getByRole('navigation', { name: 'Main' }).waitFor();
+  await page.evaluate(() => document.fonts.ready);
   for (const name of ['Decisions', 'Board', 'Graph', 'Files', 'Health', 'Settings']) {
     const box = await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name }).boundingBox();
     expect(box?.x).toBeGreaterThanOrEqual(0);
@@ -23,6 +25,8 @@ for (const width of [1024, 1280]) {
       await seedSettings(page, { changeNotifications: false });
       await page.goto('/#/board');
       await page.getByRole('main').getByRole('heading').first().waitFor();
+      // The measurements below depend on the web font's metrics.
+      await page.evaluate(() => document.fonts.ready);
     });
 
     test('"How to approve" is one line and its chevron stays inside the button', async ({ page }) => {

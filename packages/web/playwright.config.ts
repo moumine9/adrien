@@ -4,14 +4,16 @@ const PORT = 5199;
 
 /**
  * Browser checks against the Vite dev server with the mock API. They use the system Chrome, so no browser is
- * downloaded. Run `pnpm --filter @adrien/web test:e2e` (smoke) or `shots` (screenshots).
+ * downloaded. `pnpm --filter @adrien/web test:e2e` (smoke and layout) runs in CI as the `e2e` job; `shots` (screenshots)
+ * is run by hand.
  */
 export default defineConfig({
   testDir: './e2e',
   outputDir: './.shots/.results',
   reporter: 'list',
   fullyParallel: true,
-  use: { baseURL: `http://127.0.0.1:${PORT}`, channel: 'chrome' },
+  forbidOnly: !!process.env.CI,
+  use: { baseURL: `http://127.0.0.1:${PORT}`, channel: 'chrome', trace: 'retain-on-failure' },
   webServer: {
     command: `pnpm exec vite --mode mock --host 127.0.0.1 --port ${PORT} --strictPort`,
     url: `http://127.0.0.1:${PORT}`,
