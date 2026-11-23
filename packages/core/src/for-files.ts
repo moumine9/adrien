@@ -15,7 +15,8 @@ export interface FileDecision {
   workspace: string | null;
   layer: 'base' | 'pending';
   pending_kind: PendingChange['kind'] | null;
-  match: 'anchor' | 'component';
+  /** `exception`: a product exception that exempts this file from a common decision but names none of its components. */
+  match: 'anchor' | 'component' | 'exception';
   anchor: string | null;
   review_rule: string | null;
   excerpt: string;
@@ -48,11 +49,11 @@ function matchOf(adr: Adr, component: string, relPath: string): Pick<FileDecisio
  * The first accepted own exception that names `target` and covers this file, as its exemption. An exception with no
  * code anchors covers every file of the product; one with anchors covers only the files they match.
  */
-function exemptionOf(exceptions: Adr[], target: string, component: string, relPath: string): FileDecision['exemption'] {
+function exemptionOf(exceptions: Adr[], target: string, component: string, relPath: string): Adr | null {
   for (const exception of exceptions) {
     if (!exception.meta.exception_to.includes(target)) continue;
     if (exception.meta.code.length === 0 || matchOf(exception, component, relPath)?.match === 'anchor') {
-      return { by: exception.meta.id };
+      return exception;
     }
   }
   return null;
@@ -124,8 +125,18 @@ export function adrsForFiles(
     for (const adr of commonAccepted) {
       const match = matchOf(adr, component, relPath);
       if (!match || !common) continue;
-      const exemption = exemptionOf(exceptions, `${common.name}/${adr.meta.id}`, component, relPath);
-      decisions.push(decision(adr, 'base', null, match, common.name, exemption));
+      const exception = exemptionOf(exceptions, `${common.name}/${adr.meta.id}`, component, relPath);
+      decisions.push(decision(adr, 'base', null, match, common.name, exception ? { by: exception.meta.id } : null));
+      // The exception holds the rule that replaces the common one, so it is listed even when it names no component
+      // of this file: it was found because it covers the whole workspace.
+      if (
+        exception &&
+        !decisions.some((d) => d.workspace === null && d.layer === 'base' && d.id === exception.meta.id)
+      ) {
+        decisions.push(
+          decision(exception, 'base', changeOfBase.get(exception) ?? null, { match: 'exception', anchor: null }, null),
+        );
+      }
     }
     return { file, component, decisions: decisions.sort(order) };
   });

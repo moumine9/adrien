@@ -234,6 +234,30 @@ describe('an exception to a common decision', () => {
     }
   });
 
+  test('an anchorless exception whose components omit this file still governs it: it is listed with its own rule', () => {
+    const ex = exception({ components: [] });
+    const [result] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule()]));
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0012', workspace: null, binding: true, match: 'exception', anchor: null }),
+    );
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0010', binding: false, exemption: { by: 'ADR-0012' } }),
+    );
+  });
+
+  test('an exception that exempts two common decisions is listed once', () => {
+    const ex = exception({ components: [], exception_to: ['common/ADR-0010', 'common/ADR-0011'] });
+    const second = adr('ADR-0011', { components: ['billing-service'], review_rule: 'Another shared rule.' });
+    const [result] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule(), second]));
+    expect(result?.decisions.filter((d) => d.id === 'ADR-0012')).toHaveLength(1);
+    expect(result?.decisions.filter((d) => d.exemption?.by === 'ADR-0012')).toHaveLength(2);
+  });
+
+  test('an exception that matches by itself is listed once', () => {
+    const [result] = adrsForFiles(ctx, view([exception()]), [invoice], common([sharedRule()]));
+    expect(result?.decisions.filter((d) => d.id === 'ADR-0012')).toHaveLength(1);
+  });
+
   test('with code anchors it exempts only the files those anchors match', () => {
     const ex = exception({ code: ['billing-service:src/Invoices/**'] });
     const [inside] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule()]));

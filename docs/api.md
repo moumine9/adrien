@@ -48,7 +48,8 @@ token and the host check are the same for every workspace.
   verification warning (no default branch), and `common_notes` covers the common log: no default branch, or unreadable.
 - A `GET /api/for` decision has `exemption`: `null`, or `{ "by": "ADR-n" }` when an accepted exception of this product
   (`exception_to`, ADR-0035) departs from this common decision for this file. The decision stays listed with
-  `binding: false`; the exception holds the rule to follow.
+  `binding: false`; the exception holds the rule to follow, and is listed too, with `match: "exception"` when it names
+  no component of the file.
   Each list is present only when it has entries. `notes` also warns when the common log has no
   default branch to verify its decisions against.
 
