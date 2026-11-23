@@ -5,7 +5,7 @@ import { CONFIG_FILE } from '../src/config.ts';
 import { resolveContext } from '../src/context.ts';
 import type { AdrMeta } from '../src/model.ts';
 import { loadLogView } from '../src/view.ts';
-import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
+import { adrText, configYaml, sharedLog, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { commitAll, git, initRepo } from './helpers/git.ts';
 
 const ok = (id: string, over: Partial<AdrMeta> = {}) =>
@@ -57,6 +57,99 @@ test('duplicate id → one error listing every path', async () => {
 test('a link to an unknown id → broken-link', async () => {
   const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { related: ['ADR-0099'] }) });
   expect(codes(diags)).toEqual([['error', 'broken-link', 'ADR-0001']]);
+});
+
+/** A product log that names the common log at `common`, with ADR-0001 related to each of `related`. */
+function productRelated(common: string | undefined, related: string[]): Record<string, string> {
+  return {
+    [CONFIG_FILE]: configYaml(common === undefined ? {} : { common }),
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { related }),
+  };
+}
+
+test('related workspace/ADR-n resolves in the common log that names that workspace → no diagnostic', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated(sharedLog(), ['shared-co/ADR-0009']));
+  expect(await checkAt(root, { strict: true })).toEqual([]);
+});
+
+test('related workspace/ADR-n that the reachable common log does not hold → broken-link error', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated(sharedLog(), ['shared-co/ADR-0099']));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['error', 'broken-link', 'ADR-0001']]);
+  expect(diags[0]?.message).toBe('Links to unknown ADR shared-co/ADR-0099');
+});
+
+test('related acme/ADR-n with the log own name resolves locally', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated(undefined, ['acme/ADR-0001']));
+  expect(await checkAt(root)).toEqual([]);
+});
+
+test('related with the log own name and an unknown id → broken-link error', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated(undefined, ['acme/ADR-0099']));
+  expect(codes(await checkAt(root))).toEqual([['error', 'broken-link', 'ADR-0001']]);
+});
+
+test('related workspace/ADR-n of a log that is not reachable → unresolved-ref info, never an exit error', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated(undefined, ['other/ADR-0004']));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['info', 'unresolved-ref', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain('"other"');
+  expect(exitCodeFor(diags, true)).toBe(0);
+});
+
+test('related workspace/ADR-n naming another log than the common one → unresolved-ref info', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated(sharedLog(), ['elsewhere/ADR-0004']));
+  expect(codes(await checkAt(root))).toEqual([['info', 'unresolved-ref', 'ADR-0001']]);
+});
+
+test('an unreadable common path → one common-unreadable info, and its references are unresolved-ref info', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated('./missing-log', ['shared-co/ADR-0009']));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([
+    ['info', 'common-unreadable', undefined],
+    ['info', 'unresolved-ref', 'ADR-0001'],
+  ]);
+  expect(diags[0]?.message).toContain('./missing-log');
+  expect(exitCodeFor(diags, true)).toBe(0);
+});
+
+test('supersedes and superseded_by across workspaces → invalid-ref error naming the field', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml({ common: sharedLog() }),
+    'docs/adr/ADR-0001-a.md': adrText({
+      id: 'ADR-0001',
+      title: 'A',
+      status: 'superseded',
+      superseded_by: 'shared-co/ADR-0009',
+    }),
+    'docs/adr/ADR-0002-b.md': ok('ADR-0002', { supersedes: ['shared-co/ADR-0009'] }),
+  });
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([
+    ['error', 'invalid-ref', 'ADR-0001'],
+    ['error', 'invalid-ref', 'ADR-0002'],
+  ]);
+  expect(diags[0]?.message).toContain('superseded_by');
+  expect(diags[0]?.message).toContain('within one log');
+  expect(diags[1]?.message).toContain('supersedes');
+});
+
+test('supersedes naming an unknown id in this log → broken-link error', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { supersedes: ['ADR-0099'] }) });
+  expect(codes(diags)).toEqual([['error', 'broken-link', 'ADR-0001']]);
+});
+
+test('related with a text that is not a valid reference → invalid-ref error', async () => {
+  const diags = await check({ 'docs/adr/ADR-0001-a.md': ok('ADR-0001', { related: ['Shared Co/ADR-0004'] }) });
+  expect(codes(diags)).toEqual([['error', 'invalid-ref', 'ADR-0001']]);
 });
 
 test('A supersedes B but B is still accepted → supersede-asymmetry', async () => {

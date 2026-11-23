@@ -178,6 +178,23 @@ test('renumber fixes a base/pending collision and rewrites pending references on
   expect(log.find((a) => a.path === 'docs/adr/ADR-0001-a.md')?.meta.title).toBe('A');
 });
 
+test('renumber leaves a workspace/ADR-n reference to another log alone, and rewrites only the local one', async () => {
+  const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  initRepo(root, { origin: true });
+  writeFiles(root, {
+    'docs/adr/ADR-0001-dup.md': adrText({ id: 'ADR-0001', title: 'Dup' }),
+    'docs/adr/ADR-0002-c.md': adrText({
+      id: 'ADR-0002',
+      title: 'C',
+      related: ['common/ADR-0001', 'ADR-0001'],
+    }),
+  });
+  const { ctx, view } = await load(root);
+  renumber(ctx, view, 'ADR-0001');
+  const log = readWorkingLog(root, ctx.config).adrs;
+  expect(log.find((a) => a.meta.id === 'ADR-0002')?.meta.related).toEqual(['common/ADR-0001', 'ADR-0003']);
+});
+
 test('renumber rewrites the references from what is on disk now, not from the stale view, and picks an id nobody took since', async () => {
   const root = makeLog({ 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
   initRepo(root, { origin: true });

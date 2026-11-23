@@ -314,6 +314,17 @@ describe('GET /api/graph', () => {
     ]);
   });
 
+  test('a related workspace/ADR-n of another log draws no edge, and the graph still answers', async () => {
+    const root = filesLog({
+      'docs/adr/ADR-0005-x.md': adrText({ id: 'ADR-0005', title: 'X', related: ['common/ADR-0004', 'ADR-0001'] }),
+    });
+    const { status, body } = await get<GraphResponse>(root, '/api/graph');
+    expect(status).toBe(200);
+    expect(body.edges).toContainEqual({ from: 'ADR-0005', to: 'ADR-0001', type: 'related' });
+    expect(body.edges.some((e) => e.from.includes('/') || e.to.includes('/'))).toBe(false);
+    expect(body.nodes.some((n) => n.id.includes('/'))).toBe(false);
+  });
+
   test('two ADRs sharing an id make one node, and the counts agree with the graph', async () => {
     const root = filesLog({
       'docs/adr/ADR-0004-cache.md': adrText({ id: 'ADR-0004', title: 'Cache exchange rates', status: 'accepted' }),
