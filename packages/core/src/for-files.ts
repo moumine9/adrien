@@ -15,10 +15,16 @@ export interface FileDecision {
   workspace: string | null;
   layer: 'base' | 'pending';
   pending_kind: PendingChange['kind'] | null;
-  match: 'anchor' | 'component';
+  /** `exception`: a product exception that exempts this file from a common decision but names none of its components. */
+  match: 'anchor' | 'component' | 'exception';
   anchor: string | null;
   review_rule: string | null;
   excerpt: string;
+  /**
+   * For a common decision that an accepted exception of this product exempts for this file: the exception's id. The
+   * decision stays listed, with `binding` false. Null otherwise, and always null for the product's own decisions.
+   */
+  exemption: { by: string } | null;
 }
 
 export interface FileDecisions {
@@ -39,24 +45,38 @@ function matchOf(adr: Adr, component: string, relPath: string): Pick<FileDecisio
   return null;
 }
 
+/**
+ * The accepted own exceptions that name `target` and cover this file, in the order they are written. An exception with
+ * no code anchors covers every file of the product; one with anchors covers only the files they match.
+ */
+function exceptionsFor(exceptions: Adr[], target: string, component: string, relPath: string): Adr[] {
+  return exceptions.filter(
+    (exception) =>
+      exception.meta.exception_to.includes(target) &&
+      (exception.meta.code.length === 0 || matchOf(exception, component, relPath)?.match === 'anchor'),
+  );
+}
+
 function decision(
   adr: Adr,
   layer: FileDecision['layer'],
   pendingKind: FileDecision['pending_kind'],
   match: Pick<FileDecision, 'match' | 'anchor'>,
   workspace: string | null,
+  exemption: FileDecision['exemption'] = null,
 ): FileDecision {
   return {
     id: adr.meta.id,
     title: adr.meta.title,
     status: adr.meta.status,
-    binding: layer === 'base' && adr.meta.status === 'accepted',
+    binding: layer === 'base' && adr.meta.status === 'accepted' && exemption === null,
     workspace,
     layer,
     pending_kind: pendingKind,
     ...match,
     review_rule: adr.meta.review_rule ?? null,
     excerpt: excerpt(adr),
+    exemption,
   };
 }
 
@@ -82,6 +102,8 @@ export function adrsForFiles(
   for (const change of view.pending) if (change.base) changeOfBase.set(change.base, change.kind);
   const pendingCurrent = view.pending.filter((c) => c.current).map((c) => ({ adr: c.current as Adr, kind: c.kind }));
   const commonAccepted = common ? common.view.base.filter((adr) => adr.meta.status === 'accepted') : [];
+  // Only accepted decisions on the default branch exempt anything: a proposed, pending or retired exception does not.
+  const exceptions = view.base.filter((adr) => adr.meta.status === 'accepted' && adr.meta.exception_to.length > 0);
 
   return paths.map((path) => {
     const file = toPosix(path);
@@ -100,7 +122,18 @@ export function adrsForFiles(
     }
     for (const adr of commonAccepted) {
       const match = matchOf(adr, component, relPath);
-      if (match && common) decisions.push(decision(adr, 'base', null, match, common.name));
+      if (!match || !common) continue;
+      const covering = exceptionsFor(exceptions, `${common.name}/${adr.meta.id}`, component, relPath);
+      const [first] = covering;
+      decisions.push(decision(adr, 'base', null, match, common.name, first ? { by: first.meta.id } : null));
+      // Each exception holds a rule that replaces the common one, so it is listed even when it names no component of
+      // this file: it was found because it covers the whole workspace. The exemption names the first one.
+      for (const exception of covering) {
+        if (decisions.some((d) => d.workspace === null && d.layer === 'base' && d.id === exception.meta.id)) continue;
+        decisions.push(
+          decision(exception, 'base', changeOfBase.get(exception) ?? null, { match: 'exception', anchor: null }, null),
+        );
+      }
     }
     return { file, component, decisions: decisions.sort(order) };
   });

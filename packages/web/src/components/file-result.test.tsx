@@ -15,6 +15,7 @@ const own = {
   anchor: null,
   review_rule: null,
   excerpt: '',
+  exemption: null,
 };
 const common = { ...own, title: 'Shared rule', workspace: 'shared-co' };
 const entry = { file: 'apps/web/src/a.ts', component: 'web', decisions: [own, common] } as unknown as FileDecisions;
@@ -50,5 +51,29 @@ describe('FileResult', () => {
     renderFile(false, false);
     expect(screen.getByText('[shared-co]')).toBeInTheDocument();
     expect(screen.getAllByRole('link')).toHaveLength(1);
+  });
+
+  it('a common decision an exception exempts says so, instead of calling itself a hint', () => {
+    const exempt = { ...common, binding: false, exemption: { by: 'ADR-0012' } };
+    const exemptEntry = { ...entry, decisions: [exempt] } as unknown as FileDecisions;
+    render(
+      <MemoryRouter>
+        <FileResult entry={exemptEntry} hasNotes={false} hasCommonNotes={false} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/Exempt by ADR-0012/)).toBeTruthy();
+    expect(screen.queryByText('Hint only')).toBeNull();
+  });
+
+  it('an exception that governs a file without naming its component says so, not "its component"', () => {
+    const exception = { ...own, id: 'ADR-0012', match: 'exception' };
+    const exceptionEntry = { ...entry, decisions: [exception] } as unknown as FileDecisions;
+    render(
+      <MemoryRouter>
+        <FileResult entry={exceptionEntry} hasNotes={false} hasCommonNotes={false} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/exception to a common decision/i)).toBeTruthy();
+    expect(screen.queryByText(/Matched by its component/)).toBeNull();
   });
 });

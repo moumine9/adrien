@@ -13,6 +13,7 @@ const meta = (over: Partial<AdrMeta>): AdrMeta => ({
   sources: [],
   supersedes: [],
   related: [],
+  exception_to: [],
   deciders: [],
   origin: 'manual',
   contested: false,
@@ -49,6 +50,7 @@ test('round-trips a full ADR', () => {
       supersedes: ['ADR-0007'],
       superseded_by: 'ADR-0050',
       related: ['ADR-0010'],
+      exception_to: ['shared-co/ADR-0004'],
       deciders: ['alice'],
       origin: 'mined',
       contested: true,
@@ -136,4 +138,14 @@ test('review_on round-trips after date, and a malformed one is a parse error', (
   expect(() => parseAdr(text.replace('2027-03-04', 'next spring'), 'docs/adr/ADR-0001-t.md', opts)).toThrow(
     expect.objectContaining({ code: 'PARSE_ERROR', message: expect.stringContaining('review_on') }),
   );
+});
+
+test('exception_to is a list of references, empty by default, and is written after related', () => {
+  const text =
+    '---\nid: ADR-0001\ntitle: T\nstatus: accepted\nreview_on: 2027-03-04\nrelated: [ADR-0002]\nexception_to: [common/ADR-0004]\n---\n';
+  const adr = parseAdr(text, 'docs/adr/ADR-0001-t.md', opts);
+  expect(adr.meta.exception_to).toEqual(['common/ADR-0004']);
+  expect(adr.meta.extra).toEqual({});
+  expect(serializeAdr(adr)).toBe(text);
+  expect(parseAdr('---\nid: ADR-0001\ntitle: T\n---\n', 'docs/adr/ADR-0001-t.md', opts).meta.exception_to).toEqual([]);
 });

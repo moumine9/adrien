@@ -7,7 +7,7 @@ export interface Review {
   markdown: string;
   /** Distinct binding decisions. */
   binding: number;
-  /** Distinct non-binding entries: proposals, pending changes and retired decisions. */
+  /** Distinct non-binding entries: proposals, pending changes, exempt and retired decisions. */
   hints: number;
   /** The number of input files. */
   files: number;
@@ -57,6 +57,8 @@ interface Group {
   status: FileDecision['status'];
   layer: FileDecision['layer'];
   binding: boolean;
+  /** The id of the exception that exempts this common decision for some of its files; null when none does. */
+  exemption: string | null;
   review_rule: string | null;
   files: string[];
 }
@@ -66,7 +68,8 @@ function groupDecisions(files: FileDecisions[]): Group[] {
   const groups = new Map<string, Group>();
   for (const { file, decisions } of files) {
     for (const d of decisions) {
-      const key = `${d.workspace ?? ''} ${d.layer} ${d.id}`;
+      // An exemption is part of the key: the same common decision, exempt for some files and binding for others, is two groups.
+      const key = `${d.workspace ?? ''} ${d.layer} ${d.id} ${d.exemption?.by ?? ''}`;
       const group = groups.get(key) ?? {
         id: d.id,
         workspace: d.workspace,
@@ -74,6 +77,7 @@ function groupDecisions(files: FileDecisions[]): Group[] {
         status: d.status,
         layer: d.layer,
         binding: false,
+        exemption: d.exemption?.by ?? null,
         review_rule: d.review_rule,
         files: [],
       };
@@ -137,10 +141,17 @@ export function buildReview(
     sections.push('### Decisions that govern this change');
     sections.push(...listed(binding, () => '', maxDecisions, maxFilesPerDecision));
     if (hints.length > 0) {
-      const label = (g: Group) => ` (${g.status}${g.layer === 'pending' ? ', pending change' : ''})`;
+      const label = (g: Group) =>
+        ` (${[
+          g.status,
+          g.layer === 'pending' ? 'pending change' : null,
+          g.exemption ? `exempt by ${escapeText(g.exemption)}` : null,
+        ]
+          .filter(Boolean)
+          .join(', ')})`;
       const inner = listed(hints, label, maxDecisions, maxFilesPerDecision).join('\n\n');
       sections.push(
-        `<details><summary>Not binding (${hints.length}): proposals, pending changes and retired decisions</summary>\n\n${inner}\n\n</details>`,
+        `<details><summary>Not binding (${hints.length}): proposals, pending changes, exempt and retired decisions</summary>\n\n${inner}\n\n</details>`,
       );
     }
   }

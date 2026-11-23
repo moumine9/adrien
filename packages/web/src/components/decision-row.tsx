@@ -9,6 +9,14 @@ import { useWorkspacePath } from '@/lib/workspace.ts';
 type Decision = FileDecisions['decisions'][number];
 
 function MatchNote({ d }: { d: Decision }) {
+  if (d.match === 'exception') {
+    return (
+      <span className="inline-flex items-center gap-2 text-sm">
+        <Box aria-hidden className="size-3.5" strokeWidth={2.5} />
+        Applies as an exception to a common decision
+      </span>
+    );
+  }
   return d.match === 'anchor' ? (
     <span className="inline-flex flex-wrap items-center gap-2 text-sm">
       <Anchor aria-hidden className="size-3.5" strokeWidth={2.5} />
@@ -30,7 +38,15 @@ export function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean })
       {d.layer === 'pending' && <PendingBand className="-mx-5 -mt-4" />}
       <div className="flex flex-wrap items-center gap-2">
         <BindingBadge binding={binding} />
-        {binding === 'not-binding' && (
+        {d.exemption && (
+          <span
+            title="An accepted exception of this product departs from this decision for this file."
+            className="pill"
+          >
+            Exempt by {d.exemption.by}
+          </span>
+        )}
+        {binding === 'not-binding' && !d.exemption && (
           <span title="Not accepted on the default branch: worth knowing, not a rule." className="pill">
             <Lightbulb aria-hidden className="size-3.5" strokeWidth={2.5} />
             Hint only

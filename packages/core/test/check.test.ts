@@ -374,3 +374,72 @@ test('superseded with a successor that lists it → no superseded-without-succes
   });
   expect(codes(diags)).toEqual([]);
 });
+
+/** A product log whose ADR-0001 is an accepted exception to each of `exceptionTo`, with a review date when given. */
+function productException(
+  common: string | undefined,
+  exceptionTo: string[],
+  reviewOn?: string,
+): Record<string, string> {
+  return {
+    [CONFIG_FILE]: configYaml(common === undefined ? {} : { common }),
+    'docs/adr/ADR-0001-a.md': ok('ADR-0001', { exception_to: exceptionTo, review_on: reviewOn }),
+  };
+}
+
+test('exception_to names a decision the reachable common log holds → no diagnostic', async () => {
+  const root = tmpDir();
+  writeFiles(root, productException(sharedLog(), ['shared-co/ADR-0009'], '2027-03-04'));
+  expect(await checkAt(root, { strict: true })).toEqual([]);
+});
+
+test('exception_to names a decision the reachable common log does not hold → broken-link error', async () => {
+  const root = tmpDir();
+  writeFiles(root, productException(sharedLog(), ['shared-co/ADR-0099'], '2027-03-04'));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['error', 'broken-link', 'ADR-0001']]);
+  expect(diags[0]?.message).toBe('Links to unknown ADR shared-co/ADR-0099');
+});
+
+test('exception_to naming another log than the common one → unresolved-ref info', async () => {
+  const root = tmpDir();
+  writeFiles(root, productException(sharedLog(), ['elsewhere/ADR-0004'], '2027-03-04'));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['info', 'unresolved-ref', 'ADR-0001']]);
+  expect(exitCodeFor(diags, true)).toBe(0);
+});
+
+test('exception_to naming an unreachable log → unresolved-ref info', async () => {
+  const root = tmpDir();
+  writeFiles(root, productException(undefined, ['other/ADR-0004'], '2027-03-04'));
+  expect(codes(await checkAt(root))).toEqual([['info', 'unresolved-ref', 'ADR-0001']]);
+});
+
+test.each([
+  ['a plain id', 'ADR-0009'],
+  ['the log own name', 'acme/ADR-0001'],
+])('exception_to with %s → invalid-ref error saying it names common decisions', async (_label, target) => {
+  const root = tmpDir();
+  writeFiles(root, productException(sharedLog(), [target], '2027-03-04'));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['error', 'invalid-ref', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain('exception_to names decisions of a common log');
+  expect(diags[0]?.message).toContain('workspace/ADR-n');
+});
+
+test('an exception without review_on → exception-without-review warning, an error under --strict', async () => {
+  const root = tmpDir();
+  writeFiles(root, productException(sharedLog(), ['shared-co/ADR-0009']));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['warning', 'exception-without-review', 'ADR-0001']]);
+  expect(diags[0]?.message).toContain('review date');
+  expect(exitCodeFor(diags)).toBe(0);
+  expect(exitCodeFor(diags, true)).toBe(1);
+});
+
+test('an exception past its review date is reported as review-due, like any decision', async () => {
+  const root = tmpDir();
+  writeFiles(root, productException(sharedLog(), ['shared-co/ADR-0009'], '2026-01-01'));
+  const diags = await checkAt(root, { today: '2026-11-23' });
+  expect(codes(diags)).toEqual([['warning', 'review-due', 'ADR-0001']]);
+});

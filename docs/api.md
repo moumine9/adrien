@@ -46,6 +46,10 @@ token and the host check are the same for every workspace.
   from (the `common` field of `adrien.config.yaml`). When that common log cannot be read, its decisions are left out and
   `common_notes` says why; the product's own decisions are still returned. `notes` stays the product log's own
   verification warning (no default branch), and `common_notes` covers the common log: no default branch, or unreadable.
+- A `GET /api/for` decision has `exemption`: `null`, or `{ "by": "ADR-n" }` when an accepted exception of this product
+  (`exception_to`, ADR-0035) departs from this common decision for this file. The decision stays listed with
+  `binding: false`; every accepted exception that covers the file holds a rule to follow and is listed too, with
+  `match: "exception"` when it names no component of the file; `by` names the first of them.
   Each list is present only when it has entries. `notes` also warns when the common log has no
   default branch to verify its decisions against.
 

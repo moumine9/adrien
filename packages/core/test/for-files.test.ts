@@ -1,6 +1,6 @@
 import type { CommonLog } from '../src/common.ts';
 import type { Context } from '../src/context.ts';
-import { adrsForFiles, unverifiedBaseNote } from '../src/for-files.ts';
+import { adrsForFiles, type FileDecision, unverifiedBaseNote } from '../src/for-files.ts';
 import type { Adr, AdrMeta } from '../src/model.ts';
 import type { LogView, PendingChange } from '../src/view.ts';
 
@@ -35,6 +35,7 @@ function adr(id: string, over: Partial<AdrMeta>): Adr {
       sources: [],
       supersedes: [],
       related: [],
+      exception_to: [],
       deciders: [],
       origin: 'manual',
       contested: false,
@@ -205,5 +206,126 @@ describe('decisions of a common log', () => {
       workspace: null,
     });
     expect(adrsForFiles(ctx, view([componentWide]), [invoice])[0]?.decisions[0]).toMatchObject({ workspace: null });
+  });
+});
+
+describe('an exception to a common decision', () => {
+  const common = (decisions: Adr[]): CommonLog => ({ name: 'common', ctx, view: view(decisions) });
+  const sharedRule = () => adr('ADR-0010', { components: ['billing-service'], review_rule: 'Shared rule.' });
+  const exception = (over: Partial<AdrMeta> = {}) =>
+    adr('ADR-0012', {
+      components: ['billing-service'],
+      exception_to: ['common/ADR-0010'],
+      review_on: '2027-03-04',
+      review_rule: 'Local rule.',
+      ...over,
+    });
+  const invoice = 'src/Invoices/Invoice.ts';
+  const other = 'src/Other/Thing.ts';
+  const summary = (d: FileDecision) => [d.id, d.workspace, d.binding, d.exemption];
+
+  test('with no code anchors it exempts the common decision for every file of the product, and stays listed', () => {
+    const files = adrsForFiles(ctx, view([exception()]), [invoice, other], common([sharedRule()]));
+    for (const file of files) {
+      expect(file.decisions.map(summary)).toEqual([
+        ['ADR-0012', null, true, null],
+        ['ADR-0010', 'common', false, { by: 'ADR-0012' }],
+      ]);
+    }
+  });
+
+  test('an anchorless exception whose components omit this file still governs it: it is listed with its own rule', () => {
+    const ex = exception({ components: [] });
+    const [result] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule()]));
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0012', workspace: null, binding: true, match: 'exception', anchor: null }),
+    );
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0010', binding: false, exemption: { by: 'ADR-0012' } }),
+    );
+  });
+
+  test('an exception that exempts two common decisions is listed once', () => {
+    const ex = exception({ components: [], exception_to: ['common/ADR-0010', 'common/ADR-0011'] });
+    const second = adr('ADR-0011', { components: ['billing-service'], review_rule: 'Another shared rule.' });
+    const [result] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule(), second]));
+    expect(result?.decisions.filter((d) => d.id === 'ADR-0012')).toHaveLength(1);
+    expect(result?.decisions.filter((d) => d.exemption?.by === 'ADR-0012')).toHaveLength(2);
+  });
+
+  test('two exceptions to the same common decision are both listed, with the first as the exemption', () => {
+    const first = exception({ components: [] });
+    const second = adr('ADR-0013', {
+      components: [],
+      exception_to: ['common/ADR-0010'],
+      review_on: '2027-03-04',
+      review_rule: 'Another local rule.',
+    });
+    const [result] = adrsForFiles(ctx, view([first, second]), [invoice], common([sharedRule()]));
+    expect(result?.decisions.filter((d) => d.match === 'exception').map((d) => d.id)).toEqual(['ADR-0012', 'ADR-0013']);
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0010', exemption: { by: 'ADR-0012' } }),
+    );
+  });
+
+  test('an exception that matches by itself is listed once', () => {
+    const [result] = adrsForFiles(ctx, view([exception()]), [invoice], common([sharedRule()]));
+    expect(result?.decisions.filter((d) => d.id === 'ADR-0012')).toHaveLength(1);
+  });
+
+  test('with code anchors it exempts only the files those anchors match', () => {
+    const ex = exception({ code: ['billing-service:src/Invoices/**'] });
+    const [inside] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule()]));
+    const [outside] = adrsForFiles(ctx, view([ex]), [other], common([sharedRule()]));
+    expect(inside?.decisions.map(summary)).toContainEqual(['ADR-0010', 'common', false, { by: 'ADR-0012' }]);
+    expect(outside?.decisions.map(summary)).toContainEqual(['ADR-0010', 'common', true, null]);
+  });
+
+  test('anchors that name only another component exempt nothing here', () => {
+    const ex = exception({ code: ['web:apps/web/**'] });
+    const [result] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule()]));
+    expect(result?.decisions.map(summary)).toContainEqual(['ADR-0010', 'common', true, null]);
+  });
+
+  test.each(['proposed', 'rejected', 'superseded', 'deprecated'] as const)(
+    'a %s exception exempts nothing',
+    (status) => {
+      const [result] = adrsForFiles(ctx, view([exception({ status })]), [invoice], common([sharedRule()]));
+      expect(result?.decisions).toContainEqual(
+        expect.objectContaining({ id: 'ADR-0010', binding: true, exemption: null }),
+      );
+    },
+  );
+
+  test('a pending exception, not yet on the default branch, exempts nothing', () => {
+    const pending: PendingChange[] = [{ id: 'ADR-0012', kind: 'added', current: exception() }];
+    const [result] = adrsForFiles(ctx, view([], pending), [invoice], common([sharedRule()]));
+    expect(result?.decisions).toContainEqual(expect.objectContaining({ id: 'ADR-0012', layer: 'pending' }));
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0010', binding: true, exemption: null }),
+    );
+  });
+
+  test('an exception naming another log, or a decision the common log does not hold, exempts nothing', () => {
+    const otherLog = exception({ exception_to: ['other/ADR-0010'] });
+    const missing = exception({ exception_to: ['common/ADR-0099'] });
+    for (const ex of [otherLog, missing]) {
+      const [result] = adrsForFiles(ctx, view([ex]), [invoice], common([sharedRule()]));
+      expect(result?.decisions).toContainEqual(
+        expect.objectContaining({ id: 'ADR-0010', binding: true, exemption: null }),
+      );
+    }
+  });
+
+  test('an exception past its review date stays in force', () => {
+    const [result] = adrsForFiles(
+      ctx,
+      view([exception({ review_on: '2020-01-01' })]),
+      [invoice],
+      common([sharedRule()]),
+    );
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0010', binding: false, exemption: { by: 'ADR-0012' } }),
+    );
   });
 });

@@ -35,6 +35,7 @@ export type DiagnosticCode =
   | 'empty-decision'
   | 'numbered-heading'
   | 'review-due'
+  | 'exception-without-review'
   | 'filename-convention';
 
 export interface Diagnostic {
@@ -100,12 +101,43 @@ function checkFields(ctx: Context, adr: Adr, out: Diagnostic[]): void {
       message: 'An accepted ADR needs a review_rule: the one checkable sentence agents and reviewers apply',
     });
   }
+  if (adr.meta.exception_to.length > 0 && !adr.meta.review_on) {
+    out.push({
+      severity: 'warning',
+      code: 'exception-without-review',
+      ...at(adr),
+      message: `${adr.meta.id} is an exception to a common decision, so it needs a review date: set review_on, when the exception is due to be looked at again`,
+    });
+  }
 }
 
 /** What a `related` reference can resolve against: this log's name, and the decisions of the common log, if it is readable. */
 interface RefScope {
   own: string | null;
   common: { name: string; ids: Set<string> } | null;
+}
+
+/** Resolves a `workspace/ADR-n` entry against the common log: a broken link when it is reachable and lacks the id, else information. */
+function workspaceLink(
+  adr: Adr,
+  target: string,
+  workspace: string,
+  id: string,
+  scope: RefScope,
+  out: Diagnostic[],
+): void {
+  if (scope.common?.name === workspace) {
+    if (!scope.common.ids.has(id)) {
+      out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
+    }
+    return;
+  }
+  out.push({
+    severity: 'info',
+    code: 'unresolved-ref',
+    ...at(adr),
+    message: `${target} names the log "${workspace}", which is not reachable from this one, so the reference was not checked`,
+  });
 }
 
 /** Checks one `related` entry: a plain id or this log's own `workspace/ADR-n` against this log, the common log's `workspace/ADR-n` against the common log. */
@@ -131,18 +163,22 @@ function relatedLink(adr: Adr, target: string, byId: Map<string, Adr[]>, scope: 
       out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
     return;
   }
-  if (scope.common?.name === ref.workspace) {
-    if (!scope.common.ids.has(ref.id)) {
-      out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
-    }
+  workspaceLink(adr, target, ref.workspace, ref.id, scope, out);
+}
+
+/** Checks one `exception_to` entry: an exception departs from a decision of a common log, so only `workspace/ADR-n` of another log is valid. */
+function exceptionLink(adr: Adr, target: string, scope: RefScope, out: Diagnostic[]): void {
+  const ref = parseRef(target);
+  if (ref.workspace === null || ref.workspace === scope.own) {
+    out.push({
+      severity: 'error',
+      code: 'invalid-ref',
+      ...at(adr),
+      message: `${target} is not a common reference: exception_to names decisions of a common log, written workspace/ADR-n`,
+    });
     return;
   }
-  out.push({
-    severity: 'info',
-    code: 'unresolved-ref',
-    ...at(adr),
-    message: `${target} names the log "${ref.workspace}", which is not reachable from this one, so the reference was not checked`,
-  });
+  workspaceLink(adr, target, ref.workspace, ref.id, scope, out);
 }
 
 function checkLinks(adrs: Adr[], out: Diagnostic[], scope: RefScope): void {
@@ -178,6 +214,7 @@ function checkLinks(adrs: Adr[], out: Diagnostic[], scope: RefScope): void {
       }
     }
     for (const target of adr.meta.related) relatedLink(adr, target, byId, scope, out);
+    for (const target of adr.meta.exception_to) exceptionLink(adr, target, scope, out);
     for (const oldId of adr.meta.supersedes) {
       const old = byId.get(oldId)?.[0];
       if (old && (old.meta.status !== 'superseded' || old.meta.superseded_by !== adr.meta.id)) {

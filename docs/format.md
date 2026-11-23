@@ -57,6 +57,7 @@ contested: false
 | `review_rule`                            | One checkable sentence a reviewer or an agent applies to a change. **Required once `accepted`.** |
 | `sources`                                | Where the decision was made: merge requests, tickets, chat. Free-form strings.                   |
 | `supersedes`, `superseded_by`, `related` | Links to other ADR ids. They must resolve, and supersession must go both ways.                   |
+| `exception_to`                           | Common decisions this one departs from, as `workspace/ADR-n`. Needs `review_on`; see below.      |
 | `deciders`                               | Who decided.                                                                                     |
 | `origin`                                 | `manual` (default, left out of the file), `agent` or `mined`.                                    |
 | `contested`                              | `true` when the decision is known to be disputed.                                                |
@@ -73,6 +74,15 @@ the target log's own name, its `workspace` (or its product name slugged when `wo
 - The log named by the prefix cannot be reached from this one: the entry is reported as `unresolved-ref` information,
   which never changes the exit code. A `common` that cannot be reached (a missing path, a failed clone) is reported once as `common-unreadable`, also information; one that was read but cannot serve (it is the product log itself, or has no usable workspace name) is a `common-invalid` error.
 - The text has a `/` but is not a valid `workspace/ADR-n`: an `invalid-ref` error. An id of this log wins, even when its own `id_format` puts a slash in it, and the id after the slash is written as the target log writes it.
+
+An accepted decision with `exception_to` departs from decisions of the common log. Each entry is a `workspace/ADR-n` of
+that log, resolved as a `related` entry is, except that the product's own name is not allowed: a plain id, or a prefix
+equal to this log's name, is an `invalid-ref` error. An exception exempts the files it governs from the common decisions
+it names: all the files of the product when it has no `code` anchors, otherwise only the files its anchors match. The
+exempted common decision stays listed, marked `EXEMPT (by ADR-n)`, and is not binding for those files. Only an accepted
+exception on the default branch exempts anything. An exception needs `review_on`: without it `adrien check` warns with
+`exception-without-review`. Once the review date passes it is reported as due like any decision, and it stays in force
+until it is renewed, replaced or removed.
 
 ### Body
 
@@ -243,17 +253,18 @@ reported as left in place.
 | `unknown-tag`, `unknown-component` | error    | Not in the config.                                                                                 |
 | `invalid-anchor`                   | error    | Not `component:glob`, or an unknown component.                                                     |
 | `duplicate-id`                     | error    | Two ADRs share an id, across the default branch and your changes.                                  |
-| `broken-link`                      | error    | `supersedes`, `superseded_by` or `related` names an ADR that does not exist.                       |
+| `broken-link`                      | error    | `supersedes`, `superseded_by`, `related` or `exception_to` names an ADR that does not exist.       |
 | `supersede-asymmetry`              | error    | One side of a supersession is missing.                                                             |
 | `superseded-without-successor`     | warning  | Status is `superseded`, but `superseded_by` is empty and no ADR lists it.                          |
 | `missing-review-rule`              | error    | An accepted ADR has no `review_rule`.                                                              |
 | `stale-anchor`                     | warning  | An anchor matches no file in a checkout.                                                           |
 | `pending-proposed`                 | warning  | (`--mr`) A changed ADR is still `proposed`.                                                        |
 | `review-due`                       | warning  | `review_on` is today or earlier, and the status is not retired (rejected, superseded, deprecated). |
+| `exception-without-review`         | warning  | An ADR with `exception_to` has no `review_on`: an exception needs a date to be looked at again.    |
 | `filename-convention`              | warning  | (`--lint`) File name is not `<id>-lowercase-words.md`, as `adrien new` writes it.                  |
 | `anchors-not-verified`             | info     | Components with no local checkout.                                                                 |
-| `invalid-ref`                      | error    | A reference that is not an id or `workspace/ADR-n`, or a `/` in `supersedes` or `superseded_by`.   |
-| `unresolved-ref`                   | info     | A `workspace/ADR-n` in `related` names a log this one cannot reach, so it was not checked.         |
+| `invalid-ref`                      | error    | Not an id or `workspace/ADR-n`, a `/` in `supersedes`, or a bad `exception_to` entry.              |
+| `unresolved-ref`                   | info     | A `workspace/ADR-n` in `related` or `exception_to` names a log this one cannot reach.              |
 | `common-unreadable`                | info     | The `common` field names a log that cannot be reached, so references to it were not checked.       |
 | `common-invalid`                   | error    | The `common` field names the product log itself, or a log with no usable workspace name.           |
 

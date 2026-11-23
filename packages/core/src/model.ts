@@ -25,6 +25,8 @@ export interface AdrMeta {
   supersedes: string[];
   superseded_by?: string;
   related: string[];
+  /** Common decisions this one departs from, each a `workspace/ADR-n` reference. Exempts the files it covers (ADR-0035). */
+  exception_to: string[];
   deciders: string[];
   origin: Origin;
   contested: boolean;
@@ -56,6 +58,7 @@ export const META_KEYS = [
   'supersedes',
   'superseded_by',
   'related',
+  'exception_to',
   'deciders',
   'origin',
   'contested',
@@ -80,6 +83,7 @@ export const adrMetaSchema = z.object({
   supersedes: stringList,
   superseded_by: z.string().optional(),
   related: stringList,
+  exception_to: stringList,
   deciders: stringList,
   origin: z.enum(ORIGINS).default('manual'),
   contested: z.boolean().default(false),

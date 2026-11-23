@@ -56,6 +56,7 @@ export function FactsPanel({ file, nodes }: { file: AdrFile; nodes: Map<string, 
     ['Supersedes', m.supersedes],
     ['Superseded by', m.superseded_by ? [m.superseded_by] : []],
     ['Related', m.related],
+    ['Exception to', m.exception_to],
   ];
   return (
     <div className="space-y-6">

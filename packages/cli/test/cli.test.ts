@@ -112,6 +112,34 @@ test('search postgres finds it', async () => {
   expect((await run(root, 'search', 'postgres')).stdout).toContain('ADR-0001');
 });
 
+test('for <file> shows a common decision an accepted exception exempts as EXEMPT, by the exception', async () => {
+  const root = log({
+    'apps/web/src/a.ts': 'export {};\n',
+    'docs/adr/ADR-0001-a.md': adrText({
+      id: 'ADR-0001',
+      title: 'Local exception',
+      status: 'accepted',
+      components: ['web'],
+      exception_to: ['shared-co/ADR-0009'],
+      review_on: '2027-03-04',
+      review_rule: 'Local rule applies.',
+    }),
+    [CONFIG_FILE]: configYaml({ common: sharedLog() }),
+  });
+  const result = await run(root, 'for', 'apps/web/src/a.ts');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toBe(
+    [
+      'apps/web/src/a.ts [web]',
+      '  ADR-0001 BINDING Local exception',
+      '    rule: Local rule applies.',
+      '  [shared-co] ADR-0009 EXEMPT (by ADR-0001) Shared rule',
+      '    rule: Shared rule applies.',
+      '',
+    ].join('\n'),
+  );
+});
+
 test('for <file> in a monorepo prints the BINDING ADR and its rule', async () => {
   const root = log({
     'apps/web/src/a.ts': 'export {};\n',
