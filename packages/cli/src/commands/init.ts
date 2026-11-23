@@ -6,8 +6,10 @@ import {
   CONFIG_FILE,
   DEFAULT_TAGS,
   isGitUrl,
+  isWorkspaceName,
   type LogConfig,
   loadLogConfig,
+  workspaceNameOf,
   writeCodeRepoConfig,
   writeLogConfig,
 } from '@adrien/core';
@@ -26,6 +28,7 @@ interface InitOptions {
   agents?: boolean;
   log?: string;
   product?: string;
+  workspace?: string;
   adrDir: string;
   tags?: string;
   components?: string;
@@ -34,7 +37,7 @@ interface InitOptions {
 
 function setupHint(config: LogConfig): string {
   return [
-    `Created ${CONFIG_FILE} (product: ${config.product}).`,
+    `Created ${CONFIG_FILE} (product: ${config.product}, workspace: ${config.workspace}).`,
     'Next:',
     `  1. Add to CODEOWNERS:   ${config.adr_dir}/ @your-architects-group`,
     '  2. GitLab Premium+: Settings > Repository > Protected branches > require Code Owner approval on the default branch.',
@@ -44,13 +47,27 @@ function setupHint(config: LogConfig): string {
 }
 
 function initLog(cli: Cli, opts: InitOptions): void {
-  const config: LogConfig = {
-    product: opts.product ?? basename(cli.cwd),
+  const product = opts.product ?? basename(cli.cwd);
+  const fields = {
     adr_dir: opts.adrDir,
     id_format: opts.idFormat,
     tags: opts.tags ? csv(opts.tags) : DEFAULT_TAGS,
     components: Object.fromEntries(csv(opts.components).map((c) => [c, {}])),
   };
+  if (opts.workspace !== undefined && !isWorkspaceName(opts.workspace)) {
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `--workspace "${opts.workspace}" is not a valid workspace name: use lowercase letters, digits, ".", "_" or "-".`,
+    );
+  }
+  const workspace = opts.workspace ?? workspaceNameOf({ product, ...fields });
+  if (workspace === null) {
+    throw new AdrienError(
+      'INVALID_INPUT',
+      'Could not derive a workspace name from the product name; pass --workspace <name>.',
+    );
+  }
+  const config: LogConfig = { product, workspace, ...fields };
   writeLogConfig(cli.cwd, config);
   try {
     loadLogConfig(cli.cwd);
@@ -96,6 +113,7 @@ export function registerInit(program: Command, cli: Cli): void {
     .option('--code-repo', 'in a code repo: write .adrien.yaml pointing at the log (needs --log)')
     .option('--agents', 'add the Adrien block to AGENTS.md')
     .option('--product <name>', 'product name (default: the directory name)')
+    .option('--workspace <name>', 'workspace name (default: the product name, slugged)')
     .option('--adr-dir <dir>', 'where ADR files live', 'docs/adr')
     .option('--tags <list>', 'allowed tags, comma-separated (default: frontend,backend,database,infra,security)')
     .option(

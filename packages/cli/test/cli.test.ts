@@ -26,7 +26,7 @@ test('init writes the config and prints the setup hint; a second init exits 2', 
   expect(first.code).toBe(0);
   expect(first.stdout).toBe(
     [
-      'Created adrien.config.yaml (product: acme).',
+      'Created adrien.config.yaml (product: acme, workspace: acme).',
       'Next:',
       '  1. Add to CODEOWNERS:   docs/adr/ @your-architects-group',
       '  2. GitLab Premium+: Settings > Repository > Protected branches > require Code Owner approval on the default branch.',
@@ -40,6 +40,32 @@ test('init writes the config and prints the setup hint; a second init exits 2', 
   const second = await run(root, 'init', '--product', 'acme');
   expect(second.code).toBe(2);
   expect(second.stderr).toContain('already exists');
+});
+
+test('init names the workspace after the product unless --workspace overrides it', async () => {
+  const derived = tmpDir();
+  expect((await run(derived, 'init', '--product', 'Acme Billing')).code).toBe(0);
+  expect(readFileSync(join(derived, CONFIG_FILE), 'utf8')).toMatch(/^product: Acme Billing\nworkspace: acme-billing\n/);
+
+  const overridden = tmpDir();
+  const result = await run(overridden, 'init', '--product', 'Acme Billing', '--workspace', 'billing');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain('Created adrien.config.yaml (product: Acme Billing, workspace: billing).');
+  expect(readFileSync(join(overridden, CONFIG_FILE), 'utf8')).toMatch(/^product: Acme Billing\nworkspace: billing\n/);
+});
+
+test('init rejects an invalid --workspace and a product name that yields no workspace', async () => {
+  const invalid = tmpDir();
+  const bad = await run(invalid, 'init', '--product', 'acme', '--workspace', 'Acme Core');
+  expect(bad.code).toBe(2);
+  expect(bad.stderr).toContain('lowercase letters');
+  expect(existsSync(join(invalid, CONFIG_FILE))).toBe(false);
+
+  const underivable = tmpDir();
+  const none = await run(underivable, 'init', '--product', '!!!');
+  expect(none.code).toBe(2);
+  expect(none.stderr).toContain('Could not derive a workspace name from the product name; pass --workspace <name>.');
+  expect(existsSync(join(underivable, CONFIG_FILE))).toBe(false);
 });
 
 test('new creates the file; list shows it; list --json parses', async () => {

@@ -1,6 +1,14 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_FILE, findUp, loadLogConfig, writeLogConfig } from '../src/config.ts';
+import {
+  CONFIG_FILE,
+  findUp,
+  isWorkspaceName,
+  loadLogConfig,
+  parseLogConfigText,
+  workspaceNameOf,
+  writeLogConfig,
+} from '../src/config.ts';
 import { tmpDir, writeFiles } from './helpers/fixtures.ts';
 
 test('loadLogConfig applies defaults', () => {
@@ -60,4 +68,49 @@ test('template defaults to standard and rejects an unknown name', () => {
   expect(loadLogConfig(root).template).toBe('madr');
   writeFiles(root, { [CONFIG_FILE]: 'product: acme\ntemplate: fancy\n' });
   expect(() => loadLogConfig(root)).toThrow(expect.objectContaining({ code: 'CONFIG_INVALID' }));
+});
+
+test('workspace is an optional name that must match the id rule', () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: 'product: acme\nworkspace: acme-core\n' });
+  expect(loadLogConfig(root).workspace).toBe('acme-core');
+  expect(() => parseLogConfigText('product: acme\nworkspace: "Acme Core"\n', CONFIG_FILE)).toThrow(
+    expect.objectContaining({ code: 'CONFIG_INVALID', message: expect.stringContaining('workspace') }),
+  );
+});
+
+test('a config without workspace stays valid', () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: 'product: acme\n' });
+  expect(loadLogConfig(root).workspace).toBeUndefined();
+});
+
+test('isWorkspaceName accepts id-style names only', () => {
+  expect(isWorkspaceName('acme.core_2-x')).toBe(true);
+  expect(isWorkspaceName('Acme')).toBe(false);
+  expect(isWorkspaceName('acme:core')).toBe(false);
+  expect(isWorkspaceName('')).toBe(false);
+});
+
+describe('workspaceNameOf', () => {
+  const base = {
+    product: 'Acme',
+    adr_dir: 'docs/adr',
+    id_format: 'ADR-{n:4}',
+    template: 'standard' as const,
+    tags: [],
+    components: {},
+  };
+
+  test('returns the configured workspace', () => {
+    expect(workspaceNameOf({ ...base, workspace: 'core' })).toBe('core');
+  });
+
+  test('derives the workspace from the product name when unset', () => {
+    expect(workspaceNameOf({ ...base, product: 'Acme Billing' })).toBe('acme-billing');
+  });
+
+  test('returns null when the product slugs to nothing', () => {
+    expect(workspaceNameOf({ ...base, product: '!!!' })).toBeNull();
+  });
 });
