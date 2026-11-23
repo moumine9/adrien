@@ -91,6 +91,8 @@ export interface ForResponse {
   files: FileDecisions[];
   /** Present when decisions are shown as binding without a default branch to verify against. */
   notes?: string[];
+  /** Present when the common log named by the product's config has a note of its own (no default branch, or unreadable). */
+  common_notes?: string[];
 }
 
 /** `GET /api/check` */

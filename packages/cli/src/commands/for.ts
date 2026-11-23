@@ -11,8 +11,8 @@ export function registerFor(program: Command, cli: Cli): void {
     .action(async (paths: string[], _opts: unknown, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
       const { ctx, view } = await open(cli, globals);
-      const { files, notes } = await forFilesWithCommon(ctx, view, paths);
-      for (const note of notes) cli.err(`note: ${note}\n`);
+      const { files, notes, commonNotes } = await forFilesWithCommon(ctx, view, paths);
+      for (const note of [...notes, ...commonNotes]) cli.err(`note: ${note}\n`);
       if (globals.json) return printJson(cli, files);
       cli.out(formatFileDecisions(files));
     });

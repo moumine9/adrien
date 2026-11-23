@@ -152,7 +152,18 @@ test('adr_for_files with an unreadable common log keeps its own decisions and ad
   const client = await connect({ cwd: monorepo({ [CONFIG_FILE]: configYaml({ common: missing }) }) });
   const { structured } = await call(client, 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
   expect(structured.files[0].decisions).toEqual([expect.objectContaining({ id: 'ADR-0001', workspace: null })]);
-  expect(structured.notes).toEqual([expect.stringContaining(missing)]);
+  expect(structured.notes).toBeUndefined();
+  expect(structured.common_notes).toEqual([expect.stringContaining(missing)]);
+});
+
+test('adr_for_files puts a common log without a default branch in common_notes, not notes', async () => {
+  const common = sharedLog();
+  initRepo(common);
+  git(common, 'branch', '-m', 'trunk');
+  const client = await connect({ cwd: monorepo({ [CONFIG_FILE]: configYaml({ common }) }) });
+  const { structured } = await call(client, 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
+  expect(structured.notes).toBeUndefined();
+  expect(structured.common_notes).toEqual([expect.stringContaining('In the common log "shared-co": ')]);
 });
 
 test('adr_search, adr_list and adr_get read the log', async () => {

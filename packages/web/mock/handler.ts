@@ -20,15 +20,24 @@ import { BASE, COMPONENTS, checkReport, PENDING, TAGS } from './fixtures.ts';
 /**
  * - `default`: git mode, default branch found, three pending changes.
  * - `unresolved`: no default branch, statuses read as written (`baseUnresolved`).
+ * - `common`: a decision from a common log (`workspace` set) and its note in `common_notes`.
  * - `fork`: a shallow fork that shares no history with the default branch (`forkUnresolved`).
  * - `files`: not a git repository (`mode: 'files'`).
  * - `empty`: a log with no decisions yet.
  * - `workspaces`: two workspaces, `adrien` (the default, as `default`) and `common` (the first three decisions only).
  *   The flat routes answer 404 WORKSPACE_REQUIRED, as the real API does.
  */
-export type MockVariant = 'default' | 'unresolved' | 'fork' | 'files' | 'empty' | 'workspaces';
+export type MockVariant = 'default' | 'unresolved' | 'fork' | 'files' | 'empty' | 'workspaces' | 'common';
 
-export const MOCK_VARIANTS: readonly MockVariant[] = ['default', 'unresolved', 'fork', 'files', 'empty', 'workspaces'];
+export const MOCK_VARIANTS: readonly MockVariant[] = [
+  'default',
+  'unresolved',
+  'fork',
+  'files',
+  'empty',
+  'workspaces',
+  'common',
+];
 
 interface WorkspaceInfo {
   name: string;
@@ -304,23 +313,48 @@ function forFiles(view: View, paths: string[], variant: MockVariant): ForRespons
       const m = match(p.current);
       if (m) decisions.push(decision(p.current, 'pending', p.kind, m));
     }
+    if (variant === 'common') {
+      decisions.push({
+        id: 'ADR-0009',
+        title: 'Shared rule',
+        status: 'accepted',
+        binding: true,
+        workspace: 'shared-co',
+        layer: 'base',
+        pending_kind: null,
+        match: 'component',
+        anchor: null,
+        review_rule: 'Shared rule applies.',
+        excerpt: 'Accepted in the common log that this product names.',
+      });
+    }
     decisions.sort(
       (a, b) =>
         Number(b.binding) - Number(a.binding) ||
         Number(b.match === 'anchor') - Number(a.match === 'anchor') ||
         a.id.localeCompare(b.id) ||
-        a.layer.localeCompare(b.layer),
+        a.layer.localeCompare(b.layer) ||
+        (a.workspace ?? '').localeCompare(b.workspace ?? ''),
     );
     return { file, component, decisions };
   });
-  return variant === 'unresolved'
-    ? {
-        files,
-        notes: [
-          'No default branch was found (looked for origin/HEAD, origin/main, origin/master, main, master), so ADR statuses are read as written and nothing is verified as merged. Fetch the default branch to be sure which decisions are binding.',
-        ],
-      }
-    : { files };
+  if (variant === 'unresolved') {
+    return {
+      files,
+      notes: [
+        'No default branch was found (looked for origin/HEAD, origin/main, origin/master, main, master), so ADR statuses are read as written and nothing is verified as merged. Fetch the default branch to be sure which decisions are binding.',
+      ],
+    };
+  }
+  if (variant === 'common') {
+    return {
+      files,
+      common_notes: [
+        'In the common log "shared-co": No default branch was found in it, so its statuses are read as written.',
+      ],
+    };
+  }
+  return { files };
 }
 
 function exportText(view: View, format: string): string {

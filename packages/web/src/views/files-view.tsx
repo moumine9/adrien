@@ -28,6 +28,7 @@ export function FilesView() {
   };
 
   const notes = result.data?.notes ?? [];
+  const commonNotes = result.data?.common_notes ?? [];
 
   return (
     <div className="space-y-8">
@@ -68,19 +69,19 @@ export function FilesView() {
           <ErrorState title="Could not look up these files" error={result.error} onRetry={() => result.refetch()} />
         ) : (
           <div className="space-y-6">
-            {notes.length > 0 && (
+            {notes.length + commonNotes.length > 0 && (
               <Alert className="bg-caution text-ink">
                 <Info aria-hidden />
                 <AlertTitle>Binding is not verified</AlertTitle>
                 <AlertDescription>
-                  {notes.map((n) => (
+                  {[...notes, ...commonNotes].map((n) => (
                     <p key={n}>{n}</p>
                   ))}
                 </AlertDescription>
               </Alert>
             )}
             {result.data.files.map((f) => (
-              <FileResult key={f.file} entry={f} hasNotes={notes.length > 0} />
+              <FileResult key={f.file} entry={f} hasNotes={notes.length > 0} hasCommonNotes={commonNotes.length > 0} />
             ))}
           </div>
         ))}

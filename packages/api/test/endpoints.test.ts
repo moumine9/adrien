@@ -427,7 +427,18 @@ describe('GET /api/for', () => {
       '/api/for?path=apps/web/src/a.ts',
     );
     expect(broken.body.files[0]?.decisions).toEqual([expect.objectContaining({ id: 'ADR-0001', workspace: null })]);
-    expect(broken.body.notes).toEqual([expect.stringContaining(missing)]);
+    expect(broken.body.notes).toBeUndefined();
+    expect(broken.body.common_notes).toEqual([expect.stringContaining(missing)]);
+  });
+
+  test('a common log without a default branch is a common_notes entry, not the product notes', async () => {
+    const common = sharedLog();
+    initRepo(common);
+    git(common, 'branch', '-m', 'trunk');
+    const root = filesLog({ [CONFIG_FILE]: configYaml({ common }) });
+    const { body } = await get<ForResponse>(root, '/api/for?path=apps/web/src/a.ts');
+    expect(body.notes).toBeUndefined();
+    expect(body.common_notes).toEqual([expect.stringContaining('In the common log "shared-co": ')]);
   });
 
   test.each(['/api/for', '/api/for?path='])('%s without a path is a 400', async (path) => {

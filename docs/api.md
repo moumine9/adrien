@@ -44,7 +44,9 @@ token and the host check are the same for every workspace.
 - `GET /api/for` takes code paths, not workspace names: they are answered against the workspace the route names.
 - A `GET /api/for` decision has `workspace`: `null` for the product's own log, or the name of the common log it comes
   from (the `common` field of `adrien.config.yaml`). When that common log cannot be read, its decisions are left out and
-  `notes` says why; the product's own decisions are still returned. `notes` also warns when the common log has no
+  `common_notes` says why; the product's own decisions are still returned. `notes` stays the product log's own
+  verification warning (no default branch), and `common_notes` covers the common log: no default branch, or unreadable.
+  Each list is present only when it has entries. `notes` also warns when the common log has no
   default branch to verify its decisions against.
 
 ## Endpoints

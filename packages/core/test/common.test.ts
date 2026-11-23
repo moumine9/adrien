@@ -168,9 +168,10 @@ describe('forFilesWithCommon', () => {
     const ctx = await resolveContext({ cwd: root, env: {} });
     const view = await loadLogView(root, ctx.config);
     const result = await forFilesWithCommon(ctx, view, ['src/a.ts']);
-    expect(result.notes).toHaveLength(1);
-    expect(result.notes[0]).toContain('shared-co');
-    expect(result.notes[0]).toContain('No default branch');
+    expect(result.notes).toEqual([]);
+    expect(result.commonNotes).toHaveLength(1);
+    expect(result.commonNotes[0]).toContain('In the common log "shared-co": ');
+    expect(result.commonNotes[0]).toContain('No default branch');
   });
 
   test('an unreadable common log keeps the own decisions and adds a note', async () => {
@@ -182,8 +183,9 @@ describe('forFilesWithCommon', () => {
     const view = await loadLogView(root, ctx.config);
     const result = await forFilesWithCommon(ctx, view, ['src/a.ts']);
     expect(result.files[0]?.decisions.map((d) => [d.id, d.workspace])).toEqual([['ADR-0001', null]]);
-    expect(result.notes).toHaveLength(1);
-    expect(result.notes[0]).toContain('./missing-log');
+    expect(result.notes).toEqual([]);
+    expect(result.commonNotes).toHaveLength(1);
+    expect(result.commonNotes[0]).toContain('./missing-log');
   });
 
   test('a product without a common field is unchanged, with no common decisions', async () => {
@@ -194,6 +196,7 @@ describe('forFilesWithCommon', () => {
     expect(await forFilesWithCommon(ctx, view, ['src/a.ts'])).toEqual({
       files: [{ file: 'src/a.ts', component: 'billing-service', decisions: [] }],
       notes: [],
+      commonNotes: [],
     });
   });
 });

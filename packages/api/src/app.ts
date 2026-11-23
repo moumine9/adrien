@@ -204,8 +204,12 @@ export function createApp(opts: ApiOptions): Hono {
   route('for', async (c, { ctx }, view) => {
     const paths = all(c, 'path');
     if (!paths.length) throw new AdrienError('INVALID_INPUT', 'Give at least one file: /api/for?path=src/a.ts');
-    const { files, notes } = await forFilesWithCommon(ctx, view, paths);
-    return c.json<ForResponse>({ files, ...(notes.length > 0 ? { notes } : {}) });
+    const { files, notes, commonNotes } = await forFilesWithCommon(ctx, view, paths);
+    return c.json<ForResponse>({
+      files,
+      ...(notes.length > 0 ? { notes } : {}),
+      ...(commonNotes.length > 0 ? { common_notes: commonNotes } : {}),
+    });
   });
 
   route('check', async (c, { ctx }, view) => {

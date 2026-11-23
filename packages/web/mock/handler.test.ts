@@ -86,6 +86,16 @@ describe('mock API', () => {
     expect(readme).toEqual({ file: 'README.md', component: null, decisions: [] });
     expect(r.notes).toBeUndefined();
     expect(get<ForResponse>('/api/for?path=platform/deploy/app.yaml', 'unresolved').body.notes).toHaveLength(1);
+  });
+
+  it('the common variant adds an accepted decision of the common log, and its own note in common_notes', () => {
+    const plain = get<ForResponse>('/api/for?path=platform/deploy/app.yaml').body;
+    expect(plain.files[0]?.decisions.every((d) => d.workspace === null)).toBe(true);
+    expect(plain.common_notes).toBeUndefined();
+    const { body } = get<ForResponse>('/api/for?path=platform/deploy/app.yaml', 'common');
+    expect(body.notes).toBeUndefined();
+    expect(body.common_notes).toEqual([expect.stringContaining('In the common log "shared-co": ')]);
+    expect(body.files[0]?.decisions).toContainEqual(expect.objectContaining({ workspace: 'shared-co', binding: true }));
     expect(get<ApiError>('/api/for').status).toBe(400);
   });
 

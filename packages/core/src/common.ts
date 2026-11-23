@@ -91,8 +91,10 @@ export function commonUnreadableNote(result: CommonResolution | null): string | 
 
 export interface FilesWithCommon {
   files: FileDecisions[];
-  /** Notes for the caller to show: the default branch is missing, or the common log could not be read. */
+  /** The product log's verification warning: its default branch is missing. */
   notes: string[];
+  /** About the common log: its default branch is missing, or it could not be read. */
+  commonNotes: string[];
 }
 
 /**
@@ -102,14 +104,17 @@ export interface FilesWithCommon {
 export async function forFilesWithCommon(ctx: Context, view: LogView, paths: string[]): Promise<FilesWithCommon> {
   const read = await readCommon(ctx);
   const common = read && 'common' in read ? read.common : null;
-  const notes = [unverifiedBaseNote(view)];
+  const commonNotes: string[] = [];
   if (common) {
     const commonBase = unverifiedBaseNote(common.view);
-    if (commonBase) notes.push(`In the common log "${common.name}": ${commonBase}`);
+    if (commonBase) commonNotes.push(`In the common log "${common.name}": ${commonBase}`);
   }
-  notes.push(commonUnreadableNote(read));
+  const unreadable = commonUnreadableNote(read);
+  if (unreadable) commonNotes.push(unreadable);
+  const ownBase = unverifiedBaseNote(view);
   return {
     files: adrsForFiles(ctx, view, paths, common),
-    notes: notes.filter((note): note is string => note !== null),
+    notes: ownBase ? [ownBase] : [],
+    commonNotes,
   };
 }
