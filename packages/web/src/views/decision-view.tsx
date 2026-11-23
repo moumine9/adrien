@@ -5,6 +5,7 @@ import { ErrorState } from '@/components/error-state.tsx';
 import { FactsPanel } from '@/components/facts-panel.tsx';
 import { AdrMarkdown } from '@/components/markdown.tsx';
 import { PendingSection, pendingFileOf } from '@/components/pending-section.tsx';
+import { RecordGapsHint } from '@/components/record-gaps-hint.tsx';
 import { RuleBlock } from '@/components/rule-block.tsx';
 import { VersionStamp } from '@/components/stamp.tsx';
 import { LoadingBlocks } from '@/components/states.tsx';
@@ -13,6 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { ApiRequestError } from '@/lib/api.ts';
 import { useChangedSinceOpened } from '@/lib/change-watch.ts';
 import { useAdr, useFileResolver, useGraph, useMeta } from '@/lib/queries.ts';
+import { recordGaps } from '@/lib/record-gaps.ts';
 import { authorityOf, isReviewDue } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
 
@@ -129,6 +131,7 @@ export function DecisionView() {
             </Link>
           </p>
         )}
+        <RecordGapsHint gaps={recordGaps(m, primary.body)} />
       </header>
 
       <RuleBlock rule={m.review_rule} binding={binding} />
