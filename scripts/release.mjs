@@ -4,7 +4,8 @@
 //   node scripts/release.mjs tag [--push]    tag origin/main as vX.Y.Z; --push also pushes the tag, which publishes
 //   node scripts/release.mjs verify          compare npm and the GitHub Release with the version
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 const PACKAGE = 'packages/cli/package.json';
 const CHANGELOG = 'CHANGELOG.md';
@@ -15,10 +16,18 @@ const fail = (message) => {
   process.exit(1);
 };
 
-/** Runs a command without a shell and returns its trimmed stdout. Throws when it fails. */
+/** On Windows, pnpm and npm are `.cmd` shims, which only a shell can start; git and gh are executables. */
+export function needsShell(cmd, platform = process.platform) {
+  return platform === 'win32' && (cmd === 'pnpm' || cmd === 'npm');
+}
+
+/** Runs a command and returns its trimmed stdout. Throws when it fails. Arguments are fixed words, never user text. */
 export function run(cmd, args, options = {}) {
   // With stdio inherited there is no output to return, so the result is null.
-  return execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options })?.trim() ?? '';
+  const shell = needsShell(cmd);
+  return (
+    execFileSync(cmd, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], shell, ...options })?.trim() ?? ''
+  );
 }
 
 const git = (...args) => run('git', args);
@@ -142,22 +151,31 @@ function verify(args) {
     console.error(`npm view failed: ${error.stderr?.toString().trim() ?? error.message}`);
   }
   console.log(`npm: ${npmVersion || '(none)'}`);
+  let releaseFound = true;
   try {
     console.log(run('gh', ['release', 'view', `v${version}`, '--json', 'tagName,url']));
   } catch (error) {
+    releaseFound = false;
     console.error(`gh release view failed: ${error.stderr?.toString().trim() ?? error.message}`);
   }
   if (npmVersion !== version)
     fail(
       `npm does not show ${version} yet: it can take a few minutes after the workflow succeeds, so run this again before assuming the publish failed.`,
     );
+  // The workflow creates the GitHub Release in a job of its own, after npm: one can exist without the other.
+  if (!releaseFound) fail(`npm shows ${version}, but there is no GitHub Release v${version}.`);
 }
 
 const commands = { prepare, tag, verify };
-const [command, ...args] = process.argv.slice(2);
-if (!Object.hasOwn(commands, command)) fail(USAGE);
-try {
-  commands[command](args);
-} catch (error) {
-  fail(error.stderr?.toString().trim() || error.message);
+
+// Importing this file (the tests do) must not run a command. Both paths are resolved, because Node resolves symlinks for
+// the module's own URL but not for argv, and a mismatch would run nothing and still exit 0.
+if (process.argv[1] && realpathSync(fileURLToPath(import.meta.url)) === realpathSync(process.argv[1])) {
+  const [command, ...args] = process.argv.slice(2);
+  if (!Object.hasOwn(commands, command)) fail(USAGE);
+  try {
+    commands[command](args);
+  } catch (error) {
+    fail(error.stderr?.toString().trim() || error.message);
+  }
 }

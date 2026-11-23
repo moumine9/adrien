@@ -1,7 +1,8 @@
 import { spawnSync } from 'node:child_process';
-import { chmodSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { needsShell } from '../../../scripts/release.mjs';
 import { tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { commitAll, git, gitEnv, initRepo } from '../../core/test/helpers/git.ts';
 
@@ -193,6 +194,17 @@ describe('release tag', () => {
 });
 
 describe('release arguments', () => {
+  test.skipIf(process.platform === 'win32')(
+    'run through a symlink, an unknown subcommand still fails with the usage',
+    () => {
+      const link = join(tmpDir(), 'release.mjs');
+      symlinkSync(script, link);
+      const run = spawnSync(process.execPath, [link, 'ship'], { encoding: 'utf8', env: gitEnv() });
+      expect(run.status).toBe(1);
+      expect(run.stderr).toContain('usage');
+    },
+  );
+
   test('an unknown subcommand prints the usage and fails', () => {
     const { root } = repo();
     const result = release(root, ['ship']);
@@ -205,5 +217,53 @@ describe('release arguments', () => {
     const result = release(root, ['verify', '0.1.0']);
     expect(result.code).toBe(1);
     expect(result.stderr).toContain('usage');
+  });
+});
+
+/** A directory with fake `npm` and `gh` executables on PATH: npm prints `npmVersion`, gh exits with `ghCode`. */
+function fakeRegistry(npmVersion: string, ghCode: number): string {
+  const bin = tmpDir();
+  for (const [name, body] of [
+    ['npm', `echo ${npmVersion}`],
+    ['gh', ghCode === 0 ? 'echo \'{"tagName":"v0.1.0"}\'' : `echo "release not found" >&2; exit ${ghCode}`],
+  ] as const) {
+    writeFileSync(join(bin, name), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  }
+  return bin;
+}
+
+describe('release verify', () => {
+  test.skipIf(process.platform === 'win32')('succeeds when npm shows the version and the GitHub Release exists', () => {
+    const { root } = repo('0.1.0');
+    expect(release(root, ['verify'], fakeRegistry('0.1.0', 0)).code).toBe(0);
+  });
+
+  test.skipIf(process.platform === 'win32')(
+    'fails when npm shows the version but the GitHub Release is missing',
+    () => {
+      const { root } = repo('0.1.0');
+      const result = release(root, ['verify'], fakeRegistry('0.1.0', 1));
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain('GitHub Release');
+    },
+  );
+
+  test.skipIf(process.platform === 'win32')('fails, saying npm can lag, when npm still shows the old version', () => {
+    const { root } = repo('0.2.0');
+    const result = release(root, ['verify'], fakeRegistry('0.1.0', 0));
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('a few minutes');
+  });
+});
+
+describe('needsShell', () => {
+  test('only the Windows shims of pnpm and npm need a shell', () => {
+    expect(needsShell('pnpm', 'win32')).toBe(true);
+    expect(needsShell('npm', 'win32')).toBe(true);
+    expect(needsShell('git', 'win32')).toBe(false);
+    expect(needsShell('gh', 'win32')).toBe(false);
+    expect(needsShell('pnpm', 'linux')).toBe(false);
+    expect(needsShell('npm', 'darwin')).toBe(false);
   });
 });
