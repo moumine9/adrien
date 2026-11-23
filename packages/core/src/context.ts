@@ -141,6 +141,14 @@ export function componentForPath(ctx: Context, path: string): { component: strin
   return { component: best.component, relPath: best.root ? rel.slice(best.root.length + 1) : rel };
 }
 
+/** Splits a `;`-separated environment list, trimming each entry and dropping the empty ones. */
+export function splitEntries(text: string | undefined): string[] {
+  return (text ?? '')
+    .split(';')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
+}
+
 /**
  * Local checkouts of components: `<ADRIEN_HOME>/checkouts.yaml` (or its former name, `workspace.yaml`, read only when
  * there is no `checkouts.yaml`), overridden by `ADRIEN_REPOS="a=/x;b=C:\\y"`.
@@ -153,7 +161,7 @@ export function checkoutPaths(env: NodeJS.ProcessEnv): Record<string, string> {
     const data = YAML.parse(readFileSync(file, 'utf8')) as { components?: Record<string, string> } | null;
     Object.assign(paths, data?.components ?? {});
   }
-  for (const entry of (env.ADRIEN_REPOS ?? '').split(';')) {
+  for (const entry of splitEntries(env.ADRIEN_REPOS)) {
     const eq = entry.indexOf('=');
     if (eq > 0) paths[entry.slice(0, eq).trim()] = entry.slice(eq + 1).trim();
   }
