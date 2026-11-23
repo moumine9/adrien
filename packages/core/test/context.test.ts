@@ -100,6 +100,10 @@ test('checkoutPaths keeps Windows drive letters and lets ADRIEN_REPOS override c
   });
 });
 
+test('checkoutPaths skips ADRIEN_REPOS entries without a name before =', () => {
+  expect(checkoutPaths({ ADRIEN_HOME: tmpDir(), ADRIEN_REPOS: ' ; web=/x; junk ;=/y' })).toEqual({ web: '/x' });
+});
+
 test('checkoutPaths still reads the old workspace.yaml when there is no checkouts.yaml', () => {
   const home = tmpDir();
   writeFiles(home, { 'workspace.yaml': 'components:\n  billing-service: /old\n' });
