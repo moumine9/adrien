@@ -1,14 +1,14 @@
 ---
 id: ADR-0023
 title: Self-hosting is adrien serve with a token and allowed hosts
-status: proposed
+status: accepted
 date: 2026-11-18
 review_on: 2027-05-18
 tags: [api, release]
 components: [api, cli]
 code: [api:src/auth.ts, cli:src/commands/serve.ts]
-related: [ADR-0019]
 review_rule: Beyond loopback, adrien serve refuses to start without ADRIEN_TOKEN or an explicit --no-auth, checks the Host name before the token, and stays read-only.
+related: [ADR-0019]
 origin: agent
 ---
 

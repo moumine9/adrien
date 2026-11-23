@@ -1,7 +1,7 @@
 ---
 id: ADR-0031
 title: One Adrien instance serves several workspaces, one per product, plus an optional common one
-status: proposed
+status: accepted
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [format, api]

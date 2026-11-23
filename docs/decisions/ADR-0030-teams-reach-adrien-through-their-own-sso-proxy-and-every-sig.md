@@ -1,13 +1,13 @@
 ---
 id: ADR-0030
 title: Self-hosted Adrien stays as it is, without accounts; people and the roles administrator, maintainer and reader belong to a hosted version
-status: proposed
+status: accepted
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [api, release]
 components: [api, cli]
-review_rule: "adrien serve holds no user accounts, roles or SSO code: it stays one shared token or an authenticating proxy in front. People and the roles administrator, maintainer and reader exist only in a hosted version, where a person who signs in is a maintainer unless a role says otherwise."
 code: [api:src/auth.ts, cli:src/commands/serve.ts]
+review_rule: "adrien serve holds no user accounts, roles or SSO code: it stays one shared token or an authenticating proxy in front. People and the roles administrator, maintainer and reader exist only in a hosted version, where a person who signs in is a maintainer unless a role says otherwise."
 related: [ADR-0023, ADR-0003]
 origin: agent
 ---
