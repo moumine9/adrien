@@ -51,6 +51,8 @@ function codeSpan(text: string): string {
 
 interface Group {
   id: string;
+  /** The common log the decision comes from; null for the product's own. */
+  workspace: string | null;
   title: string;
   status: FileDecision['status'];
   layer: FileDecision['layer'];
@@ -64,9 +66,10 @@ function groupDecisions(files: FileDecisions[]): Group[] {
   const groups = new Map<string, Group>();
   for (const { file, decisions } of files) {
     for (const d of decisions) {
-      const key = `${d.layer} ${d.id}`;
+      const key = `${d.workspace ?? ''} ${d.layer} ${d.id}`;
       const group = groups.get(key) ?? {
         id: d.id,
+        workspace: d.workspace,
         title: d.title,
         status: d.status,
         layer: d.layer,
@@ -82,7 +85,8 @@ function groupDecisions(files: FileDecisions[]): Group[] {
   return [...groups.values()];
 }
 
-const byIdThenLayer = (a: Group, b: Group): number => a.id.localeCompare(b.id) || a.layer.localeCompare(b.layer);
+const byIdThenLayer = (a: Group, b: Group): number =>
+  a.id.localeCompare(b.id) || a.layer.localeCompare(b.layer) || (a.workspace ?? '').localeCompare(b.workspace ?? '');
 
 /** The first `max` files as code spans, then how many more there are. */
 function governs(files: string[], max: number): string {
@@ -98,7 +102,7 @@ function governs(files: string[], max: number): string {
 /** The lines of one decision: its heading (with `label` after the title), its rule when it has one, and its files. */
 function describe(group: Group, label: string, maxFiles: number): string {
   return [
-    `**${escapeText(group.id)}** ${escapeText(group.title)}${label}`,
+    `${group.workspace === null ? '' : `[${escapeText(group.workspace)}] `}**${escapeText(group.id)}** ${escapeText(group.title)}${label}`,
     ...(group.review_rule === null ? [] : [`Rule: ${escapeText(group.review_rule)}`]),
     `Governs: ${governs(group.files, maxFiles)}`,
   ].join('\n');

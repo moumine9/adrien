@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE } from '@adrien/core';
-import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { adrText, configYaml, sharedLog, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { git, initRepo } from '../../core/test/helpers/git.ts';
 import { runCli, VERSION } from '../src/program.ts';
 
@@ -14,6 +14,22 @@ function log(files: Record<string, string> = {}): string {
   writeFiles(root, { [CONFIG_FILE]: configYaml(), ...files });
   return root;
 }
+
+test('adrien for labels a common log decision with its workspace; an unreadable common log is a note', async () => {
+  const root = log({
+    'apps/web/src/a.ts': 'export {};\n',
+    [CONFIG_FILE]: configYaml({ common: sharedLog() }),
+  });
+  const result = await run(root, 'for', 'apps/web/src/a.ts');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toBe(
+    'apps/web/src/a.ts [web]\n  [shared-co] ADR-0009 BINDING Shared rule\n    rule: Shared rule applies.\n',
+  );
+
+  const missing = join(root, 'no-such-log');
+  const broken = await run(log({ [CONFIG_FILE]: configYaml({ common: missing }) }), 'for', 'README.md');
+  expect(broken.stderr).toContain(`note: The common log at ${missing} could not be read`);
+});
 
 test('--version prints the package version', async () => {
   const result = await run(tmpDir(), '--version');

@@ -14,7 +14,7 @@ for people and agents alike: **which decisions govern the code I am about to cha
 - **Plain files, no lock-in.** ADRs are markdown with a little frontmatter. Plain MADR, log4brains and adr-tools files
   are read as they are.
 - **Many repos, one log per product.** A product can span many repos (microservices, micro-frontends). Its decisions
-  live in one log, and each ADR names the files it governs.
+  live in one log, and each ADR names the files it governs. A product log can name a common log in its `common` field, whose accepted decisions bind the product too.
 - **The merge request is the approval.** A decision is binding only once it is `accepted` on the default branch.
   Agents and developers can propose; architects approve by merging.
 - **Built for agents.** An MCP server hands an agent the governing decisions and their one-line `review_rule` before it

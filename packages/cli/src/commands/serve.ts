@@ -1,6 +1,14 @@
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_HOST, DEFAULT_PORT, isLoopback, startServer } from '@adrien/api';
-import { AdrienError, resolveWorkspaces, syncCachedClone, type Workspace } from '@adrien/core';
+import {
+  AdrienError,
+  type Context,
+  commonCloneDir,
+  isGitUrl,
+  resolveWorkspaces,
+  syncCachedClone,
+  type Workspace,
+} from '@adrien/core';
 import { type Command, InvalidArgumentError } from 'commander';
 import { type Cli, type GlobalOptions, logSpecs } from '../cli.ts';
 
@@ -73,6 +81,56 @@ export function scheduleWorkspaceSyncs(
   };
 }
 
+/**
+ * Makes concurrent syncs of one directory share a single run: a log that is both served and named as a common log has
+ * two timers on one clone, and two fetches in one directory fight over git's lock files.
+ */
+export function onePerDir(sync: (dir: string) => Promise<void>): (dir: string) => Promise<void> {
+  const running = new Map<string, Promise<void>>();
+  return (dir) => {
+    const current = running.get(dir);
+    if (current) return current;
+    const run = sync(dir).finally(() => running.delete(dir));
+    running.set(dir, run);
+    return run;
+  };
+}
+
+/**
+ * Refreshes the cached clone of each common log named by a git URL, once per URL, because a product that names it is
+ * bound by it whether or not it is also served. The workspaces are read afresh on every tick, as the API reads them on
+ * every request, so a `common` that was added or changed since startup is followed, and a clone that could not be made
+ * earlier is picked up later. One failing log does not stop the others.
+ */
+export function scheduleCommonSyncs(
+  listWorkspaces: () => Promise<readonly Workspace[]>,
+  everySeconds: number,
+  sync: (dir: string) => Promise<void>,
+  warn: (message: string) => void,
+  cloneDir: (ctx: Context) => Promise<string | null> = commonCloneDir,
+): () => void {
+  return scheduleSync(
+    'the common logs',
+    everySeconds,
+    async () => {
+      const byUrl = new Map<string, Context>();
+      for (const { ctx } of await listWorkspaces()) {
+        const url = ctx.config.common;
+        if (url !== undefined && isGitUrl(url) && !byUrl.has(url)) byUrl.set(url, ctx);
+      }
+      for (const [url, ctx] of byUrl) {
+        try {
+          const dir = await cloneDir(ctx);
+          if (dir) await sync(dir);
+        } catch (e) {
+          warn(`Could not refresh the common log ${url}: ${(e as Error).message}\n`);
+        }
+      }
+    },
+    warn,
+  );
+}
+
 export function registerServe(program: Command, cli: Cli): void {
   program
     .command('serve')
@@ -128,8 +186,16 @@ export function registerServe(program: Command, cli: Cli): void {
           if (!LISTEN_ERRORS.has(e.code ?? '')) throw e;
           throw new AdrienError('INVALID_INPUT', `Cannot listen on ${opts.host}:${opts.port}: ${e.message}`);
         });
-        if (opts.syncEvery > 0)
-          scheduleWorkspaceSyncs(workspaces.all, opts.syncEvery, syncCachedClone, (m) => process.stderr.write(m));
+        if (opts.syncEvery > 0) {
+          const sync = onePerDir(syncCachedClone);
+          scheduleWorkspaceSyncs(workspaces.all, opts.syncEvery, sync, (m) => process.stderr.write(m));
+          scheduleCommonSyncs(
+            async () => (await resolveWorkspaces({ cwd: cli.cwd, specs, env: cli.env })).all,
+            opts.syncEvery,
+            sync,
+            (m) => process.stderr.write(m),
+          );
+        }
         // The action ends once the server listens, so the bin prints this line now; the open server keeps the process
         // running until it is interrupted.
         const [only] = workspaces.all;

@@ -85,6 +85,17 @@ test('a config without workspace stays valid', () => {
   expect(loadLogConfig(root).workspace).toBeUndefined();
 });
 
+test('common is an optional non-empty path or URL', () => {
+  const root = tmpDir();
+  writeFiles(root, { [CONFIG_FILE]: 'product: acme\ncommon: ../common-log\n' });
+  expect(loadLogConfig(root).common).toBe('../common-log');
+  writeFiles(root, { [CONFIG_FILE]: 'product: acme\n' });
+  expect(loadLogConfig(root).common).toBeUndefined();
+  expect(() => parseLogConfigText('product: acme\ncommon: ""\n', CONFIG_FILE)).toThrow(
+    expect.objectContaining({ code: 'CONFIG_INVALID', message: expect.stringContaining('common') }),
+  );
+});
+
 test('isWorkspaceName accepts id-style names only', () => {
   expect(isWorkspaceName('acme.core_2-x')).toBe(true);
   expect(isWorkspaceName('Acme')).toBe(false);

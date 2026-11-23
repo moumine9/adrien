@@ -10,6 +10,7 @@ function dec(id: string, over: Partial<FileDecision> = {}): FileDecision {
     title: `Title ${id}`,
     status: 'accepted',
     binding: true,
+    workspace: null,
     layer: 'base',
     pending_kind: null,
     match: 'anchor',
@@ -228,6 +229,34 @@ test('file names go into code spans as they are: angle brackets and @ stay reada
   expect(review.markdown).toContain('Governs: `packages/@scope/<x>.ts`, `a b c.ts`\n');
   expect(review.markdown).not.toContain('\u200B');
   expect(review.markdown).not.toContain('&lt;x');
+});
+
+test('a decision from a common log is labelled with its workspace, apart from an own decision with the same id', () => {
+  const review = buildReview([
+    file(
+      'src/a.ts',
+      dec('ADR-0010', { workspace: null, review_rule: 'Own.' }),
+      dec('ADR-0010', { workspace: 'shared-co', review_rule: 'Shared.' }),
+    ),
+  ]);
+  expect(review.binding).toBe(2);
+  expect(review.markdown).toContain('**ADR-0010** Title ADR-0010');
+  expect(review.markdown).toContain('[shared-co] **ADR-0010** Title ADR-0010');
+  expect(review.markdown).toContain('Rule: Shared.');
+});
+
+test('same-id decisions from the own log and two common logs sort own first, then by workspace', () => {
+  const review = buildReview([
+    file(
+      'src/a.ts',
+      dec('ADR-0010', { workspace: 'shared-co' }),
+      dec('ADR-0010', { workspace: null }),
+      dec('ADR-0010', { workspace: 'other-co' }),
+    ),
+  ]);
+  const at = (text: string) => review.markdown.indexOf(text);
+  expect(at('**ADR-0010**')).toBeLessThan(at('[other-co] **ADR-0010**'));
+  expect(at('[other-co] **ADR-0010**')).toBeLessThan(at('[shared-co] **ADR-0010**'));
 });
 
 test('a note about an unverified base is shown, right after the marker', () => {

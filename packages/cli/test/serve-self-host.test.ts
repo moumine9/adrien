@@ -7,7 +7,13 @@ import type { Workspace } from '@adrien/core';
 import { CONFIG_FILE } from '@adrien/core';
 import { configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { initRepo } from '../../core/test/helpers/git.ts';
-import { assertSafeToExpose, scheduleSync, scheduleWorkspaceSyncs } from '../src/commands/serve.ts';
+import {
+  assertSafeToExpose,
+  onePerDir,
+  scheduleCommonSyncs,
+  scheduleSync,
+  scheduleWorkspaceSyncs,
+} from '../src/commands/serve.ts';
 import { runCli } from '../src/program.ts';
 
 const dist = fileURLToPath(new URL('../dist/index.js', import.meta.url));
@@ -208,4 +214,61 @@ describe.runIf(existsSync(dist))('a log that follows a git URL', () => {
     await refused;
     expect(child.exitCode).toBeNull();
   }, 30_000);
+});
+
+test('scheduleCommonSyncs reads the common logs afresh on each tick: one refresh per git URL, a new URL picked up, a failure not blocking the rest', async () => {
+  vi.useFakeTimers();
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const ws = (name: string, common?: string) => ({ name, ctx: { config: { common } } }) as unknown as Workspace;
+  let current = [
+    ws('a', 'https://example.com/corp.git'),
+    ws('b', 'https://example.com/corp.git'),
+    ws('c'),
+    ws('d', '../local'),
+  ];
+  const synced: string[] = [];
+  const warned: string[] = [];
+  const stop = scheduleCommonSyncs(
+    async () => current,
+    60,
+    async (dir) => {
+      if (dir === '/cache/bad') throw new Error('offline');
+      synced.push(dir);
+    },
+    (m) => warned.push(m),
+    async (ctx) => `/cache/${ctx.config.common?.split('/').pop()}`,
+  );
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(synced).toEqual(['/cache/corp.git']);
+  current = [ws('a', 'https://example.com/bad'), ws('b', 'https://example.com/new.git')];
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(synced).toEqual(['/cache/corp.git', '/cache/new.git']);
+  expect(warned).toHaveLength(1);
+  expect(warned[0]).toContain('offline');
+  stop();
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(synced).toHaveLength(2);
+});
+
+test('onePerDir lets a second sync of a directory wait for the one already running, and runs again after it', async () => {
+  const started: string[] = [];
+  const releases: (() => void)[] = [];
+  const sync = onePerDir(async (dir) => {
+    started.push(dir);
+    await new Promise<void>((resolve) => {
+      releases.push(resolve);
+    });
+  });
+  const first = sync('/cache/x');
+  const second = sync('/cache/x');
+  const other = sync('/cache/y');
+  expect(started).toEqual(['/cache/x', '/cache/y']);
+  for (const release of releases) release();
+  await Promise.all([first, second, other]);
+  const third = sync('/cache/x');
+  expect(started).toEqual(['/cache/x', '/cache/y', '/cache/x']);
+  releases[2]?.();
+  await third;
 });

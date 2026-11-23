@@ -20,7 +20,8 @@ commands below, or build it yourself from the Dockerfile as shown here.
 docker build -t adrien --build-arg ADRIEN_PACKAGE=adrien@latest https://github.com/moumine9/adrien.git
 ```
 
-Read a log from a git URL. The server fetches it every five minutes (`--sync-every`):
+Read a log from a git URL. The server fetches it every five minutes (`--sync-every`), and the same for a common log that a product names by a
+git URL:
 
 ```sh
 docker run -d --name adrien -p 4310:4310 -v adrien-data:/data \

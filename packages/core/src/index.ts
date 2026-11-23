@@ -1,6 +1,7 @@
 export * from './anchors.ts';
 export * from './backup.ts';
 export * from './check.ts';
+export * from './common.ts';
 export * from './config.ts';
 export * from './context.ts';
 export * from './duplicates.ts';

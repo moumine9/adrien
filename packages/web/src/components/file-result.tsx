@@ -3,7 +3,16 @@ import { Box, FileCode } from 'lucide-react';
 import { Chip } from '@/components/badges.tsx';
 import { DecisionRow } from '@/components/decision-row.tsx';
 
-export function FileResult({ entry, hasNotes }: { entry: FileDecisions; hasNotes: boolean }) {
+/** `hasNotes` flags the product's own rows as unverified; `hasCommonNotes` does the same for the common log's rows. */
+export function FileResult({
+  entry,
+  hasNotes,
+  hasCommonNotes,
+}: {
+  entry: FileDecisions;
+  hasNotes: boolean;
+  hasCommonNotes: boolean;
+}) {
   const binding = entry.decisions.filter((d) => d.binding).length;
   return (
     <section aria-label={entry.file} className="overflow-hidden panel shadow-shadow">
@@ -34,7 +43,11 @@ export function FileResult({ entry, hasNotes }: { entry: FileDecisions; hasNotes
       ) : (
         <ul className="divide-y divide-rule">
           {entry.decisions.map((d) => (
-            <DecisionRow key={`${d.layer}:${d.id}`} d={d} hasNotes={hasNotes} />
+            <DecisionRow
+              key={`${d.workspace ?? ''}:${d.layer}:${d.id}`}
+              d={d}
+              hasNotes={d.workspace === null ? hasNotes : hasCommonNotes}
+            />
           ))}
         </ul>
       )}

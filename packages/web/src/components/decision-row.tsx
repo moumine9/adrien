@@ -40,9 +40,16 @@ export function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean })
         {d.pending_kind && <PendingBadge kind={d.pending_kind} />}
       </div>
       <h3 className="text-lg leading-snug">
-        <Link to={wp(`/adr/${encodeURIComponent(d.id)}`)} className="hover-underline">
-          <span className="tabular-nums">{d.id}</span> {d.title}
-        </Link>
+        {/* A common log's decision is not in this product's log, so it has no page here (yet). */}
+        {d.workspace === null ? (
+          <Link to={wp(`/adr/${encodeURIComponent(d.id)}`)} className="hover-underline">
+            <span className="tabular-nums">{d.id}</span> {d.title}
+          </Link>
+        ) : (
+          <>
+            <span className="pill">[{d.workspace}]</span> <span className="tabular-nums">{d.id}</span> {d.title}
+          </>
+        )}
       </h3>
       {d.review_rule && (
         <p className="max-w-[72ch] border-l-4 border-border pl-4">

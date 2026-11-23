@@ -2,15 +2,14 @@ import {
   type Adr,
   AdrIndex,
   AdrienError,
-  adrsForFiles,
   type Context,
   createAdr,
   type Filters,
+  forFilesWithCommon,
   type LogView,
   loadLogView,
   resolveContext,
   STATUSES,
-  unverifiedBaseNote,
   updateAdr,
   workingRevision,
 } from '@adrien/core';
@@ -76,12 +75,16 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
     {
       title: 'Decisions governing files',
       description:
-        'Call this BEFORE editing code. For each file, returns the architecture decisions that govern it, with the review_rule to follow. binding:true means an accepted decision on the default branch; binding:false is a pending proposal or a hint. If `notes` is present, read it: it says the default branch could not be found, so bindingness is unverified.',
+        'Call this BEFORE editing code. For each file, returns the architecture decisions that govern it, with the review_rule to follow. binding:true means an accepted decision on the default branch; binding:false is a pending proposal or a hint. A decision with `workspace` set comes from the common log the product names. If `notes` is present, read it: it says the default branch could not be found, so bindingness is unverified. If `common_notes` is present, read it too: it concerns the common log only (no default branch, or could not be read) and does not affect the own decisions of the product.',
       inputSchema: { paths: z.array(z.string().min(1)).min(1).max(50) },
     },
-    handler(opts, ({ paths }: { paths: string[] }, ctx, view) => {
-      const note = unverifiedBaseNote(view);
-      return ok({ files: adrsForFiles(ctx, view, paths), ...(note ? { notes: [note] } : {}) });
+    handler(opts, async ({ paths }: { paths: string[] }, ctx, view) => {
+      const { files, notes, commonNotes } = await forFilesWithCommon(ctx, view, paths);
+      return ok({
+        files,
+        ...(notes.length > 0 ? { notes } : {}),
+        ...(commonNotes.length > 0 ? { common_notes: commonNotes } : {}),
+      });
     }),
   );
 

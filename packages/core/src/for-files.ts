@@ -1,4 +1,5 @@
 import { anchorMatches, excerpt, parseAnchor } from './anchors.ts';
+import type { CommonLog } from './common.ts';
 import { type Context, componentForPath } from './context.ts';
 import { toPosix } from './log.ts';
 import type { Adr, Status } from './model.ts';
@@ -10,6 +11,8 @@ export interface FileDecision {
   status: Status;
   /** Only an accepted ADR on the default branch binds; everything else is a hint. */
   binding: boolean;
+  /** The name of the common log the decision comes from; null for the product's own log. */
+  workspace: string | null;
   layer: 'base' | 'pending';
   pending_kind: PendingChange['kind'] | null;
   match: 'anchor' | 'component';
@@ -41,12 +44,14 @@ function decision(
   layer: FileDecision['layer'],
   pendingKind: FileDecision['pending_kind'],
   match: Pick<FileDecision, 'match' | 'anchor'>,
+  workspace: string | null,
 ): FileDecision {
   return {
     id: adr.meta.id,
     title: adr.meta.title,
     status: adr.meta.status,
     binding: layer === 'base' && adr.meta.status === 'accepted',
+    workspace,
     layer,
     pending_kind: pendingKind,
     ...match,
@@ -59,13 +64,24 @@ const order = (a: FileDecision, b: FileDecision): number =>
   Number(b.binding) - Number(a.binding) ||
   Number(b.match === 'anchor') - Number(a.match === 'anchor') ||
   a.id.localeCompare(b.id) ||
-  a.layer.localeCompare(b.layer);
+  a.layer.localeCompare(b.layer) ||
+  // Last, so that only a tie under the rules above puts the product's own decisions before a common log's.
+  Number(a.workspace !== null) - Number(b.workspace !== null);
 
-/** The decisions that govern each file: binding ones first, pending agent or developer edits labelled as such. */
-export function adrsForFiles(ctx: Context, view: LogView, paths: string[]): FileDecisions[] {
+/**
+ * The decisions that govern each file: binding ones first, pending agent or developer edits labelled as such. With a
+ * common log, its accepted decisions bind the files too, matched against the product's own components.
+ */
+export function adrsForFiles(
+  ctx: Context,
+  view: LogView,
+  paths: string[],
+  common: CommonLog | null = null,
+): FileDecisions[] {
   const changeOfBase = new Map<Adr, PendingChange['kind']>();
   for (const change of view.pending) if (change.base) changeOfBase.set(change.base, change.kind);
   const pendingCurrent = view.pending.filter((c) => c.current).map((c) => ({ adr: c.current as Adr, kind: c.kind }));
+  const commonAccepted = common ? common.view.base.filter((adr) => adr.meta.status === 'accepted') : [];
 
   return paths.map((path) => {
     const file = toPosix(path);
@@ -76,11 +92,15 @@ export function adrsForFiles(ctx: Context, view: LogView, paths: string[]): File
     for (const adr of view.base) {
       if (RETIRED.has(adr.meta.status)) continue;
       const match = matchOf(adr, component, relPath);
-      if (match) decisions.push(decision(adr, 'base', changeOfBase.get(adr) ?? null, match));
+      if (match) decisions.push(decision(adr, 'base', changeOfBase.get(adr) ?? null, match, null));
     }
     for (const { adr, kind } of pendingCurrent) {
       const match = matchOf(adr, component, relPath);
-      if (match) decisions.push(decision(adr, 'pending', kind, match));
+      if (match) decisions.push(decision(adr, 'pending', kind, match, null));
+    }
+    for (const adr of commonAccepted) {
+      const match = matchOf(adr, component, relPath);
+      if (match && common) decisions.push(decision(adr, 'base', null, match, common.name));
     }
     return { file, component, decisions: decisions.sort(order) };
   });
