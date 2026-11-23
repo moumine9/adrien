@@ -10,17 +10,20 @@ import {
   type LogView,
   loadLogView,
   modifiedAtById,
-  resolveContext,
+  resolveWorkspaces,
   runCheck,
   STATUSES,
   type Status,
   unverifiedBaseNote,
+  type Workspace,
+  type WorkspaceSpec,
+  type Workspaces,
   workingRevision,
 } from '@adrien/core';
 import { Hono, type Context as HonoContext } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { isAuthorized } from './auth.ts';
-import type { AdrsResponse, ApiError, CheckResponse, ForResponse } from './contract.ts';
+import type { AdrsResponse, ApiError, CheckResponse, ForResponse, WorkspacesResponse } from './contract.ts';
 import { isAllowedHost } from './host.ts';
 import { adrOf, graphOf, metaOf } from './views.ts';
 import { serveWeb } from './web.ts';
@@ -30,6 +33,8 @@ export interface ApiOptions {
   cwd: string;
   /** The log to serve (a path or a git URL), as `--log`. */
   log?: string;
+  /** Several logs to serve, each a workspace under `/api/w/<name>/`. Takes the place of `log` when given. */
+  logs?: readonly WorkspaceSpec[];
   env?: NodeJS.ProcessEnv;
   /** Reported by `/api/meta`. */
   version?: string;
@@ -45,6 +50,17 @@ export interface ApiOptions {
 }
 
 const HTTP_STATUS: Partial<Record<string, ContentfulStatusCode>> = { ADR_NOT_FOUND: 404, INVALID_INPUT: 400 };
+
+/** A refusal of the API itself (a workspace that does not exist, or one that must be named), with its own status. */
+class RouteError extends Error {
+  constructor(
+    readonly status: ContentfulStatusCode,
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 const fail = (c: HonoContext, status: ContentfulStatusCode, code: string, message: string) =>
   c.json<ApiError>({ error: { code, message } }, status);
@@ -66,12 +82,46 @@ async function withIndex<T>(ctx: Context, view: LogView, use: (index: AdrIndex) 
   }
 }
 
+/**
+ * The workspace a request names: `/api/w/<name>/...` names one, the flat routes take the only one. A name is only ever
+ * looked up among the workspaces (never turned into a path).
+ */
+function pickWorkspace(workspaces: Workspaces, name: string | undefined): Workspace {
+  if (name === undefined) {
+    if (workspaces.all.length === 1) return workspaces.only();
+    throw new RouteError(
+      404,
+      'WORKSPACE_REQUIRED',
+      `This server has several workspaces: use /api/w/<name>/... with one of ${workspaces.names().join(', ')}.`,
+    );
+  }
+  if (!workspaces.names().includes(name)) {
+    throw new RouteError(
+      404,
+      'WORKSPACE_NOT_FOUND',
+      `No workspace "${name}". Known: ${workspaces.names().join(', ')}.`,
+    );
+  }
+  return workspaces.get(name);
+}
+
 /** The read-only HTTP API of docs/api.md, and the web visualizer's files. Every request re-reads the log. */
 export function createApp(opts: ApiOptions): Hono {
   const app = new Hono();
-  const load = async (): Promise<{ ctx: Context; view: LogView }> => {
-    const ctx = await resolveContext({ cwd: opts.cwd, log: opts.log, env: opts.env ?? process.env });
-    return { ctx, view: await loadLogView(ctx.logRoot, ctx.config) };
+  const specs: readonly WorkspaceSpec[] = opts.logs ?? (opts.log !== undefined ? [{ log: opts.log }] : []);
+  const env = opts.env ?? process.env;
+  /** Every route, flat and under its workspace; the handler gets the workspace and its freshly read view. */
+  const route = (
+    path: string,
+    handler: (c: HonoContext, workspace: Workspace, view: LogView) => Response | Promise<Response>,
+  ) => {
+    const run = async (c: HonoContext) => {
+      const workspaces = await resolveWorkspaces({ cwd: opts.cwd, specs, env });
+      const workspace = pickWorkspace(workspaces, c.req.param('workspace'));
+      return handler(c, workspace, await loadLogView(workspace.ctx.logRoot, workspace.ctx.config));
+    };
+    app.get(`/api/${path}`, run);
+    app.get(`/api/w/:workspace/${path}`, run);
   };
 
   // Outermost, so refusals and errors are never cached either.
@@ -109,12 +159,16 @@ export function createApp(opts: ApiOptions): Hono {
     await next();
   });
 
-  app.get('/api/meta', async (c) => {
-    const { ctx, view } = await load();
-    return c.json(metaOf(ctx, view, opts.version ?? '0.0.0'));
+  app.get('/api/workspaces', async (c) => {
+    const { all } = await resolveWorkspaces({ cwd: opts.cwd, specs, env });
+    return c.json<WorkspacesResponse>({
+      workspaces: all.map((w) => ({ name: w.name, product: w.ctx.config.product, default: all.length === 1 })),
+    });
   });
 
-  app.get('/api/adrs', async (c) => {
+  route('meta', (c, workspace, view) => c.json(metaOf(workspace, view, opts.version ?? '0.0.0')));
+
+  route('adrs', async (c, { ctx }, view) => {
     const status = all(c, 'status');
     const unknown = status.filter((s) => !(STATUSES as readonly string[]).includes(s));
     if (unknown.length) {
@@ -127,7 +181,6 @@ export function createApp(opts: ApiOptions): Hono {
       layer: flag(c.req.query('pending')) ? 'pending' : 'all',
     };
     const q = c.req.query('q')?.trim();
-    const { ctx, view } = await load();
     // Every match, ranked: the index holds at most one row per base ADR and one per pending change.
     const limit = view.base.length + view.pending.length;
     const results = await withIndex(ctx, view, (index) => (q ? index.search(q, filters, limit) : index.list(filters)));
@@ -141,27 +194,22 @@ export function createApp(opts: ApiOptions): Hono {
     });
   });
 
-  app.get('/api/adrs/:id', async (c) => {
-    const { ctx, view } = await load();
-    const id = c.req.param('id');
+  route('adrs/:id', async (c, { ctx }, view) => {
+    // The route always matches an id: the helper's path is a plain string, so Hono cannot type the parameter.
+    const id = c.req.param('id') as string;
     return c.json(adrOf(view, id, (await modifiedAtById(ctx.logRoot, view)).get(id) ?? null));
   });
 
-  app.get('/api/graph', async (c) => {
-    const { view } = await load();
-    return c.json(graphOf(view));
-  });
+  route('graph', (c, _workspace, view) => c.json(graphOf(view)));
 
-  app.get('/api/for', async (c) => {
+  route('for', (c, { ctx }, view) => {
     const paths = all(c, 'path');
     if (!paths.length) throw new AdrienError('INVALID_INPUT', 'Give at least one file: /api/for?path=src/a.ts');
-    const { ctx, view } = await load();
     const note = unverifiedBaseNote(view);
     return c.json<ForResponse>({ files: adrsForFiles(ctx, view, paths), ...(note ? { notes: [note] } : {}) });
   });
 
-  app.get('/api/check', async (c) => {
-    const { ctx, view } = await load();
+  route('check', async (c, { ctx }, view) => {
     const diagnostics = await runCheck(ctx, view, { lint: flag(c.req.query('lint')) });
     return c.json<CheckResponse>({
       errors: diagnostics.filter((d) => d.severity === 'error').length,
@@ -170,12 +218,11 @@ export function createApp(opts: ApiOptions): Hono {
     });
   });
 
-  app.get('/api/export', async (c) => {
+  route('export', (c, { ctx }, view) => {
     const format = c.req.query('format') ?? 'markdown';
     if (!(EXPORT_FORMATS as readonly string[]).includes(format)) {
       throw new AdrienError('INVALID_INPUT', `Unknown format "${format}". Use one of: ${EXPORT_FORMATS.join(', ')}`);
     }
-    const { ctx, view } = await load();
     return c.text(exportLog(ctx, view, format as ExportFormat));
   });
 
@@ -184,6 +231,7 @@ export function createApp(opts: ApiOptions): Hono {
 
   app.notFound((c) => fail(c, 404, 'NOT_FOUND', `No endpoint at ${c.req.path} (see docs/api.md).`));
   app.onError((e, c) => {
+    if (e instanceof RouteError) return fail(c, e.status, e.code, e.message);
     if (e instanceof AdrienError) return fail(c, HTTP_STATUS[e.code] ?? 500, e.code, e.message);
     return fail(c, 500, 'INTERNAL_ERROR', e.message);
   });

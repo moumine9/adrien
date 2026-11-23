@@ -74,6 +74,7 @@ function metaOf(variant: MockVariant, view: View): MetaResponse {
   const gitless = variant === 'files';
   return {
     version: '0.1.0',
+    workspace: 'adrien',
     product: 'Adrien',
     adrDir: 'docs/decisions',
     mode: gitless ? 'files' : 'git',

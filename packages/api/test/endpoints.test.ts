@@ -110,6 +110,7 @@ describe('GET /api/meta', () => {
     expect(status).toBe(200);
     expect(body).toEqual({
       version: '1.2.3',
+      workspace: 'acme',
       product: 'acme',
       adrDir: 'docs/adr',
       mode: 'files',

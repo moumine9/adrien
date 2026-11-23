@@ -9,6 +9,8 @@ export type { AdrMeta, AdrRow, Diagnostic, FileDecisions, Status };
 /** `GET /api/meta` */
 export interface MetaResponse {
   version: string;
+  /** The workspace's name: the `<name>` of `/api/w/<name>/...`. */
+  workspace: string;
   product: string;
   adrDir: string;
   /** `git` when the log is read against a default branch, `files` when statuses are read as written. */
@@ -21,6 +23,11 @@ export interface MetaResponse {
   tags: string[];
   components: Record<string, { repo?: string; root?: string }>;
   counts: { total: number; pending: number; byStatus: Record<Status, number> };
+}
+
+/** `GET /api/workspaces` */
+export interface WorkspacesResponse {
+  workspaces: { name: string; product: string; default: boolean }[];
 }
 
 /** `GET /api/adrs` */
