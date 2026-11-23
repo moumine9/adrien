@@ -98,37 +98,37 @@ export function onePerDir(sync: (dir: string) => Promise<void>): (dir: string) =
 
 /**
  * Refreshes the cached clone of each common log named by a git URL, once per URL, because a product that names it is
- * bound by it whether or not it is also served. The clone is found on every tick, so one that could not be cloned at
- * startup is picked up later.
+ * bound by it whether or not it is also served. The workspaces are read afresh on every tick, as the API reads them on
+ * every request, so a `common` that was added or changed since startup is followed, and a clone that could not be made
+ * earlier is picked up later. One failing log does not stop the others.
  */
 export function scheduleCommonSyncs(
-  workspaces: readonly Workspace[],
+  listWorkspaces: () => Promise<readonly Workspace[]>,
   everySeconds: number,
   sync: (dir: string) => Promise<void>,
   warn: (message: string) => void,
   cloneDir: (ctx: Context) => Promise<string | null> = commonCloneDir,
 ): () => void {
-  const urls = new Set<string>();
-  const stops: (() => void)[] = [];
-  for (const { ctx } of workspaces) {
-    const url = ctx.config.common;
-    if (url === undefined || !isGitUrl(url) || urls.has(url)) continue;
-    urls.add(url);
-    stops.push(
-      scheduleSync(
-        url,
-        everySeconds,
-        async () => {
+  return scheduleSync(
+    'the common logs',
+    everySeconds,
+    async () => {
+      const byUrl = new Map<string, Context>();
+      for (const { ctx } of await listWorkspaces()) {
+        const url = ctx.config.common;
+        if (url !== undefined && isGitUrl(url) && !byUrl.has(url)) byUrl.set(url, ctx);
+      }
+      for (const [url, ctx] of byUrl) {
+        try {
           const dir = await cloneDir(ctx);
           if (dir) await sync(dir);
-        },
-        warn,
-      ),
-    );
-  }
-  return () => {
-    for (const stop of stops) stop();
-  };
+        } catch (e) {
+          warn(`Could not refresh the common log ${url}: ${(e as Error).message}\n`);
+        }
+      }
+    },
+    warn,
+  );
 }
 
 export function registerServe(program: Command, cli: Cli): void {
@@ -189,7 +189,12 @@ export function registerServe(program: Command, cli: Cli): void {
         if (opts.syncEvery > 0) {
           const sync = onePerDir(syncCachedClone);
           scheduleWorkspaceSyncs(workspaces.all, opts.syncEvery, sync, (m) => process.stderr.write(m));
-          scheduleCommonSyncs(workspaces.all, opts.syncEvery, sync, (m) => process.stderr.write(m));
+          scheduleCommonSyncs(
+            async () => (await resolveWorkspaces({ cwd: cli.cwd, specs, env: cli.env })).all,
+            opts.syncEvery,
+            sync,
+            (m) => process.stderr.write(m),
+          );
         }
         // The action ends once the server listens, so the bin prints this line now; the open server keeps the process
         // running until it is interrupted.

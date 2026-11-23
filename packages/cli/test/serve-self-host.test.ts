@@ -216,24 +216,37 @@ describe.runIf(existsSync(dist))('a log that follows a git URL', () => {
   }, 30_000);
 });
 
-test('scheduleCommonSyncs refreshes the clone of each common git URL once, and skips workspaces without one', async () => {
+test('scheduleCommonSyncs reads the common logs afresh on each tick: one refresh per git URL, a new URL picked up, a failure not blocking the rest', async () => {
   vi.useFakeTimers();
   onTestFinished(() => {
     vi.useRealTimers();
   });
   const ws = (name: string, common?: string) => ({ name, ctx: { config: { common } } }) as unknown as Workspace;
+  let current = [
+    ws('a', 'https://example.com/corp.git'),
+    ws('b', 'https://example.com/corp.git'),
+    ws('c'),
+    ws('d', '../local'),
+  ];
   const synced: string[] = [];
+  const warned: string[] = [];
   const stop = scheduleCommonSyncs(
-    [ws('a', 'https://example.com/corp.git'), ws('b', 'https://example.com/corp.git'), ws('c'), ws('d', '../local')],
+    async () => current,
     60,
     async (dir) => {
+      if (dir === '/cache/bad') throw new Error('offline');
       synced.push(dir);
     },
-    () => {},
-    async (ctx) => (ctx.config.common?.startsWith('https') ? '/cache/corp' : null),
+    (m) => warned.push(m),
+    async (ctx) => `/cache/${ctx.config.common?.split('/').pop()}`,
   );
-  await vi.advanceTimersByTimeAsync(120_000);
-  expect(synced).toEqual(['/cache/corp', '/cache/corp']);
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(synced).toEqual(['/cache/corp.git']);
+  current = [ws('a', 'https://example.com/bad'), ws('b', 'https://example.com/new.git')];
+  await vi.advanceTimersByTimeAsync(60_000);
+  expect(synced).toEqual(['/cache/corp.git', '/cache/new.git']);
+  expect(warned).toHaveLength(1);
+  expect(warned[0]).toContain('offline');
   stop();
   await vi.advanceTimersByTimeAsync(120_000);
   expect(synced).toHaveLength(2);
