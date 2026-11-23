@@ -1,3 +1,28 @@
+## [0.10.0](https://github.com/moumine9/adrien/compare/v0.9.0...v0.10.0) (2026-11-23)
+
+One Adrien instance can now serve several workspaces (one per product), a product can be bound by a common log, and a product can record an exception to a common decision. A single log needs no change to keep working.
+
+### Features
+
+* **core:** name a workspace when a log is created: `adrien init --workspace <name>` and a `workspace` field in `adrien.config.yaml` ([72e6c6e](https://github.com/moumine9/adrien/commit/72e6c6edc62d6e64e329d2ca9380d9092c3afe85))
+* **cli:** serve several workspaces with `adrien serve --log name=path` (repeat the option, or separate entries with `;` in `ADRIEN_LOG`) ([94c321f](https://github.com/moumine9/adrien/commit/94c321fb62f10ab3de2be92175c2baf32d205e1c))
+* **api:** every route is also served under `/api/w/<name>/`, and `GET /api/workspaces` lists them ([e4bba0c](https://github.com/moumine9/adrien/commit/e4bba0cb8f82759a0d0ab51a3c6d99b77d601d8e))
+* **web:** a chooser page and `#/w/<name>/...` addresses when several workspaces are served ([f097801](https://github.com/moumine9/adrien/commit/f0978017455b6567dce096693edd600785595164))
+* **core:** a product log names a common log in a `common` field; its accepted decisions bind the product and show in `adrien for`, `adrien review`, `adr_for_files` and `/api/for`, marked with the workspace they come from ([53ca21d](https://github.com/moumine9/adrien/commit/53ca21d23eac9237267d8cd0ba493b7389535420))
+* **core:** write `workspace/ADR-n` in `related` to refer to a decision of another log, and `adrien check` resolves it ([7799347](https://github.com/moumine9/adrien/commit/7799347bc85c0e59222774ff66980b9fd673dce7))
+* **core:** `exception_to` records an exception to a common decision: it exempts the product, or only the files of its `code` anchors, and `adrien check` warns when `review_on` is missing ([7197c98](https://github.com/moumine9/adrien/commit/7197c98320d4f18a9189b125c49d1764f9c7dc30))
+* **core:** read component checkouts from `checkouts.yaml` (`workspace.yaml` is still read when there is no `checkouts.yaml`) ([ddebf56](https://github.com/moumine9/adrien/commit/ddebf565f74cbdbcebe1944dbcb2cddad73685ba))
+
+### Compatibility
+
+* Adrien 0.9.0 and earlier reject a configuration with `workspace:` or `common:`. They keep `exception_to:` in a decision as an unknown field and do not apply it.
+* `--log` and `ADRIEN_LOG` read `name=path` entries and split on `;`; a repeated `--log` now accumulates instead of keeping the last one. Every command except `serve` refuses several logs.
+* `adrien init` fails when the directory name gives no workspace name and `--workspace` is not given.
+* Every decision in `GET /api/for`, `adr_for_files` and the JSON of `adrien for` has new fields: `workspace` (null for the product's own log), `exemption` (null, or the exception that exempts it) and, for an exception that governs a file without naming its component, `match: "exception"`. `GET /api/for` and `adr_for_files` also return `common_notes`, apart from `notes`. A common decision that an exception exempts is `binding: false`.
+* New `adrien check` codes: `invalid-ref`, `unresolved-ref`, `common-unreadable`, `common-invalid` and `exception-without-review`. A `/` in `supersedes` or `superseded_by` is now `invalid-ref`.
+* `adrien check` reads the common log; one named by a git URL is cloned into `ADRIEN_HOME` on the first run, CI included. `adrien serve` refreshes it with `--sync-every`.
+* The web app asks `/api/workspaces` before its first paint (one extra local request).
+
 ## [0.9.0](https://github.com/moumine9/adrien/compare/v0.8.3...v0.9.0) (2026-11-23)
 
 ### Features
