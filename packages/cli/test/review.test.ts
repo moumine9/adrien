@@ -1,5 +1,6 @@
+import { join } from 'node:path';
 import { CONFIG_FILE } from '@adrien/core';
-import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { adrText, configYaml, sharedLog, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { commitAll, git, initRepo } from '../../core/test/helpers/git.ts';
 import { runCli } from '../src/program.ts';
 
@@ -53,6 +54,22 @@ test('--base and --head review what a branch changes, and the default base gives
 
   const implicit = await run('review');
   expect(implicit).toMatchObject({ code: 0, stdout: explicit.stdout });
+});
+
+test('a common log decision is labelled with its workspace, and an unreadable one is a note', async () => {
+  const { root, run } = repo();
+  writeFiles(root, { [CONFIG_FILE]: configYaml({ common: sharedLog() }) });
+  const shared = await run('review', '--files', GOVERNED);
+  expect(shared.code).toBe(0);
+  expect(shared.stderr).toBe('');
+  expect(shared.stdout).toContain('[shared-co] **ADR-0009** Shared rule\nRule: Shared rule applies.\n');
+
+  const missing = join(root, 'no-such-log');
+  writeFiles(root, { [CONFIG_FILE]: configYaml({ common: missing }) });
+  const broken = await run('review', '--files', GOVERNED);
+  expect(broken.code).toBe(0);
+  expect(broken.stderr).toContain(`note: The common log at ${missing} could not be read`);
+  expect(broken.stdout).toContain('**ADR-0001** Invoices in decimal');
 });
 
 test('a branch that changes no governed file says that no decision governs it', async () => {

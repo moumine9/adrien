@@ -2,6 +2,7 @@ import { resolve } from 'node:path';
 import { workspaceNameOf } from './config.ts';
 import { type Context, resolveContext } from './context.ts';
 import { AdrienError } from './errors.ts';
+import { adrsForFiles, type FileDecisions, unverifiedBaseNote } from './for-files.ts';
 import { isGitUrl } from './repo-url.ts';
 import { type LogView, loadLogView } from './view.ts';
 
@@ -71,4 +72,21 @@ export async function resolveCommon(ctx: Context, env?: NodeJS.ProcessEnv): Prom
 export function commonUnreadableNote(result: CommonResolution | null): string | null {
   if (!result || !('unreadable' in result)) return null;
   return `The common log at ${result.unreadable.location} could not be read, so its decisions are not shown: ${result.unreadable.message}`;
+}
+
+export interface FilesWithCommon {
+  files: FileDecisions[];
+  /** Notes for the caller to show: the default branch is missing, or the common log could not be read. */
+  notes: string[];
+}
+
+/**
+ * The decisions that govern `paths`, the product's own and its common log's, with the notes a caller shows. An
+ * unreadable common log leaves the product's own decisions in place and adds a note.
+ */
+export async function forFilesWithCommon(ctx: Context, view: LogView, paths: string[]): Promise<FilesWithCommon> {
+  const read = await readCommon(ctx);
+  const common = read && 'common' in read ? read.common : null;
+  const notes = [unverifiedBaseNote(view), commonUnreadableNote(read)].filter((note): note is string => note !== null);
+  return { files: adrsForFiles(ctx, view, paths, common), notes };
 }

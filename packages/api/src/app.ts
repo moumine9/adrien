@@ -1,12 +1,12 @@
 import {
   AdrIndex,
   AdrienError,
-  adrsForFiles,
   type Context,
   EXPORT_FORMATS,
   type ExportFormat,
   exportLog,
   type Filters,
+  forFilesWithCommon,
   type LogView,
   loadLogView,
   modifiedAtById,
@@ -14,7 +14,6 @@ import {
   runCheck,
   STATUSES,
   type Status,
-  unverifiedBaseNote,
   type Workspace,
   type WorkspaceSpec,
   type Workspaces,
@@ -202,11 +201,11 @@ export function createApp(opts: ApiOptions): Hono {
 
   route('graph', (c, _workspace, view) => c.json(graphOf(view)));
 
-  route('for', (c, { ctx }, view) => {
+  route('for', async (c, { ctx }, view) => {
     const paths = all(c, 'path');
     if (!paths.length) throw new AdrienError('INVALID_INPUT', 'Give at least one file: /api/for?path=src/a.ts');
-    const note = unverifiedBaseNote(view);
-    return c.json<ForResponse>({ files: adrsForFiles(ctx, view, paths), ...(note ? { notes: [note] } : {}) });
+    const { files, notes } = await forFilesWithCommon(ctx, view, paths);
+    return c.json<ForResponse>({ files, ...(notes.length > 0 ? { notes } : {}) });
   });
 
   route('check', async (c, { ctx }, view) => {

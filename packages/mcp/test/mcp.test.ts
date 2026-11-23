@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { CONFIG_FILE, lintAdrs, loadLogView, resolveContext } from '@adrien/core';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
-import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import { adrText, configYaml, sharedLog, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { git, initRepo } from '../../core/test/helpers/git.ts';
 import { createAdrienServer, type ServerOptions } from '../src/server.ts';
 
@@ -129,6 +129,30 @@ test('adr_for_files carries a note when no default branch can be found, and none
   expect(unresolved.structured.notes).toHaveLength(1);
   expect(unresolved.structured.notes[0]).toContain('No default branch');
   expect(unresolved.structured.files[0].decisions[0]).toMatchObject({ id: 'ADR-0001', binding: true });
+});
+
+test('adr_for_files shows the accepted decisions of the common log, with its workspace', async () => {
+  const common = sharedLog();
+  const client = await connect({ cwd: monorepo({ [CONFIG_FILE]: configYaml({ common }) }) });
+  const { structured } = await call(client, 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
+  expect(structured.notes).toBeUndefined();
+  expect(structured.files[0].decisions).toEqual([
+    expect.objectContaining({ id: 'ADR-0001', workspace: null }),
+    expect.objectContaining({
+      id: 'ADR-0009',
+      workspace: 'shared-co',
+      binding: true,
+      review_rule: 'Shared rule applies.',
+    }),
+  ]);
+});
+
+test('adr_for_files with an unreadable common log keeps its own decisions and adds a note', async () => {
+  const missing = join(tmpDir(), 'no-such-log');
+  const client = await connect({ cwd: monorepo({ [CONFIG_FILE]: configYaml({ common: missing }) }) });
+  const { structured } = await call(client, 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
+  expect(structured.files[0].decisions).toEqual([expect.objectContaining({ id: 'ADR-0001', workspace: null })]);
+  expect(structured.notes).toEqual([expect.stringContaining(missing)]);
 });
 
 test('adr_search, adr_list and adr_get read the log', async () => {

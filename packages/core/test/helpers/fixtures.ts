@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { onTestFinished } from 'vitest';
 import YAML from 'yaml';
-import { DEFAULT_TAGS, type LogConfig } from '../../src/config.ts';
+import { CONFIG_FILE, DEFAULT_TAGS, type LogConfig } from '../../src/config.ts';
 import { BODY_TEMPLATE, serializeAdr } from '../../src/frontmatter.ts';
 import type { AdrMeta } from '../../src/model.ts';
 
@@ -60,4 +60,23 @@ export function configYaml(over: Partial<LogConfig> = {}): string {
     components: DEFAULT_COMPONENTS,
     ...over,
   });
+}
+
+/**
+ * A common log named Shared Co (workspace `shared-co`) with one accepted decision, ADR-0009, on component `web`.
+ * Returns its root.
+ */
+export function sharedLog(): string {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml({ product: 'Shared Co' }),
+    'docs/adr/ADR-0009-shared.md': adrText({
+      id: 'ADR-0009',
+      title: 'Shared rule',
+      status: 'accepted',
+      components: ['web'],
+      review_rule: 'Shared rule applies.',
+    }),
+  });
+  return root;
 }

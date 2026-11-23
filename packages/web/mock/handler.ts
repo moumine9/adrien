@@ -283,6 +283,7 @@ function forFiles(view: View, paths: string[], variant: MockVariant): ForRespons
       title: a.meta.title,
       status: a.meta.status,
       binding: layer === 'base' && a.meta.status === 'accepted',
+      workspace: null,
       layer,
       pending_kind: kind,
       match: m?.match ?? 'component',

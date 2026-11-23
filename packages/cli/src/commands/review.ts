@@ -1,13 +1,12 @@
 import { relative, resolve } from 'node:path';
 import {
   AdrienError,
-  adrsForFiles,
   buildReview,
   changedFiles,
+  forFilesWithCommon,
   gitToplevel,
   resolveBaseRef,
   toPosix,
-  unverifiedBaseNote,
 } from '@adrien/core';
 import type { Command } from 'commander';
 import { type Cli, type GlobalOptions, open, printJson } from '../cli.ts';
@@ -45,8 +44,8 @@ export function registerReview(program: Command, cli: Cli): void {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
       const { ctx, view } = await open(cli, globals);
       const paths = opts.files ?? (await changedPaths(ctx.cwd, opts));
-      const decisions = adrsForFiles(ctx, view, paths);
-      const note = unverifiedBaseNote(view);
+      const { files: decisions, notes } = await forFilesWithCommon(ctx, view, paths);
+      const note = notes.length > 0 ? notes.join(' ') : null;
       const review = buildReview(decisions, { note });
       if (note) cli.err(`note: ${note}\n`);
       if (globals.json) {

@@ -1,7 +1,14 @@
 import { rmSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { CONFIG_FILE, DEFAULT_TAGS, loadLogView, resolveContext, workingRevision } from '@adrien/core';
-import { adrText, configYaml, DEFAULT_COMPONENTS, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
+import {
+  adrText,
+  configYaml,
+  DEFAULT_COMPONENTS,
+  sharedLog,
+  tmpDir,
+  writeFiles,
+} from '../../core/test/helpers/fixtures.ts';
 import { git, initRepo } from '../../core/test/helpers/git.ts';
 import { type ApiOptions, createApp } from '../src/app.ts';
 import type {
@@ -403,6 +410,24 @@ describe('GET /api/for', () => {
     git(root, 'branch', '-m', 'trunk');
     const { body } = await get<ForResponse>(root, '/api/for?path=apps/web/src/a.ts');
     expect(body.notes).toEqual([expect.stringContaining('No default branch was found')]);
+  });
+
+  test('a common log decision carries its workspace, and an unreadable common log is a note', async () => {
+    const root = filesLog({ [CONFIG_FILE]: configYaml({ common: sharedLog() }) });
+    const { body } = await get<ForResponse>(root, '/api/for?path=apps/web/src/a.ts');
+    expect(body.notes).toBeUndefined();
+    expect(body.files[0]?.decisions).toEqual([
+      expect.objectContaining({ id: 'ADR-0001', workspace: null }),
+      expect.objectContaining({ id: 'ADR-0009', workspace: 'shared-co', binding: true }),
+    ]);
+
+    const missing = join(tmpDir(), 'no-such-log');
+    const broken = await get<ForResponse>(
+      filesLog({ [CONFIG_FILE]: configYaml({ common: missing }) }),
+      '/api/for?path=apps/web/src/a.ts',
+    );
+    expect(broken.body.files[0]?.decisions).toEqual([expect.objectContaining({ id: 'ADR-0001', workspace: null })]);
+    expect(broken.body.notes).toEqual([expect.stringContaining(missing)]);
   });
 
   test.each(['/api/for', '/api/for?path='])('%s without a path is a 400', async (path) => {

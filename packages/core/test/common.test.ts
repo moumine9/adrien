@@ -1,8 +1,9 @@
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { commonUnreadableNote, readCommon, resolveCommon } from '../src/common.ts';
+import { commonUnreadableNote, forFilesWithCommon, readCommon, resolveCommon } from '../src/common.ts';
 import { CONFIG_FILE } from '../src/config.ts';
 import { resolveContext } from '../src/context.ts';
+import { loadLogView } from '../src/view.ts';
 import { adrText, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { initRepo } from './helpers/git.ts';
 
@@ -100,4 +101,62 @@ test('a common git URL is cloned into ADRIEN_HOME and read like a --log entry', 
   const resolved = await resolveCommon(ctx, env);
   expect(resolved?.name).toBe('shared-co');
   expect(resolved?.view.base.map((a) => a.meta.id)).toEqual(['ADR-0001']);
+});
+
+describe('forFilesWithCommon', () => {
+  /** A product that owns component billing-service (its whole log root), naming `common`; returns its root. */
+  function productWithComponent(common: string): string {
+    const root = tmpDir();
+    writeFiles(root, {
+      [CONFIG_FILE]: `product: acme\ncomponents:\n  billing-service:\n    repo: .\ncommon: ${common}\n`,
+    });
+    return root;
+  }
+
+  /** A common log with one accepted decision on billing-service, named Shared Co; returns its root. */
+  function sharedWithBilling(): string {
+    return commonLog('Shared Co', {
+      'docs/adr/b.md': adrText({
+        id: 'ADR-0009',
+        title: 'Billing',
+        status: 'accepted',
+        components: ['billing-service'],
+      }),
+    });
+  }
+
+  test('shows the common decision with its workspace, and no notes when the log is readable', async () => {
+    const root = productWithComponent(sharedWithBilling());
+    const ctx = await resolveContext({ cwd: root, env: {} });
+    const view = await loadLogView(root, ctx.config);
+    const result = await forFilesWithCommon(ctx, view, ['src/a.ts']);
+    expect(result.notes).toEqual([]);
+    expect(result.files[0]?.decisions.map((d) => [d.id, d.workspace, d.binding])).toEqual([
+      ['ADR-0009', 'shared-co', true],
+    ]);
+  });
+
+  test('an unreadable common log keeps the own decisions and adds a note', async () => {
+    const root = productWithComponent('./missing-log');
+    writeFiles(root, {
+      'docs/adr/a.md': adrText({ id: 'ADR-0001', title: 'Own', status: 'accepted', components: ['billing-service'] }),
+    });
+    const ctx = await resolveContext({ cwd: root, env: {} });
+    const view = await loadLogView(root, ctx.config);
+    const result = await forFilesWithCommon(ctx, view, ['src/a.ts']);
+    expect(result.files[0]?.decisions.map((d) => [d.id, d.workspace])).toEqual([['ADR-0001', null]]);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toContain('./missing-log');
+  });
+
+  test('a product without a common field is unchanged, with no common decisions', async () => {
+    const plain = tmpDir();
+    writeFiles(plain, { [CONFIG_FILE]: 'product: acme\ncomponents:\n  billing-service:\n    repo: .\n' });
+    const ctx = await resolveContext({ cwd: plain, env: {} });
+    const view = await loadLogView(plain, ctx.config);
+    expect(await forFilesWithCommon(ctx, view, ['src/a.ts'])).toEqual({
+      files: [{ file: 'src/a.ts', component: 'billing-service', decisions: [] }],
+      notes: [],
+    });
+  });
 });

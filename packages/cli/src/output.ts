@@ -12,7 +12,8 @@ export function formatFileDecisions(files: FileDecisions[]): string {
     if (!file.component) lines.push('  (not inside a linked component)');
     for (const d of file.decisions) {
       const label = d.binding ? 'BINDING' : d.layer === 'pending' ? `pending ${d.pending_kind}` : `hint (${d.status})`;
-      lines.push(`  ${d.id} ${label} ${d.title}`);
+      const origin = d.workspace === null ? '' : `[${d.workspace}] `;
+      lines.push(`  ${origin}${d.id} ${label} ${d.title}`);
       if (d.review_rule) lines.push(`    rule: ${d.review_rule}`);
     }
   }
