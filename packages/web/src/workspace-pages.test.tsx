@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 import { renderApp } from '@/test/render.tsx';
 
 beforeEach(() => {
@@ -36,9 +36,11 @@ describe('a named workspace', () => {
     expect(second.client.getQueryState(['adrs', 'common', ''])?.status).toBe('success');
   });
 
-  it('refuses the flat routes when there are several workspaces', async () => {
-    const { client } = renderApp('/', { variant: 'workspaces' });
-    await waitFor(() => expect(client.getQueryState(['adrs', '', ''])?.status).toBe('error'));
+  it('does not ask the flat routes for decisions when there are several workspaces', async () => {
+    const { calls } = renderApp('/', { variant: 'workspaces' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Choose a workspace' })).toBeInTheDocument();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(calls.filter((call) => call !== '/api/workspaces')).toEqual([]);
     expect(screen.queryAllByRole('article')).toHaveLength(0);
   });
 });

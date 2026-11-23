@@ -1,6 +1,7 @@
 import { lazy, type ReactElement } from 'react';
 import { Route, Routes } from 'react-router';
 import { Layout } from './components/layout.tsx';
+import { FlatWorkspaceGate, NamedWorkspaceGate } from './components/workspace-gate.tsx';
 import { BoardView } from './views/board-view.tsx';
 import { DecisionsView } from './views/decisions-view.tsx';
 import { FilesView } from './views/files-view.tsx';
@@ -29,9 +30,11 @@ function pageRoutes(): ReactElement[] {
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<Layout />}>{pageRoutes()}</Route>
+      <Route element={<Layout />}>
+        <Route element={<FlatWorkspaceGate />}>{pageRoutes()}</Route>
+      </Route>
       <Route path="w/:workspace" element={<Layout />}>
-        {pageRoutes()}
+        <Route element={<NamedWorkspaceGate />}>{pageRoutes()}</Route>
       </Route>
     </Routes>
   );

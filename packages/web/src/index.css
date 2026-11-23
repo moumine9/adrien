@@ -270,6 +270,16 @@
   }
 }
 
+/* A workspace in the chooser: a panel that stands off the page and reads as a link. */
+@utility workspace-card {
+  @apply panel shadow-shadow flex flex-col gap-1 p-5 hover-underline focus-ring;
+}
+
+/* The link in the header that names the open workspace and leads to the chooser, in the frame of the other header objects. */
+@utility workspace-link {
+  @apply frame inline-flex h-10 max-w-56 items-center truncate bg-background px-4 font-heading text-sm hover-underline focus-ring;
+}
+
 /* A short line of text in a frame that wraps, for a notice above the content. Add a colour and the vertical padding. */
 @utility notice {
   @apply frame inline-flex flex-wrap items-center gap-2 px-2;

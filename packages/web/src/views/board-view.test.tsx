@@ -86,7 +86,7 @@ describe('Board view', () => {
     const metaNeverAnswers: typeof fetch = (input, init) =>
       String(input).startsWith('/api/meta') ? new Promise<Response>(() => {}) : inner(input, init);
     renderApp('/board', { fetch: metaNeverAnswers });
-    expect(screen.getByRole('status', { name: 'Loading the board' })).toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: 'Loading the board' })).toBeInTheDocument();
     await act(async () => {
       await new Promise((resolve) => setTimeout(resolve, 100));
     });
@@ -148,9 +148,9 @@ describe('Board view', () => {
     expect(screen.queryByRole('status', { name: 'Decisions could not be verified' })).toBeNull();
   });
 
-  it('shows skeletons while loading', () => {
+  it('shows skeletons while loading', async () => {
     renderApp('/board', { fetch: hangingFetch });
-    expect(screen.getByRole('status', { name: 'Loading the board' })).toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: 'Loading the board' })).toBeInTheDocument();
   });
 
   it('lists the columns in status order with their counts, and says it is read-only', async () => {

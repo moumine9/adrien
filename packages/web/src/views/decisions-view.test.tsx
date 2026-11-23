@@ -27,9 +27,9 @@ describe('Decisions view', () => {
     expect(screen.getAllByText(/^Changed /).length).toBeGreaterThan(0);
   });
 
-  it('shows skeletons while loading', () => {
+  it('shows skeletons while loading', async () => {
     renderApp('/', { fetch: hangingFetch });
-    expect(screen.getByRole('status', { name: 'Loading decisions' })).toBeInTheDocument();
+    expect(await screen.findByRole('status', { name: 'Loading decisions' })).toBeInTheDocument();
   });
 
   it('lists every decision with its badges', async () => {

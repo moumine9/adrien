@@ -39,18 +39,37 @@ export function useRefreshInterval(): number | false {
  */
 const keyOf = (workspace: string | undefined) => workspace ?? '';
 
-/** Lists the workspaces this server serves. Not per workspace: the list is the same wherever the reader is. */
+/**
+ * Lists the workspaces this server serves. Not per workspace: the list is the same wherever the reader is. It is read
+ * once: a failed read is not asked again on a remount, focus or reconnect, since the gate in front of the flat routes
+ * would go back to its loading state and remount the page each time.
+ */
 export const useWorkspaces = () =>
   useQuery({
     queryKey: ['workspaces'],
     queryFn: ({ signal }) => api.workspaces(signal),
+    retryOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+
+/**
+ * Whether the flat routes' API is held for this reader: several workspaces are served and the URL names none, so the
+ * server would refuse the request. Until the list is known the flat API is not asked either.
+ */
+export const useFlatApiHeld = (): boolean => {
+  const workspace = useWorkspace();
+  const { data, isPending } = useWorkspaces();
+  return workspace === undefined && (isPending || (data?.workspaces.length ?? 0) > 1);
+};
 
 export const useMeta = () => {
   const workspace = useWorkspace();
+  const held = useFlatApiHeld();
   return useQuery({
     queryKey: ['meta', keyOf(workspace)],
     queryFn: ({ signal }) => api.meta(workspace, signal),
+    enabled: !held,
     refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   });
@@ -70,7 +89,9 @@ export const listSentAt = (filters: DecisionFilters, workspace: string | undefin
 
 export const useAdrs = (filters: DecisionFilters) => {
   const workspace = useWorkspace();
+  const held = useFlatApiHeld();
   return useQuery({
+    enabled: !held,
     queryKey: ['adrs', keyOf(workspace), filtersToSearch(filters).toString()],
     queryFn: async ({ signal }) => {
       const sent = Date.now();
@@ -107,10 +128,11 @@ export function useFileResolver(): ResolveFile {
  */
 export const useAdr = (id: string) => {
   const workspace = useWorkspace();
+  const held = useFlatApiHeld();
   return useQuery({
     queryKey: ['adr', keyOf(workspace), id],
     queryFn: ({ signal }) => api.adr(workspace, id, signal),
-    enabled: Boolean(id),
+    enabled: Boolean(id) && !held,
     // Never stale and never kept once nobody looks at it: opening a decision always reads the file as it is now,
     // and nothing re-reads it behind the reader's back (a cached copy swapped for a fresh one would do just that).
     staleTime: Number.POSITIVE_INFINITY,
