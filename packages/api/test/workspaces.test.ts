@@ -21,6 +21,16 @@ async function json<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
+describe('a log whose product has no ASCII name', () => {
+  test('still answers under the flat routes, and is named "default"', async () => {
+    const root = logWith('产品', 'ADR-0001');
+    const server = app({ cwd: root });
+    expect((await server.request('/api/adrs/ADR-0001')).status).toBe(200);
+    const meta = await json<MetaResponse>(await server.request('/api/meta'));
+    expect(meta.workspace).toBe('default');
+  });
+});
+
 describe('one workspace', () => {
   test('answers under the flat routes and under its own name, with the same data', async () => {
     const root = logWith('acme', 'ADR-0001');

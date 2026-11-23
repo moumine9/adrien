@@ -135,9 +135,19 @@ describe('resolveWorkspaces', () => {
     ).rejects.toMatchObject({ code: 'INVALID_INPUT' });
   });
 
-  test('a log whose product slugs to nothing and has no workspace field is INVALID_INPUT', async () => {
+  test('a single log whose product slugs to nothing is named "default", so it keeps working', async () => {
     const log = pathLog(configYaml({ product: '!!!' }));
-    const error = await resolveWorkspaces({ cwd: tmpDir(), specs: [{ log }], env: {} }).catch((e: unknown) => e);
+    const ws = await resolveWorkspaces({ cwd: tmpDir(), specs: [{ log }], env: {} });
+    expect(ws.names()).toEqual(['default']);
+    expect(ws.only().name).toBe('default');
+  });
+
+  test('among several logs, one whose product slugs to nothing and has no name is INVALID_INPUT', async () => {
+    const log = pathLog(configYaml({ product: '!!!' }));
+    const other = pathLog(configYaml({ product: 'beta' }));
+    const error = await resolveWorkspaces({ cwd: tmpDir(), specs: [{ log }, { log: other }], env: {} }).catch(
+      (e: unknown) => e,
+    );
     expect(error).toBeInstanceOf(AdrienError);
     expect(error).toMatchObject({ code: 'INVALID_INPUT' });
     expect((error as Error).message).toBe(
