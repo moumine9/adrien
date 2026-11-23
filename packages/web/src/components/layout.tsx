@@ -4,7 +4,7 @@ import { Suspense, useEffect, useRef } from 'react';
 import { Link, NavLink, Outlet, useLocation } from 'react-router';
 import { Button } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
-import { useMeta } from '@/lib/queries.ts';
+import { useFlatApiHeld, useMeta } from '@/lib/queries.ts';
 import { useApplyTheme, useTheme } from '@/lib/theme.ts';
 import { cn } from '@/lib/utils.ts';
 import { useWorkspacePath } from '@/lib/workspace.ts';
@@ -13,6 +13,7 @@ import { ChangeToast } from './change-toast.tsx';
 import { DemoBanner } from './demo-banner.tsx';
 import { LoadingBlocks } from './states.tsx';
 import { UnverifiedBanner } from './unverified-banner.tsx';
+import { WorkspaceSwitcher } from './workspace-switcher.tsx';
 
 const NAV = [
   { to: '/', label: 'Decisions', icon: ListChecks, end: true },
@@ -80,6 +81,7 @@ function useRouteFocus() {
 
 export function Layout() {
   const meta = useMeta();
+  const held = useFlatApiHeld();
   const { pathname } = useLocation();
   const wp = useWorkspacePath();
   useRouteFocus();
@@ -104,6 +106,7 @@ export function Layout() {
             <BrandMark className="size-9 shrink-0" />
             Adrien
           </Link>
+          <WorkspaceSwitcher />
           <nav aria-label="Main" className="order-last w-full lg:order-none lg:w-auto">
             <ul className="grid grid-cols-3 gap-2 lg:flex">
               {NAV.map(({ to, label, icon: Icon, end }) => (
@@ -128,7 +131,11 @@ export function Layout() {
             </ul>
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            {meta.data ? <BaseRef meta={meta.data} /> : meta.isPending ? <Skeleton className="h-10 w-28" /> : null}
+            {meta.data ? (
+              <BaseRef meta={meta.data} />
+            ) : meta.isPending && !held ? (
+              <Skeleton className="h-10 w-28" />
+            ) : null}
             <ThemeToggle />
           </div>
         </div>

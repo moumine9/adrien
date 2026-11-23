@@ -44,6 +44,12 @@ describe('installDemoFetch', () => {
     expect(network).toHaveBeenCalledWith('/assets/app.js', undefined);
   });
 
+  it('lists one workspace, marked default, so the demo shows its pages with no chooser', async () => {
+    const { page } = installOn('http://localhost/');
+    const res = await page.fetch('/api/workspaces');
+    expect(await res.json()).toEqual({ workspaces: [{ name: 'adrien', product: 'Adrien', default: true }] });
+  });
+
   it('answers an unknown /api path the way the server does: 404 JSON', async () => {
     const { page } = installOn('http://localhost/');
     const res = await page.fetch('/api/nope');

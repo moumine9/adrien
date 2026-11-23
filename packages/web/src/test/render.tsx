@@ -50,8 +50,15 @@ export function renderApp(route: string, options: RenderAppOptions = {}) {
   return { ...result, user, client, calls };
 }
 
-/** A fetch that never answers: the view stays in its loading state. */
-export const hangingFetch: typeof fetch = () => new Promise<Response>(() => {});
+/**
+ * A fetch that never answers the page's own requests, so the view stays in its loading state. The workspace list is
+ * answered (as a server always does), so the gate in front of the flat routes shows the page and not its own loading.
+ */
+const listedWorkspaces = createMockFetch('default');
+export const hangingFetch: typeof fetch = (input, init) =>
+  new URL(String(input), 'http://localhost').pathname === '/api/workspaces'
+    ? listedWorkspaces(input, init)
+    : new Promise<Response>(() => {});
 
 /** A fetch that answers every request with an API error. */
 export function failingFetch(status: number, code: string, message: string): typeof fetch {

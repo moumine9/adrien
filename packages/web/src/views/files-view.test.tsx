@@ -5,16 +5,16 @@ const location = () => screen.getByTestId('location').textContent;
 const CHARGE = 'services/billing/src/payments/charge.ts';
 
 describe('Files view', () => {
-  it('asks for paths before calling the API', () => {
+  it('asks for paths before calling the API', async () => {
     const { calls } = renderApp('/files');
-    expect(screen.getByRole('textbox', { name: 'File paths' })).toBeInTheDocument();
+    expect(await screen.findByRole('textbox', { name: 'File paths' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Find decisions' })).toBeDisabled();
     expect(calls.some((c) => c.startsWith('/api/for'))).toBe(false);
   });
 
   it('looks paths up, puts them in the URL and shows binding decisions first', async () => {
     const { user, calls } = renderApp('/files');
-    await user.type(screen.getByRole('textbox', { name: 'File paths' }), `${CHARGE}\nREADME.md`);
+    await user.type(await screen.findByRole('textbox', { name: 'File paths' }), `${CHARGE}\nREADME.md`);
     await user.click(screen.getByRole('button', { name: 'Find decisions' }));
     await waitFor(() => expect(location()).toBe(`/files?path=${encodeURIComponent(CHARGE)}&path=README.md`));
     expect(calls).toContain(`/api/for?path=${encodeURIComponent(CHARGE)}&path=README.md`);
