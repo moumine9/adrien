@@ -63,6 +63,17 @@ contested: false
 
 Keys Adrien does not know are kept, in their original order.
 
+A `related` entry may name a decision of another log as `workspace/ADR-n`, for example `common/ADR-0004`. The prefix is
+the target log's own name, its `workspace` (or its product name slugged when `workspace` is not set). `supersedes` and
+`superseded_by` stay within one log. `adrien check` resolves such an entry in one of three ways:
+
+- The prefix is this log's own name, or the log named by the `common` field of the configuration is readable and has
+  that name: the entry resolves when the decision exists there (any status), and is a `broken-link` error when it does
+  not.
+- The log named by the prefix cannot be reached from this one: the entry is reported as `unresolved-ref` information,
+  which never changes the exit code. A `common` that cannot be reached (a missing path, a failed clone) is reported once as `common-unreadable`, also information; one that was read but cannot serve (it is the product log itself, or has no usable workspace name) is a `common-invalid` error.
+- The text has a `/` but is not a valid `workspace/ADR-n`: an `invalid-ref` error. An id of this log wins, even when its own `id_format` puts a slash in it, and the id after the slash is written as the target log writes it.
+
 ### Body
 
 Free markdown. The template for new ADRs is:
@@ -241,6 +252,10 @@ reported as left in place.
 | `review-due`                       | warning  | `review_on` is today or earlier, and the status is not retired (rejected, superseded, deprecated). |
 | `filename-convention`              | warning  | (`--lint`) File name is not `<id>-lowercase-words.md`, as `adrien new` writes it.                  |
 | `anchors-not-verified`             | info     | Components with no local checkout.                                                                 |
+| `invalid-ref`                      | error    | A reference that is not an id or `workspace/ADR-n`, or a `/` in `supersedes` or `superseded_by`.   |
+| `unresolved-ref`                   | info     | A `workspace/ADR-n` in `related` names a log this one cannot reach, so it was not checked.         |
+| `common-unreadable`                | info     | The `common` field names a log that cannot be reached, so references to it were not checked.       |
+| `common-invalid`                   | error    | The `common` field names the product log itself, or a log with no usable workspace name.           |
 
 Exit codes: `0` ok, `1` check errors (or warnings with `--strict`) or duplicate titles on `new`, `2` a usage or
 configuration error, `3` an unexpected error (set `ADRIEN_DEBUG=1` for the stack).

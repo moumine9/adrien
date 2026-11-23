@@ -159,7 +159,12 @@ export function FactsPanel({ file, nodes }: { file: AdrFile; nodes: Map<string, 
                 <ul>
                   {ids.map((id) => (
                     <li key={id}>
-                      <AdrLink id={id} node={nodes.get(id)} />
+                      {/* A workspace/ADR-n names a decision of another log, which this log cannot link to; an id of this log wins. */}
+                      {id.includes('/') && !nodes.has(id) ? (
+                        <span className="block py-1">{id}</span>
+                      ) : (
+                        <AdrLink id={id} node={nodes.get(id)} />
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -15,6 +15,8 @@ export interface CommonLog {
 
 /** An unreadable common log: where it is named, and why it could not be read. */
 export interface UnreadableCommon {
+  /** `unreachable`: it could not be reached (a missing path, a failed clone). `invalid`: it was read but cannot serve as a common log. */
+  kind: 'unreachable' | 'invalid';
   location: string;
   message: string;
 }
@@ -35,13 +37,18 @@ export async function readCommon(ctx: Context, env?: NodeJS.ProcessEnv): Promise
     const commonCtx = await resolveContext({ cwd: ctx.cwd, log, env: env ?? ctx.env });
     if (commonCtx.logRoot === ctx.logRoot) {
       return {
-        unreadable: { location: source, message: 'it is the product log itself, which cannot be its own common log' },
+        unreadable: {
+          kind: 'invalid',
+          location: source,
+          message: 'it is the product log itself, which cannot be its own common log',
+        },
       };
     }
     const name = workspaceNameOf(commonCtx.config);
     if (name === null) {
       return {
         unreadable: {
+          kind: 'invalid',
           location: source,
           message:
             'it has no usable workspace name: set `workspace:` in its adrien.config.yaml, because references to its decisions must match its own name',
@@ -50,7 +57,7 @@ export async function readCommon(ctx: Context, env?: NodeJS.ProcessEnv): Promise
     }
     return { common: { name, ctx: commonCtx, view: await loadLogView(commonCtx.logRoot, commonCtx.config) } };
   } catch (e) {
-    return { unreadable: { location: source, message: (e as Error).message } };
+    return { unreadable: { kind: 'unreachable', location: source, message: (e as Error).message } };
   }
 }
 

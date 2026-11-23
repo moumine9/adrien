@@ -1,9 +1,12 @@
 import { join } from 'node:path';
 import { anchorMatches, parseAnchor } from './anchors.ts';
+import { readCommon } from './common.ts';
+import { workspaceNameOf } from './config.ts';
 import { type Context, checkoutPaths, componentRoot } from './context.ts';
 import { gitToplevel, listFiles } from './git.ts';
 import { lintAdrs } from './lint.ts';
 import type { Adr, Status } from './model.ts';
+import { parseRef } from './ref.ts';
 import { type LogView, mergedAdrs } from './view.ts';
 
 export type Severity = 'error' | 'warning' | 'info';
@@ -15,6 +18,10 @@ export type DiagnosticCode =
   | 'invalid-anchor'
   | 'duplicate-id'
   | 'broken-link'
+  | 'invalid-ref'
+  | 'unresolved-ref'
+  | 'common-unreadable'
+  | 'common-invalid'
   | 'supersede-asymmetry'
   | 'superseded-without-successor'
   | 'missing-review-rule'
@@ -95,7 +102,50 @@ function checkFields(ctx: Context, adr: Adr, out: Diagnostic[]): void {
   }
 }
 
-function checkLinks(adrs: Adr[], out: Diagnostic[]): void {
+/** What a `related` reference can resolve against: this log's name, and the decisions of the common log, if it is readable. */
+interface RefScope {
+  own: string | null;
+  common: { name: string; ids: Set<string> } | null;
+}
+
+/** Checks one `related` entry: a plain id or this log's own `workspace/ADR-n` against this log, the common log's `workspace/ADR-n` against the common log. */
+function relatedLink(adr: Adr, target: string, byId: Map<string, Adr[]>, scope: RefScope, out: Diagnostic[]): void {
+  // An id of this log wins, even when its own format puts a slash in it.
+  if (byId.has(target)) return;
+  const ref = parseRef(target);
+  if (ref.workspace === null) {
+    if (target.includes('/')) {
+      out.push({
+        severity: 'error',
+        code: 'invalid-ref',
+        ...at(adr),
+        message: `${target} is not a reference: write a decision of this log as ADR-n, or of another log as workspace/ADR-n`,
+      });
+    } else {
+      out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
+    }
+    return;
+  }
+  if (ref.workspace === scope.own) {
+    if (!byId.has(ref.id))
+      out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
+    return;
+  }
+  if (scope.common?.name === ref.workspace) {
+    if (!scope.common.ids.has(ref.id)) {
+      out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
+    }
+    return;
+  }
+  out.push({
+    severity: 'info',
+    code: 'unresolved-ref',
+    ...at(adr),
+    message: `${target} names the log "${ref.workspace}", which is not reachable from this one, so the reference was not checked`,
+  });
+}
+
+function checkLinks(adrs: Adr[], out: Diagnostic[], scope: RefScope): void {
   const byId = new Map<string, Adr[]>();
   for (const adr of adrs) byId.set(adr.meta.id, [...(byId.get(adr.meta.id) ?? []), adr]);
 
@@ -110,16 +160,24 @@ function checkLinks(adrs: Adr[], out: Diagnostic[]): void {
     }
   }
   for (const adr of adrs) {
-    const links = [
-      ...adr.meta.supersedes,
-      ...adr.meta.related,
-      ...(adr.meta.superseded_by ? [adr.meta.superseded_by] : []),
+    // Supersession stays inside one log: a `/` there is never resolved, so it is not a link to check either.
+    const within: Array<[string, string]> = [
+      ...adr.meta.supersedes.map((t): [string, string] => ['supersedes', t]),
+      ...(adr.meta.superseded_by ? [['superseded_by', adr.meta.superseded_by] as [string, string]] : []),
     ];
-    for (const target of links) {
-      if (!byId.has(target)) {
+    for (const [field, target] of within) {
+      if (target.includes('/')) {
+        out.push({
+          severity: 'error',
+          code: 'invalid-ref',
+          ...at(adr),
+          message: `${field} names ${target}, but supersession stays within one log: write the id of a decision in this log`,
+        });
+      } else if (!byId.has(target)) {
         out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
       }
     }
+    for (const target of adr.meta.related) relatedLink(adr, target, byId, scope, out);
     for (const oldId of adr.meta.supersedes) {
       const old = byId.get(oldId)?.[0];
       if (old && (old.meta.status !== 'superseded' || old.meta.superseded_by !== adr.meta.id)) {
@@ -234,8 +292,27 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
     });
   }
   const adrs = mergedAdrs(view);
+  // The common log is read once per run; its decisions resolve `workspace/ADR-n` references in `related`.
+  const common = await readCommon(ctx);
+  if (common && 'unreadable' in common) {
+    // Unreachable (a path outside this repo that a CI checkout lacks) is information; a log that was read but cannot
+    // serve as the common one would silently drop every common decision, so it is an error.
+    const invalid = common.unreadable.kind === 'invalid';
+    out.push({
+      severity: invalid ? 'error' : 'info',
+      code: invalid ? 'common-invalid' : 'common-unreadable',
+      message: invalid
+        ? `The common log named by the \`common\` field (${common.unreadable.location}) cannot serve as one: ${common.unreadable.message}`
+        : `The common log named by the \`common\` field (${common.unreadable.location}) cannot be read, so references to it were not checked: ${common.unreadable.message}`,
+    });
+  }
+  const readable = common && 'common' in common ? common.common : null;
+  const scope: RefScope = {
+    own: workspaceNameOf(ctx.config),
+    common: readable ? { name: readable.name, ids: new Set(mergedAdrs(readable.view).map((a) => a.meta.id)) } : null,
+  };
   for (const adr of adrs) checkFields(ctx, adr, out);
-  checkLinks(adrs, out);
+  checkLinks(adrs, out, scope);
   await checkAnchors(ctx, adrs, opts.here ?? false, out);
   if (opts.mr) {
     for (const change of view.pending) {
