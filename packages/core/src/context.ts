@@ -141,11 +141,15 @@ export function componentForPath(ctx: Context, path: string): { component: strin
   return { component: best.component, relPath: best.root ? rel.slice(best.root.length + 1) : rel };
 }
 
-/** Local checkouts of components: `<ADRIEN_HOME>/workspace.yaml`, overridden by `ADRIEN_REPOS="a=/x;b=C:\\y"`. */
-export function workspacePaths(env: NodeJS.ProcessEnv): Record<string, string> {
+/**
+ * Local checkouts of components: `<ADRIEN_HOME>/checkouts.yaml` (or its former name, `workspace.yaml`, read only when
+ * there is no `checkouts.yaml`), overridden by `ADRIEN_REPOS="a=/x;b=C:\\y"`.
+ */
+export function checkoutPaths(env: NodeJS.ProcessEnv): Record<string, string> {
   const paths: Record<string, string> = {};
-  const file = join(adrienHome(env), 'workspace.yaml');
-  if (existsSync(file)) {
+  const home = adrienHome(env);
+  const file = [join(home, 'checkouts.yaml'), join(home, 'workspace.yaml')].find((candidate) => existsSync(candidate));
+  if (file) {
     const data = YAML.parse(readFileSync(file, 'utf8')) as { components?: Record<string, string> } | null;
     Object.assign(paths, data?.components ?? {});
   }
