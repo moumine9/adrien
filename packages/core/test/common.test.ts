@@ -72,7 +72,9 @@ test('a common field that points at the product log itself is unreadable, not co
 test('readCommon reports an unreadable common log instead of throwing, with its location', async () => {
   const ctx = await resolveContext({ cwd: productLog('./missing-log'), env: {} });
   const result = await readCommon(ctx, {});
-  expect(result).toEqual({ unreadable: { location: './missing-log', message: expect.any(String) } });
+  expect(result).toEqual({
+    unreadable: { kind: 'unreachable', location: './missing-log', message: expect.any(String) },
+  });
   expect(commonUnreadableNote(result)).toContain('./missing-log');
   expect(commonUnreadableNote(result)).toContain('not shown');
 });

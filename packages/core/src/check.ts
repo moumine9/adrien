@@ -21,6 +21,7 @@ export type DiagnosticCode =
   | 'invalid-ref'
   | 'unresolved-ref'
   | 'common-unreadable'
+  | 'common-invalid'
   | 'supersede-asymmetry'
   | 'superseded-without-successor'
   | 'missing-review-rule'
@@ -292,10 +293,15 @@ export async function runCheck(ctx: Context, view: LogView, opts: CheckOptions =
   // The common log is read once per run; its decisions resolve `workspace/ADR-n` references in `related`.
   const common = await readCommon(ctx);
   if (common && 'unreadable' in common) {
+    // Unreachable (a path outside this repo that a CI checkout lacks) is information; a log that was read but cannot
+    // serve as the common one would silently drop every common decision, so it is an error.
+    const invalid = common.unreadable.kind === 'invalid';
     out.push({
-      severity: 'info',
-      code: 'common-unreadable',
-      message: `The common log named by the \`common\` field (${common.unreadable.location}) cannot be read, so references to it were not checked: ${common.unreadable.message}`,
+      severity: invalid ? 'error' : 'info',
+      code: invalid ? 'common-invalid' : 'common-unreadable',
+      message: invalid
+        ? `The common log named by the \`common\` field (${common.unreadable.location}) cannot serve as one: ${common.unreadable.message}`
+        : `The common log named by the \`common\` field (${common.unreadable.location}) cannot be read, so references to it were not checked: ${common.unreadable.message}`,
     });
   }
   const readable = common && 'common' in common ? common.common : null;

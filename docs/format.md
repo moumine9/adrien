@@ -71,7 +71,7 @@ the target log's own name, its `workspace` (or its product name slugged when `wo
   that name: the entry resolves when the decision exists there (any status), and is a `broken-link` error when it does
   not.
 - The log named by the prefix cannot be reached from this one: the entry is reported as `unresolved-ref` information,
-  which never changes the exit code. An unreadable `common` path is reported once as `common-unreadable`, also information.
+  which never changes the exit code. A `common` that cannot be reached (a missing path, a failed clone) is reported once as `common-unreadable`, also information; one that was read but cannot serve (it is the product log itself, or has no usable workspace name) is a `common-invalid` error.
 - The text has a `/` but is not a valid `workspace/ADR-n`: an `invalid-ref` error.
 
 ### Body
@@ -254,7 +254,8 @@ reported as left in place.
 | `anchors-not-verified`             | info     | Components with no local checkout.                                                                 |
 | `invalid-ref`                      | error    | A reference that is not an id or `workspace/ADR-n`, or a `/` in `supersedes` or `superseded_by`.   |
 | `unresolved-ref`                   | info     | A `workspace/ADR-n` in `related` names a log this one cannot reach, so it was not checked.         |
-| `common-unreadable`                | info     | The `common` field names a log that cannot be read, so references to it were not checked.          |
+| `common-unreadable`                | info     | The `common` field names a log that cannot be reached, so references to it were not checked.       |
+| `common-invalid`                   | error    | The `common` field names the product log itself, or a log with no usable workspace name.           |
 
 Exit codes: `0` ok, `1` check errors (or warnings with `--strict`) or duplicate titles on `new`, `2` a usage or
 configuration error, `3` an unexpected error (set `ADRIEN_DEBUG=1` for the stack).

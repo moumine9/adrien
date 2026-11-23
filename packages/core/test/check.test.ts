@@ -120,6 +120,25 @@ test('an unreadable common path → one common-unreadable info, and its referenc
   expect(exitCodeFor(diags, true)).toBe(0);
 });
 
+test('a common field pointing at the product log itself → common-invalid error', async () => {
+  const root = tmpDir();
+  writeFiles(root, productRelated('.', []));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['error', 'common-invalid', undefined]]);
+  expect(diags[0]?.message).toContain('itself');
+  expect(exitCodeFor(diags)).toBe(1);
+});
+
+test('a readable common log with no usable name → common-invalid error naming workspace', async () => {
+  const unnamed = tmpDir();
+  writeFiles(unnamed, { [CONFIG_FILE]: 'product: "!!!"\n' });
+  const root = tmpDir();
+  writeFiles(root, productRelated(unnamed, []));
+  const diags = await checkAt(root);
+  expect(codes(diags)).toEqual([['error', 'common-invalid', undefined]]);
+  expect(diags[0]?.message).toContain('workspace');
+});
+
 test('supersedes and superseded_by across workspaces → invalid-ref error naming the field', async () => {
   const root = tmpDir();
   writeFiles(root, {
