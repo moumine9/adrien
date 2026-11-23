@@ -7,7 +7,13 @@ import type { Workspace } from '@adrien/core';
 import { CONFIG_FILE } from '@adrien/core';
 import { configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { initRepo } from '../../core/test/helpers/git.ts';
-import { assertSafeToExpose, scheduleSync, scheduleWorkspaceSyncs } from '../src/commands/serve.ts';
+import {
+  assertSafeToExpose,
+  onePerDir,
+  scheduleCommonSyncs,
+  scheduleSync,
+  scheduleWorkspaceSyncs,
+} from '../src/commands/serve.ts';
 import { runCli } from '../src/program.ts';
 
 const dist = fileURLToPath(new URL('../dist/index.js', import.meta.url));
@@ -208,4 +214,48 @@ describe.runIf(existsSync(dist))('a log that follows a git URL', () => {
     await refused;
     expect(child.exitCode).toBeNull();
   }, 30_000);
+});
+
+test('scheduleCommonSyncs refreshes the clone of each common git URL once, and skips workspaces without one', async () => {
+  vi.useFakeTimers();
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const ws = (name: string, common?: string) => ({ name, ctx: { config: { common } } }) as unknown as Workspace;
+  const synced: string[] = [];
+  const stop = scheduleCommonSyncs(
+    [ws('a', 'https://example.com/corp.git'), ws('b', 'https://example.com/corp.git'), ws('c'), ws('d', '../local')],
+    60,
+    async (dir) => {
+      synced.push(dir);
+    },
+    () => {},
+    async (ctx) => (ctx.config.common?.startsWith('https') ? '/cache/corp' : null),
+  );
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(synced).toEqual(['/cache/corp', '/cache/corp']);
+  stop();
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(synced).toHaveLength(2);
+});
+
+test('onePerDir lets a second sync of a directory wait for the one already running, and runs again after it', async () => {
+  const started: string[] = [];
+  const releases: (() => void)[] = [];
+  const sync = onePerDir(async (dir) => {
+    started.push(dir);
+    await new Promise<void>((resolve) => {
+      releases.push(resolve);
+    });
+  });
+  const first = sync('/cache/x');
+  const second = sync('/cache/x');
+  const other = sync('/cache/y');
+  expect(started).toEqual(['/cache/x', '/cache/y']);
+  for (const release of releases) release();
+  await Promise.all([first, second, other]);
+  const third = sync('/cache/x');
+  expect(started).toEqual(['/cache/x', '/cache/y', '/cache/x']);
+  releases[2]?.();
+  await third;
 });

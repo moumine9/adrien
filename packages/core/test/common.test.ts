@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { commonUnreadableNote, forFilesWithCommon, readCommon, resolveCommon } from '../src/common.ts';
+import { commonCloneDir, commonUnreadableNote, forFilesWithCommon, readCommon, resolveCommon } from '../src/common.ts';
 import { CONFIG_FILE } from '../src/config.ts';
 import { resolveContext } from '../src/context.ts';
 import { loadLogView } from '../src/view.ts';
@@ -107,6 +107,24 @@ test('a common git URL is cloned into ADRIEN_HOME and read like a --log entry', 
   const resolved = await resolveCommon(ctx, env);
   expect(resolved?.name).toBe('shared-co');
   expect(resolved?.view.base.map((a) => a.meta.id)).toEqual(['ADR-0001']);
+});
+
+test('commonCloneDir names the cached clone of a common git URL, and nothing for a path or no common log', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: 'product: Shared Co\n',
+    'docs/adr/a.md': adrText({ id: 'ADR-0001', title: 'Shared', status: 'accepted' }),
+  });
+  const { origin } = initRepo(root, { origin: true });
+  const url = pathToFileURL(origin ?? '').href;
+  const env = { ADRIEN_HOME: tmpDir() };
+  const byUrl = await resolveContext({ cwd: productLog(url), env: {} });
+  const resolved = await resolveCommon(byUrl, env);
+  expect(await commonCloneDir(byUrl, env)).toBe(resolved?.ctx.logRoot);
+  const own = await resolveContext({ cwd: productLog(url), env });
+  expect(await commonCloneDir(own)).toBe(resolved?.ctx.logRoot);
+  expect(await commonCloneDir(await resolveContext({ cwd: productLog('./somewhere'), env: {} }), env)).toBeNull();
+  expect(await commonCloneDir(await resolveContext({ cwd: productLog(), env: {} }), env)).toBeNull();
 });
 
 describe('forFilesWithCommon', () => {

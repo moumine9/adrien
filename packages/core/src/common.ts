@@ -1,6 +1,6 @@
 import { resolve } from 'node:path';
 import { workspaceNameOf } from './config.ts';
-import { type Context, resolveContext } from './context.ts';
+import { adrienHome, type Context, ensureCachedClone, resolveContext } from './context.ts';
 import { AdrienError } from './errors.ts';
 import { adrsForFiles, type FileDecisions, unverifiedBaseNote } from './for-files.ts';
 import { isGitUrl } from './repo-url.ts';
@@ -52,6 +52,16 @@ export async function readCommon(ctx: Context, env?: NodeJS.ProcessEnv): Promise
   } catch (e) {
     return { unreadable: { location: source, message: (e as Error).message } };
   }
+}
+
+/**
+ * Where the cached clone of the common log is, when the product names it by a git URL; null for a path or no common
+ * log. A long-running server refreshes it, because a cached clone is reused without a fetch.
+ */
+export async function commonCloneDir(ctx: Context, env?: NodeJS.ProcessEnv): Promise<string | null> {
+  const source = ctx.config.common;
+  if (source === undefined || !isGitUrl(source)) return null;
+  return ensureCachedClone(source, adrienHome(env ?? ctx.env));
 }
 
 /**
