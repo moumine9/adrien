@@ -20,6 +20,7 @@ function adr(id: string, over: Partial<AdrMeta> = {}, body = ''): Adr {
       sources: [],
       supersedes: [],
       related: [],
+      exception_to: [],
       deciders: [],
       origin: 'manual',
       contested: false,

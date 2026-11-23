@@ -19,6 +19,11 @@ export interface FileDecision {
   anchor: string | null;
   review_rule: string | null;
   excerpt: string;
+  /**
+   * For a common decision that an accepted exception of this product exempts for this file: the exception's id. The
+   * decision stays listed, with `binding` false. Null otherwise, and always null for the product's own decisions.
+   */
+  exemption: { by: string } | null;
 }
 
 export interface FileDecisions {
@@ -39,24 +44,40 @@ function matchOf(adr: Adr, component: string, relPath: string): Pick<FileDecisio
   return null;
 }
 
+/**
+ * The first accepted own exception that names `target` and covers this file, as its exemption. An exception with no
+ * code anchors covers every file of the product; one with anchors covers only the files they match.
+ */
+function exemptionOf(exceptions: Adr[], target: string, component: string, relPath: string): FileDecision['exemption'] {
+  for (const exception of exceptions) {
+    if (!exception.meta.exception_to.includes(target)) continue;
+    if (exception.meta.code.length === 0 || matchOf(exception, component, relPath)?.match === 'anchor') {
+      return { by: exception.meta.id };
+    }
+  }
+  return null;
+}
+
 function decision(
   adr: Adr,
   layer: FileDecision['layer'],
   pendingKind: FileDecision['pending_kind'],
   match: Pick<FileDecision, 'match' | 'anchor'>,
   workspace: string | null,
+  exemption: FileDecision['exemption'] = null,
 ): FileDecision {
   return {
     id: adr.meta.id,
     title: adr.meta.title,
     status: adr.meta.status,
-    binding: layer === 'base' && adr.meta.status === 'accepted',
+    binding: layer === 'base' && adr.meta.status === 'accepted' && exemption === null,
     workspace,
     layer,
     pending_kind: pendingKind,
     ...match,
     review_rule: adr.meta.review_rule ?? null,
     excerpt: excerpt(adr),
+    exemption,
   };
 }
 
@@ -82,6 +103,8 @@ export function adrsForFiles(
   for (const change of view.pending) if (change.base) changeOfBase.set(change.base, change.kind);
   const pendingCurrent = view.pending.filter((c) => c.current).map((c) => ({ adr: c.current as Adr, kind: c.kind }));
   const commonAccepted = common ? common.view.base.filter((adr) => adr.meta.status === 'accepted') : [];
+  // Only accepted decisions on the default branch exempt anything: a proposed, pending or retired exception does not.
+  const exceptions = view.base.filter((adr) => adr.meta.status === 'accepted' && adr.meta.exception_to.length > 0);
 
   return paths.map((path) => {
     const file = toPosix(path);
@@ -100,7 +123,9 @@ export function adrsForFiles(
     }
     for (const adr of commonAccepted) {
       const match = matchOf(adr, component, relPath);
-      if (match && common) decisions.push(decision(adr, 'base', null, match, common.name));
+      if (!match || !common) continue;
+      const exemption = exemptionOf(exceptions, `${common.name}/${adr.meta.id}`, component, relPath);
+      decisions.push(decision(adr, 'base', null, match, common.name, exemption));
     }
     return { file, component, decisions: decisions.sort(order) };
   });

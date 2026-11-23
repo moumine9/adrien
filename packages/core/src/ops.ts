@@ -170,6 +170,7 @@ export function createAdr(
           sources: input.sources ?? [],
           supersedes: [],
           related: input.related ?? [],
+          exception_to: [],
           deciders: [],
           origin: input.origin ?? 'manual',
           contested: false,

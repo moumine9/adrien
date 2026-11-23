@@ -17,6 +17,7 @@ function fileWithRelated(related: string[]): AdrFile {
       sources: [],
       supersedes: [],
       related,
+      exception_to: [],
       deciders: [],
       origin: 'manual',
       contested: false,

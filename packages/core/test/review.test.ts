@@ -17,6 +17,7 @@ function dec(id: string, over: Partial<FileDecision> = {}): FileDecision {
     anchor: 'web:src/**',
     review_rule: `Rule ${id}.`,
     excerpt: '',
+    exemption: null,
     ...over,
   };
 }
@@ -288,4 +289,27 @@ test('counts are distinct decisions, and files is the number of input files', ()
     { file: 'c.txt', component: null, decisions: [] },
   ]);
   expect(review).toEqual({ markdown: expect.any(String), binding: 2, hints: 1, files: 3 });
+});
+
+test('an exempted common decision is not listed as binding, and says which exception exempts it', () => {
+  const review = buildReview([
+    file('a.ts', dec('ADR-0010', { workspace: 'common', binding: false, exemption: { by: 'ADR-0012' } })),
+  ]);
+  expect(review).toEqual({ markdown: expect.any(String), binding: 0, hints: 1, files: 1 });
+  const [binding] = review.markdown.split('<details>');
+  expect(binding).not.toContain('ADR-0010');
+  expect(review.markdown).toContain('(accepted, exempt by ADR-0012)');
+});
+
+test('a common decision exempt for one file and binding for another: binding for the one, exempt for the other', () => {
+  const review = buildReview([
+    file('a.ts', dec('ADR-0010', { workspace: 'common', binding: false, exemption: { by: 'ADR-0012' } })),
+    file('b.ts', dec('ADR-0010', { workspace: 'common' })),
+  ]);
+  expect(review).toEqual({ markdown: expect.any(String), binding: 1, hints: 1, files: 2 });
+  const [binding, details] = review.markdown.split('<details>');
+  expect(binding).toContain('Governs: `b.ts`');
+  expect(binding).not.toContain('a.ts');
+  expect(details).toContain('`a.ts`');
+  expect(details).toContain('(accepted, exempt by ADR-0012)');
 });

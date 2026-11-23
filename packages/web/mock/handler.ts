@@ -299,6 +299,7 @@ function forFiles(view: View, paths: string[], variant: MockVariant): ForRespons
       anchor: m?.anchor ?? null,
       review_rule: a.meta.review_rule ?? null,
       excerpt: a.body.split(/\n\s*\n/).find((p) => p.trim() && !p.startsWith('#')) ?? '',
+      exemption: null,
     });
 
     const decisions: Decision[] = [];
@@ -320,6 +321,7 @@ function forFiles(view: View, paths: string[], variant: MockVariant): ForRespons
         status: 'accepted',
         binding: true,
         workspace: 'shared-co',
+        exemption: null,
         layer: 'base',
         pending_kind: null,
         match: 'component',

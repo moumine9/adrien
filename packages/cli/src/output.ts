@@ -11,7 +11,13 @@ export function formatFileDecisions(files: FileDecisions[]): string {
     lines.push(file.component ? `${file.file} [${file.component}]` : file.file);
     if (!file.component) lines.push('  (not inside a linked component)');
     for (const d of file.decisions) {
-      const label = d.binding ? 'BINDING' : d.layer === 'pending' ? `pending ${d.pending_kind}` : `hint (${d.status})`;
+      const label = d.exemption
+        ? `EXEMPT (by ${d.exemption.by})`
+        : d.binding
+          ? 'BINDING'
+          : d.layer === 'pending'
+            ? `pending ${d.pending_kind}`
+            : `hint (${d.status})`;
       const origin = d.workspace === null ? '' : `[${d.workspace}] `;
       lines.push(`  ${origin}${d.id} ${label} ${d.title}`);
       if (d.review_rule) lines.push(`    rule: ${d.review_rule}`);

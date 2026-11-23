@@ -49,6 +49,7 @@ function parsedMeta() {
     sources: [],
     supersedes: [],
     related: [],
+    exception_to: [],
     deciders: [],
     origin: 'manual' as const,
     contested: false,
