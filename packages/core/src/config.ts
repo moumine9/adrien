@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { AdrienError } from './errors.ts';
 import { parseIdFormat } from './ids.ts';
 import { TEMPLATE_NAMES, type TemplateName } from './model.ts';
+import { slugify } from './slug.ts';
 
 export const CONFIG_FILE = 'adrien.config.yaml';
 export const CODE_CONFIG_FILE = '.adrien.yaml';
@@ -18,6 +19,8 @@ export interface ComponentDef {
 
 export interface LogConfig {
   product: string;
+  /** The name of this log (its workspace); when absent, the product name slugged is used. */
+  workspace?: string;
   /** Body skeleton for new ADRs. Default `standard`. */
   template?: TemplateName;
   adr_dir: string;
@@ -36,6 +39,21 @@ export interface CodeRepoConfig {
 const ID = /^[a-z0-9][a-z0-9._-]*$/;
 const idMessage = 'must be lowercase letters, digits, ".", "_" or "-" (no ":")';
 
+export function isWorkspaceName(name: string): boolean {
+  return ID.test(name);
+}
+
+/**
+ * The log's workspace name: the configured `workspace`, else the product name slugged.
+ * Null when the product slugs to nothing. A slug is always id-shaped (ASCII alphanumeric runs joined by "-"),
+ * so it needs no further check.
+ */
+export function workspaceNameOf(config: LogConfig): string | null {
+  if (config.workspace !== undefined) return config.workspace;
+  const slug = slugify(config.product);
+  return slug === '' ? null : slug;
+}
+
 const componentDef = z.preprocess(
   (v) => v ?? {},
   z.strictObject({ repo: z.string().min(1).optional(), root: z.string().optional() }),
@@ -43,6 +61,7 @@ const componentDef = z.preprocess(
 
 const logConfigSchema = z.strictObject({
   product: z.string().min(1),
+  workspace: z.string().regex(ID, idMessage).optional(),
   adr_dir: z.string().min(1).default('docs/adr'),
   id_format: z.string().default('ADR-{n:4}'),
   template: z.enum(TEMPLATE_NAMES).default('standard'),

@@ -116,6 +116,7 @@ hint, not a decision.
 
 ```yaml
 product: acme
+workspace: acme
 adr_dir: docs/adr # default
 id_format: "ADR-{n:4}" # default; {n} means no padding
 tags: [frontend, backend, database, infra, security]
@@ -127,6 +128,7 @@ components:
     root: apps/web # the component's folder inside that repo
 ```
 
+- `workspace` is the name of this log: lowercase letters, digits, `.`, `_` and `-`. When it is absent, the product name, lower-cased and slugged, is used; `adrien init --workspace <name>` sets it.
 - `template` picks the headings `adrien new` starts from (`adrien new --template minimal` overrides it for one ADR):
   `standard` (Context, Considered options, Decision, Rationale, Consequences), `minimal` (Context, Decision,
   Consequences) or `madr` (MADR 4's section names, including Confirmation).
