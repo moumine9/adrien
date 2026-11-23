@@ -4,6 +4,7 @@ import type { ResolveFile } from '@/components/markdown.tsx';
 import { api, isClientError } from './api.ts';
 import { type DecisionFilters, EMPTY_FILTERS, filtersToSearch } from './filters.ts';
 import { type RefreshSeconds, useSettings } from './settings.ts';
+import { useWorkspace } from './workspace.ts';
 
 /**
  * The server re-reads the log on every request, so a refetch on focus shows edits made meanwhile. The one exception is
@@ -32,38 +33,60 @@ export function useRefreshInterval(): number | false {
   return refreshInterval(settings.refreshSeconds);
 }
 
-export const useMeta = () =>
+/**
+ * The workspace as a query-key part: `''` on the flat routes, so their keys stay what they were. Every key of a
+ * workspace's data carries it, so one workspace's data is never shown for another.
+ */
+const keyOf = (workspace: string | undefined) => workspace ?? '';
+
+/** Lists the workspaces this server serves. Not per workspace: the list is the same wherever the reader is. */
+export const useWorkspaces = () =>
   useQuery({
-    queryKey: ['meta'],
-    queryFn: ({ signal }) => api.meta(signal),
+    queryKey: ['workspaces'],
+    queryFn: ({ signal }) => api.workspaces(signal),
+  });
+
+export const useMeta = () => {
+  const workspace = useWorkspace();
+  return useQuery({
+    queryKey: ['meta', keyOf(workspace)],
+    queryFn: ({ signal }) => api.meta(workspace, signal),
     refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   });
+};
 
-/** When the request behind the latest reading of each list was sent, by query key. */
+/** When the request behind the latest reading of each list was sent, by workspace and query. */
 const sentAt = new Map<string, number>();
+
+const sentKey = (workspace: string | undefined, search: string) => JSON.stringify([keyOf(workspace), search]);
 
 /**
  * When the request that produced the list's latest reading was sent. The server reads the files when a request starts,
  * not when it answers, so this, and not the time the answer arrived, says how old the reading is.
  */
-export const listSentAt = (filters: DecisionFilters): number => sentAt.get(filtersToSearch(filters).toString()) ?? 0;
+export const listSentAt = (filters: DecisionFilters, workspace: string | undefined): number =>
+  sentAt.get(sentKey(workspace, filtersToSearch(filters).toString())) ?? 0;
 
-export const useAdrs = (filters: DecisionFilters) =>
-  useQuery({
-    queryKey: ['adrs', filtersToSearch(filters).toString()],
+export const useAdrs = (filters: DecisionFilters) => {
+  const workspace = useWorkspace();
+  return useQuery({
+    queryKey: ['adrs', keyOf(workspace), filtersToSearch(filters).toString()],
     queryFn: async ({ signal }) => {
       const sent = Date.now();
-      const result = await api.adrs(filters, signal);
+      const result = await api.adrs(workspace, filters, signal);
       // Only the unfiltered list is ever read back, so a typed search does not add an entry.
-      if (filtersToSearch(filters).toString() === '') sentAt.set('', sent);
+      if (filtersToSearch(filters).toString() === '') sentAt.set(sentKey(workspace, ''), sent);
       return result;
     },
-    // Keep the previous results on screen while a new filter loads, instead of flashing skeletons.
-    placeholderData: keepPreviousData,
+    // Keep the previous results on screen while a new filter loads, instead of flashing skeletons. Only within the same
+    // workspace: another workspace's decisions are never shown while this one loads.
+    placeholderData: (previous, previousQuery) =>
+      previousQuery?.queryKey[1] === keyOf(workspace) ? keepPreviousData(previous) : undefined,
     refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   });
+};
 
 /** Maps the file name of a link in an ADR body to the decision in that file, using the log's own ids and paths. */
 export function useFileResolver(): ResolveFile {
@@ -82,10 +105,11 @@ export function useFileResolver(): ResolveFile {
  * A decision being read is fetched when it opens and again only on request, so its text never shifts while someone is
  * quoting it. The list keeps refreshing; `useChangedSinceOpened` compares against it to say the decision is out of date.
  */
-export const useAdr = (id: string) =>
-  useQuery({
-    queryKey: ['adr', id],
-    queryFn: ({ signal }) => api.adr(id, signal),
+export const useAdr = (id: string) => {
+  const workspace = useWorkspace();
+  return useQuery({
+    queryKey: ['adr', keyOf(workspace), id],
+    queryFn: ({ signal }) => api.adr(workspace, id, signal),
     enabled: Boolean(id),
     // Never stale and never kept once nobody looks at it: opening a decision always reads the file as it is now,
     // and nothing re-reads it behind the reader's back (a cached copy swapped for a fresh one would do just that).
@@ -95,28 +119,35 @@ export const useAdr = (id: string) =>
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,
   });
+};
 
-export const useGraph = () =>
-  useQuery({
-    queryKey: ['graph'],
-    queryFn: ({ signal }) => api.graph(signal),
+export const useGraph = () => {
+  const workspace = useWorkspace();
+  return useQuery({
+    queryKey: ['graph', keyOf(workspace)],
+    queryFn: ({ signal }) => api.graph(workspace, signal),
     refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   });
+};
 
-export const useFor = (paths: string[]) =>
-  useQuery({
-    queryKey: ['for', ...paths],
-    queryFn: ({ signal }) => api.forFiles(paths, signal),
+export const useFor = (paths: string[]) => {
+  const workspace = useWorkspace();
+  return useQuery({
+    queryKey: ['for', keyOf(workspace), ...paths],
+    queryFn: ({ signal }) => api.forFiles(workspace, paths, signal),
     enabled: paths.length > 0,
     refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   });
+};
 
-export const useCheck = (lint: boolean) =>
-  useQuery({
-    queryKey: ['check', lint],
-    queryFn: ({ signal }) => api.check(lint, signal),
+export const useCheck = (lint: boolean) => {
+  const workspace = useWorkspace();
+  return useQuery({
+    queryKey: ['check', keyOf(workspace), lint],
+    queryFn: ({ signal }) => api.check(workspace, lint, signal),
     refetchInterval: useRefreshInterval(),
     refetchIntervalInBackground: false,
   });
+};

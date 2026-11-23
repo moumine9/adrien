@@ -8,11 +8,15 @@ const OLD = 'Use PostgreSQL as the system of record for billing';
 const NEW = 'Use PostgreSQL, and only PostgreSQL, for billing';
 const ELSEWHERE = 'ADR-0001';
 
-async function openDecision(patchRef: { current: Record<string, Moved> }) {
-  const app = renderApp('/adr/ADR-0002', { fetch: movingFetch(() => patchRef.current) });
+async function openDecision(
+  patchRef: { current: Record<string, Moved> },
+  route = '/adr/ADR-0002',
+  listKey = ['adrs', '', ''],
+) {
+  const app = renderApp(route, { fetch: movingFetch(() => patchRef.current) });
   await screen.findByRole('heading', { level: 1, name: OLD });
   // The list is what the app polls; its first reading is the baseline.
-  await waitFor(() => expect(app.client.getQueryData(['adrs', ''])).toBeDefined());
+  await waitFor(() => expect(app.client.getQueryData(listKey)).toBeDefined());
   return app;
 }
 
@@ -65,6 +69,17 @@ describe('A decision that changes while it is open', () => {
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
   });
 
+  it('inside a workspace, offers Reload and refreshes the decision from that workspace', async () => {
+    const patch = { current: {} as Record<string, Moved> };
+    const { client, user } = await openDecision(patch, '/w/adrien/adr/ADR-0002', ['adrs', 'adrien', '']);
+    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW } };
+    await pollList(client);
+    await screen.findByText('Changed since you opened this');
+    await user.click(await screen.findByRole('button', { name: 'Reload ADR-0002' }));
+    await screen.findByRole('heading', { level: 1, name: NEW });
+    expect(await screen.findByText('Updated.')).toBeInTheDocument();
+  });
+
   it('does not swap the text under the reader when the window regains focus or the connection returns', async () => {
     const patch = { current: {} as Record<string, Moved> };
     const { client } = await openDecision(patch);
@@ -73,7 +88,7 @@ describe('A decision that changes while it is open', () => {
     await screen.findByText('Changed since you opened this');
     // Make the decision stale, so only the refetch triggers (and not the cache) decide whether the text moves.
     await act(async () => {
-      await client.invalidateQueries({ queryKey: ['adr', 'ADR-0002'], refetchType: 'none' });
+      await client.invalidateQueries({ queryKey: ['adr', '', 'ADR-0002'], refetchType: 'none' });
       focusManager.setFocused(false);
       focusManager.setFocused(true);
       onlineManager.setOnline(false);
@@ -92,7 +107,7 @@ describe('A decision that changes while it is open', () => {
     const patch = { current: {} as Record<string, Moved> };
     const { client, user } = renderApp('/', { fetch: movingFetch(() => patch.current) });
     await screen.findByRole('link', { name: OLD });
-    await waitFor(() => expect(client.getQueryData(['adrs', ''])).toBeDefined());
+    await waitFor(() => expect(client.getQueryData(['adrs', '', ''])).toBeDefined());
     // The decision was edited after the list was read; opening it now loads the newer version.
     patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW, where: 'detail' } };
     await user.click(screen.getByRole('link', { name: OLD }));
@@ -117,7 +132,7 @@ describe('A decision that changes while it is open', () => {
     };
     const { client, user } = renderApp('/', { fetch: slowList });
     await screen.findByRole('link', { name: OLD });
-    await waitFor(() => expect(client.getQueryData(['adrs', ''])).toBeDefined());
+    await waitFor(() => expect(client.getQueryData(['adrs', '', ''])).toBeDefined());
     // A reading of the list starts, takes the old version... and is slow to answer.
     hold = true;
     const poll = client.refetchQueries({ queryKey: ['adrs'] });
@@ -133,7 +148,7 @@ describe('A decision that changes while it is open', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
     });
     const row = client
-      .getQueryData<{ results: { id: string; revision: string | null }[] }>(['adrs', ''])
+      .getQueryData<{ results: { id: string; revision: string | null }[] }>(['adrs', '', ''])
       ?.results.find((r) => r.id === 'ADR-0002');
     expect(row?.revision).not.toBe('abcdefabcdef');
     expect(screen.queryByText('Changed since you opened this')).not.toBeInTheDocument();

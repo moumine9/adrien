@@ -7,6 +7,7 @@ import { Switch } from '@/components/ui/switch.tsx';
 import { useCheck } from '@/lib/queries.ts';
 import { STATUS_STYLES } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 
 type Severity = Diagnostic['severity'];
 
@@ -29,13 +30,14 @@ const SEVERITY: Record<Severity, { title: string; icon: LucideIcon; fill: string
 const ORDER: Severity[] = ['error', 'warning', 'info'];
 
 function DiagnosticItem({ d }: { d: Diagnostic }) {
+  const wp = useWorkspacePath();
   return (
     <li className="space-y-2 px-5 py-4">
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <code className="rounded-[3px] border-2 border-border bg-background px-2 font-mono text-sm">{d.code}</code>
         {d.id && (
           <Link
-            to={`/adr/${encodeURIComponent(d.id)}`}
+            to={wp(`/adr/${encodeURIComponent(d.id)}`)}
             className="font-heading tabular-nums underline decoration-2 underline-offset-4"
           >
             {d.id}

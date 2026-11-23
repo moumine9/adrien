@@ -4,6 +4,7 @@ import { ApproveDisclosure } from '@/components/approve-disclosure.tsx';
 import { Chip, InCheckoutBadge, LocalEditBadge, type LocalEditKind } from '@/components/badges.tsx';
 import { DecisionSurface } from '@/components/decision-surface.tsx';
 import { bindingOf, isRetired, type Verification } from '@/lib/status.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 
 export function BoardCard({
   row,
@@ -15,6 +16,7 @@ export function BoardCard({
   localEdit?: LocalEditKind;
 }) {
   const pending = row.layer === 'pending';
+  const wp = useWorkspacePath();
   return (
     <DecisionSurface as="article" binding={bindingOf(row, verification)} retired={isRetired(row.status)}>
       <div className="space-y-2 p-4">
@@ -24,7 +26,7 @@ export function BoardCard({
           {localEdit && <LocalEditBadge kind={localEdit} />}
         </div>
         <h3 className="text-base leading-snug">
-          <Link to={`/adr/${encodeURIComponent(row.id)}`} className="rounded-base focus-ring hover-underline">
+          <Link to={wp(`/adr/${encodeURIComponent(row.id)}`)} className="rounded-base focus-ring hover-underline">
             {row.title}
           </Link>
         </h3>

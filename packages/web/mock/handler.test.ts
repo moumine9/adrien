@@ -6,6 +6,7 @@ import type {
   ForResponse,
   GraphResponse,
   MetaResponse,
+  WorkspacesResponse,
 } from '@adrien/api/contract';
 import { handleApiRequest, type MockVariant } from './handler.ts';
 
@@ -99,5 +100,45 @@ describe('mock API', () => {
     expect(handleApiRequest('/api/export?format=llms').contentType).toContain('text/plain');
     expect(handleApiRequest('/api/export?format=pdf').status).toBe(400);
     expect(handleApiRequest('/api/nope').status).toBe(404);
+  });
+
+  it('lists one workspace by default, named adrien and the default', () => {
+    expect(get<WorkspacesResponse>('/api/workspaces').body.workspaces).toEqual([
+      { name: 'adrien', product: 'Adrien', default: true },
+    ]);
+    expect(get<MetaResponse>('/api/meta').body.workspace).toBe('adrien');
+  });
+
+  it('answers the flat routes and the named ones alike when there is one workspace', () => {
+    expect(get<AdrsResponse>('/api/w/adrien/adrs').body.results.map((r) => r.id)).toEqual(
+      get<AdrsResponse>('/api/adrs').body.results.map((r) => r.id),
+    );
+    expect(get<MetaResponse>('/api/w/adrien/meta').body.workspace).toBe('adrien');
+    expect(get<ApiError>('/api/w/nope/meta').body.error.code).toBe('WORKSPACE_NOT_FOUND');
+  });
+
+  it('serves two workspaces, and the second only its first three decisions', () => {
+    const list = get<WorkspacesResponse>('/api/workspaces', 'workspaces').body.workspaces;
+    expect(list).toEqual([
+      { name: 'adrien', product: 'Adrien', default: true },
+      { name: 'common', product: 'Common standards', default: false },
+    ]);
+    const common = get<AdrsResponse>('/api/w/common/adrs', 'workspaces').body.results;
+    expect(common.map((r) => r.id)).toEqual(['ADR-0001', 'ADR-0002', 'ADR-0003']);
+    expect(get<MetaResponse>('/api/w/common/meta', 'workspaces').body).toMatchObject({
+      workspace: 'common',
+      product: 'Common standards',
+    });
+    expect(get<ApiError>('/api/w/common/adrs/ADR-0004', 'workspaces').status).toBe(404);
+    expect(get<AdrsResponse>('/api/w/adrien/adrs', 'workspaces').body.results.length).toBeGreaterThan(3);
+  });
+
+  it('answers the flat routes with WORKSPACE_REQUIRED when there are several workspaces', () => {
+    for (const url of ['/api/meta', '/api/adrs', '/api/adrs/ADR-0001', '/api/graph', '/api/check']) {
+      const r = get<ApiError>(url, 'workspaces');
+      expect(r.status).toBe(404);
+      expect(r.body.error.code).toBe('WORKSPACE_REQUIRED');
+    }
+    expect(get<ApiError>('/api/w/nope/meta', 'workspaces').body.error.code).toBe('WORKSPACE_NOT_FOUND');
   });
 });

@@ -6,6 +6,7 @@ import type {
   ForResponse,
   GraphResponse,
   MetaResponse,
+  WorkspacesResponse,
 } from '@adrien/api/contract';
 import { type DecisionFilters, toApiQuery } from './filters.ts';
 
@@ -77,15 +78,24 @@ export async function apiGet<T>(path: string, params?: URLSearchParams, signal?:
   return (await res.json()) as T;
 }
 
+/** The API root for a workspace: `/api` with no workspace, `/api/w/<name>` for a named one. */
+export function apiBase(workspace: string | undefined): string {
+  return workspace === undefined ? '/api' : `/api/w/${encodeURIComponent(workspace)}`;
+}
+
+/** Every call takes the workspace first (undefined on the flat routes). */
 export const api = {
-  meta: (signal?: AbortSignal) => apiGet<MetaResponse>('/api/meta', undefined, signal),
-  adrs: (filters: DecisionFilters, signal?: AbortSignal) =>
-    apiGet<AdrsResponse>('/api/adrs', toApiQuery(filters), signal),
-  adr: (id: string, signal?: AbortSignal) =>
-    apiGet<AdrResponse>(`/api/adrs/${encodeURIComponent(id)}`, undefined, signal),
-  graph: (signal?: AbortSignal) => apiGet<GraphResponse>('/api/graph', undefined, signal),
-  forFiles: (paths: string[], signal?: AbortSignal) =>
-    apiGet<ForResponse>('/api/for', new URLSearchParams(paths.map((p) => ['path', p])), signal),
-  check: (lint: boolean, signal?: AbortSignal) =>
-    apiGet<CheckResponse>('/api/check', lint ? new URLSearchParams({ lint: '1' }) : undefined, signal),
+  workspaces: (signal?: AbortSignal) => apiGet<WorkspacesResponse>('/api/workspaces', undefined, signal),
+  meta: (workspace: string | undefined, signal?: AbortSignal) =>
+    apiGet<MetaResponse>(`${apiBase(workspace)}/meta`, undefined, signal),
+  adrs: (workspace: string | undefined, filters: DecisionFilters, signal?: AbortSignal) =>
+    apiGet<AdrsResponse>(`${apiBase(workspace)}/adrs`, toApiQuery(filters), signal),
+  adr: (workspace: string | undefined, id: string, signal?: AbortSignal) =>
+    apiGet<AdrResponse>(`${apiBase(workspace)}/adrs/${encodeURIComponent(id)}`, undefined, signal),
+  graph: (workspace: string | undefined, signal?: AbortSignal) =>
+    apiGet<GraphResponse>(`${apiBase(workspace)}/graph`, undefined, signal),
+  forFiles: (workspace: string | undefined, paths: string[], signal?: AbortSignal) =>
+    apiGet<ForResponse>(`${apiBase(workspace)}/for`, new URLSearchParams(paths.map((p) => ['path', p])), signal),
+  check: (workspace: string | undefined, lint: boolean, signal?: AbortSignal) =>
+    apiGet<CheckResponse>(`${apiBase(workspace)}/check`, lint ? new URLSearchParams({ lint: '1' }) : undefined, signal),
 };

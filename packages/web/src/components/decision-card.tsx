@@ -1,6 +1,7 @@
 import type { AdrListRow } from '@adrien/api/contract';
 import { Link } from 'react-router';
 import { bindingOf, isRetired, type Verification } from '@/lib/status.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 import { BindingBadge, Chip, PendingBadge, StatusBadge } from './badges.tsx';
 import { DecisionSurface } from './decision-surface.tsx';
 import { VersionStamp } from './stamp.tsx';
@@ -8,6 +9,7 @@ import { VersionStamp } from './stamp.tsx';
 /** One row of `/api/adrs`, drawn in the frame that matches its binding state (see `DecisionSurface`). */
 export function DecisionCard({ row, verification }: { row: AdrListRow; verification: Verification }) {
   const pending = row.layer === 'pending';
+  const wp = useWorkspacePath();
   const binding = bindingOf(row, verification);
   return (
     <DecisionSurface as="article" binding={binding} retired={isRetired(row.status)} interactive data-layer={row.layer}>
@@ -20,7 +22,7 @@ export function DecisionCard({ row, verification }: { row: AdrListRow; verificat
         </div>
         <h3 className="text-lg leading-snug sm:text-xl">
           <Link
-            to={`/adr/${encodeURIComponent(row.id)}`}
+            to={wp(`/adr/${encodeURIComponent(row.id)}`)}
             className="outline-none after:absolute after:inset-0 hover-underline"
           >
             {row.title}

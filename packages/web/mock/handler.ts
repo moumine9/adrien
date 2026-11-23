@@ -23,10 +23,33 @@ import { BASE, COMPONENTS, checkReport, PENDING, TAGS } from './fixtures.ts';
  * - `fork`: a shallow fork that shares no history with the default branch (`forkUnresolved`).
  * - `files`: not a git repository (`mode: 'files'`).
  * - `empty`: a log with no decisions yet.
+ * - `workspaces`: two workspaces, `adrien` (the default, as `default`) and `common` (the first three decisions only).
+ *   The flat routes answer 404 WORKSPACE_REQUIRED, as the real API does.
  */
-export type MockVariant = 'default' | 'unresolved' | 'fork' | 'files' | 'empty';
+export type MockVariant = 'default' | 'unresolved' | 'fork' | 'files' | 'empty' | 'workspaces';
 
-export const MOCK_VARIANTS: readonly MockVariant[] = ['default', 'unresolved', 'fork', 'files', 'empty'];
+export const MOCK_VARIANTS: readonly MockVariant[] = ['default', 'unresolved', 'fork', 'files', 'empty', 'workspaces'];
+
+interface WorkspaceInfo {
+  name: string;
+  product: string;
+  default: boolean;
+}
+
+/** The workspaces a variant serves. Only `workspaces` has more than one. */
+function workspacesOf(variant: MockVariant): WorkspaceInfo[] {
+  const adrien: WorkspaceInfo = { name: 'adrien', product: 'Adrien', default: true };
+  return variant === 'workspaces'
+    ? [adrien, { name: 'common', product: 'Common standards', default: false }]
+    : [adrien];
+}
+
+/** The decisions `common` serves: the first three fixture decisions, with no pending changes. */
+const COMMON_ADRS = BASE.slice(0, 3);
+
+function commonView(): View {
+  return { base: COMMON_ADRS, pending: [] };
+}
 
 export interface MockResponse {
   status: number;
@@ -67,15 +90,15 @@ function viewOf(variant: MockVariant): View {
   };
 }
 
-function metaOf(variant: MockVariant, view: View): MetaResponse {
+function metaOf(variant: MockVariant, view: View, ws: WorkspaceInfo): MetaResponse {
   const byStatus = Object.fromEntries(STATUSES.map((s) => [s, 0])) as Record<Status, number>;
   const counted = [...view.base, ...view.pending.filter((p) => p.kind === 'added').map((p) => p.current as AdrFile)];
   for (const a of counted) byStatus[a.meta.status]++;
   const gitless = variant === 'files';
   return {
     version: '0.1.0',
-    workspace: 'adrien',
-    product: 'Adrien',
+    workspace: ws.name,
+    product: ws.product,
     adrDir: 'docs/decisions',
     mode: gitless ? 'files' : 'git',
     baseRef: variant === 'default' || variant === 'fork' || variant === 'empty' ? 'origin/main' : null,
@@ -326,13 +349,38 @@ const json = (status: number, body: unknown): MockResponse => ({
 const error = (status: number, code: string, message: string): MockResponse =>
   json(status, { error: { code, message } } satisfies ApiError);
 
-/** Answers one API request. `url` may be relative (`/api/meta?x=1`). */
+/** The routes a named workspace serves; the flat ones need the workspace to be the only one. */
+const FLAT_ROUTE = /^\/api\/(meta|adrs(\/.*)?|graph|for|check|export)$/;
+
+/** Answers one API request. `url` may be relative (`/api/meta?x=1`, `/api/w/common/adrs`). */
 export function handleApiRequest(url: string, variant: MockVariant = 'default'): MockResponse {
   const u = new URL(url, 'http://mock.local');
-  const view = viewOf(variant);
-  const path = u.pathname.replace(/\/+$/, '');
+  const trimmed = u.pathname.replace(/\/+$/, '');
 
-  if (path === '/api/meta') return json(200, metaOf(variant, view));
+  if (trimmed === '/api/workspaces') return json(200, { workspaces: workspacesOf(variant) });
+
+  // `/api/w/<name>/<route>` answers the route for that workspace; the flat route answers the only one.
+  let name = 'adrien';
+  let path = trimmed;
+  if (trimmed.startsWith('/api/w/')) {
+    const rest = trimmed.slice('/api/w/'.length);
+    const slash = rest.indexOf('/');
+    const asked = decodeURIComponent(slash < 0 ? rest : rest.slice(0, slash));
+    path = slash < 0 ? '/api' : `/api${rest.slice(slash)}`;
+    if (!workspacesOf(variant).some((w) => w.name === asked)) {
+      return error(404, 'WORKSPACE_NOT_FOUND', `No workspace named ${asked}.`);
+    }
+    name = asked;
+  } else if (FLAT_ROUTE.test(trimmed) && variant === 'workspaces') {
+    return error(404, 'WORKSPACE_REQUIRED', 'Several workspaces are served: ask for /api/w/<name>/... instead.');
+  }
+
+  const ws = workspacesOf(variant).find((w) => w.name === name) ?? (workspacesOf(variant)[0] as WorkspaceInfo);
+  // The second workspace of the `workspaces` variant serves its own decisions; the first reads like `default`.
+  const effective: MockVariant = variant === 'workspaces' ? 'default' : variant;
+  const view = name === 'common' ? commonView() : viewOf(effective);
+
+  if (path === '/api/meta') return json(200, metaOf(effective, view, ws));
   if (path === '/api/adrs') return json(200, { results: listAdrs(view, u.searchParams) });
   if (path.startsWith('/api/adrs/')) {
     const id = decodeURIComponent(path.slice('/api/adrs/'.length));
@@ -343,10 +391,10 @@ export function handleApiRequest(url: string, variant: MockVariant = 'default'):
   if (path === '/api/for') {
     const paths = u.searchParams.getAll('path').filter((p) => p.trim());
     if (paths.length === 0) return error(400, 'INVALID_INPUT', 'Pass at least one path, as ?path=src/file.ts.');
-    return json(200, forFiles(view, paths, variant));
+    return json(200, forFiles(view, paths, effective));
   }
   if (path === '/api/check') {
-    if (variant === 'empty') return json(200, { errors: 0, warnings: 0, diagnostics: [] });
+    if (effective === 'empty') return json(200, { errors: 0, warnings: 0, diagnostics: [] });
     return json(200, checkReport(u.searchParams.get('lint') === '1'));
   }
   if (path === '/api/export') {

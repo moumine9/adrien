@@ -21,7 +21,8 @@ export function movingFetch(moved: () => Record<string, Moved>): typeof fetch {
     // Like the server, read the state when the request starts, however long the answer takes.
     const patch = moved();
     const response = await inner(input, init);
-    const { pathname } = new URL(String(input), 'http://localhost');
+    // A workspace's routes (`/api/w/<name>/...`) answer like the flat ones, so one patch serves both.
+    const pathname = new URL(String(input), 'http://localhost').pathname.replace(/^\/api\/w\/[^/]+/, '/api');
     if (pathname === '/api/adrs') {
       const body = await response.json();
       for (const row of body.results) {

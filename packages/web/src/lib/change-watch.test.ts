@@ -1,4 +1,4 @@
-import { changedIds, stampsOf } from './change-watch.ts';
+import { changedIds, readingChanges, type Stamps, stampsOf } from './change-watch.ts';
 
 const row = (id: string, revision: string | null) => ({ id, revision });
 
@@ -31,5 +31,24 @@ describe('changedIds', () => {
 
   it('counts a revision that became null (deleted here) as a change', () => {
     expect(changedIds(before, stampsOf([row('ADR-0001', null), row('ADR-0002', 'bbb')]))).toEqual(['ADR-0001']);
+  });
+});
+
+describe('readingChanges (one baseline per workspace)', () => {
+  it('reports nothing when another workspace is read for the first time', () => {
+    const baselines = new Map<string, Stamps>();
+    expect(readingChanges(baselines, 'adrien', stampsOf([row('ADR-0001', 'aaa'), row('ADR-0002', 'bbb')]))).toEqual([]);
+    // Switching to another workspace: its decisions are not "changed" against the first one's.
+    expect(readingChanges(baselines, 'common', stampsOf([row('ADR-0009', 'ddd')]))).toEqual([]);
+  });
+
+  it('reports only the real change when the reader comes back', () => {
+    const baselines = new Map<string, Stamps>();
+    readingChanges(baselines, 'adrien', stampsOf([row('ADR-0001', 'aaa'), row('ADR-0002', 'bbb')]));
+    readingChanges(baselines, 'common', stampsOf([row('ADR-0009', 'ddd')]));
+    expect(readingChanges(baselines, 'adrien', stampsOf([row('ADR-0001', 'aaa'), row('ADR-0002', 'ccc')]))).toEqual([
+      'ADR-0002',
+    ]);
+    expect(readingChanges(baselines, 'common', stampsOf([row('ADR-0009', 'ddd')]))).toEqual([]);
   });
 });
