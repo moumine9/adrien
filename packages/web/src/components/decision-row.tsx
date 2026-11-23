@@ -30,7 +30,15 @@ export function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean })
       {d.layer === 'pending' && <PendingBand className="-mx-5 -mt-4" />}
       <div className="flex flex-wrap items-center gap-2">
         <BindingBadge binding={binding} />
-        {binding === 'not-binding' && (
+        {d.exemption && (
+          <span
+            title="An accepted exception of this product departs from this decision for this file."
+            className="pill"
+          >
+            Exempt by {d.exemption.by}
+          </span>
+        )}
+        {binding === 'not-binding' && !d.exemption && (
           <span title="Not accepted on the default branch: worth knowing, not a rule." className="pill">
             <Lightbulb aria-hidden className="size-3.5" strokeWidth={2.5} />
             Hint only
