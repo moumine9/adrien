@@ -4,6 +4,12 @@ export default defineConfig({
   test: {
     globals: true,
     testTimeout: 20000,
+    // Nothing a test mocks, spies on or stubs survives into the next one.
+    clearMocks: true,
+    restoreMocks: true,
+    unstubGlobals: true,
+    unstubEnvs: true,
+    setupFiles: ['./vitest.setup.ts'],
     projects: [
       {
         extends: true,

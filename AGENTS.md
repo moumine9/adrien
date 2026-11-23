@@ -20,7 +20,9 @@ Before changing code, call the `adr_for_files` MCP tool with the files you will 
 - **The repo is public.** Never commit employer or customer names, real ADR content, tokens or credentials. `docs/superpowers`,
   `.local` and `.superpowers` are private and never committed.
 - **Test first.** Write the failing test, watch it fail for the right reason, then implement. `packages/core/src` stays at
-  100% statements, branches, functions and lines; remove an unreachable branch rather than ignoring it.
+  100% statements, branches, functions and lines; remove an unreachable branch rather than ignoring it. Nothing a test
+  mocks may outlive it: the vitest config restores mocks, globals and the environment after each test, and a test that
+  keeps its own mutable state (a module-level cache that is written to, a server, a timer) cleans it in `afterEach` or `onTestFinished`.
 - **Run the gates yourself** (`lint`, `typecheck`, `test:coverage`) before you say a task is done, and say which you ran.
 - **Conventional Commits.** The changelog is generated from commit subjects, and they are public text.
 - **`main` is protected.** Everything goes through a pull request with the four `test` checks and the `e2e` check green. Agents do not push to
