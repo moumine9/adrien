@@ -51,13 +51,16 @@ describe('A decision that changes while it is open', () => {
       patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW } };
       await pollList(client);
       await screen.findByText('Changed since you opened this');
-      await act(async () => {
-        vi.advanceTimersByTime(9000);
-      });
+      // The timer is set by an effect after the notice shows: move the clock on until it has run, whenever that is.
+      for (let second = 0; second < 20; second++) {
+        await act(async () => {
+          vi.advanceTimersByTime(1000);
+        });
+      }
     } finally {
       vi.useRealTimers();
     }
-    await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
+    expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement();
     expect(screen.getByText('Changed since you opened this')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
   });
