@@ -142,7 +142,10 @@ function verify(args) {
   } catch (error) {
     console.error(`gh release view failed: ${error.stderr?.toString().trim() ?? error.message}`);
   }
-  if (npmVersion !== version) fail(`npm does not show ${version} yet.`);
+  if (npmVersion !== version)
+    fail(
+      `npm does not show ${version} yet: it can take a few minutes after the workflow succeeds, so run this again before assuming the publish failed.`,
+    );
 }
 
 const commands = { prepare, tag, verify };
