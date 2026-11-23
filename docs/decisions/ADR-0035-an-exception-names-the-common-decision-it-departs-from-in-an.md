@@ -1,7 +1,7 @@
 ---
 id: ADR-0035
 title: An exception names the common decision it departs from in an exception_to field
-status: proposed
+status: accepted
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [format]
