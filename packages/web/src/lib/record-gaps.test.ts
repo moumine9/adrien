@@ -26,6 +26,16 @@ describe('recordGaps', () => {
     expect(recordGaps({ status: 'accepted', deciders: ['Ada'] }, body)).toEqual([]);
   });
 
+  it('counts the MADR 4 decision-makers field, as a list or as a line of names', () => {
+    const accepted = { status: 'accepted', deciders: [] };
+    expect(recordGaps({ ...accepted, extra: { 'decision-makers': ['alice'] } }, '## Context\n\nWhy.\n')).toEqual([]);
+    expect(recordGaps({ ...accepted, extra: { 'decision-makers': 'alice, bob' } }, '## Context\n\nWhy.\n')).toEqual([]);
+    expect(recordGaps({ ...accepted, extra: { 'decision-makers': [] } }, '## Context\n\nWhy.\n')).toEqual(['deciders']);
+    expect(recordGaps({ ...accepted, extra: { 'decision-makers': ' ' } }, '## Context\n\nWhy.\n')).toEqual([
+      'deciders',
+    ]);
+  });
+
   it('reports missing deciders', () => {
     expect(recordGaps({ status: 'accepted', deciders: [] }, '## Context\n\nWhy.\n')).toEqual(['deciders']);
   });

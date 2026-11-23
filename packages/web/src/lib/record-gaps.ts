@@ -4,12 +4,21 @@ export type Gap = 'deciders' | 'confirmation';
  * What an accepted decision leaves out: nobody is named as having decided it, or its `### Confirmation` heading has no
  * text under it. Only a hint for the reader (never a check): a template without that heading is not at fault.
  */
-export function recordGaps(meta: { status: string; deciders: readonly string[] }, body: string): Gap[] {
+export function recordGaps(
+  meta: { status: string; deciders: readonly string[]; extra?: Record<string, unknown> },
+  body: string,
+): Gap[] {
   if (meta.status !== 'accepted') return [];
   const gaps: Gap[] = [];
-  if (meta.deciders.length === 0) gaps.push('deciders');
+  if (meta.deciders.length === 0 && !namesMadrDecisionMakers(meta.extra)) gaps.push('deciders');
   if (confirmationIsEmpty(body)) gaps.push('confirmation');
   return gaps;
+}
+
+/** MADR 4 calls them `decision-makers`; the core keeps that field as it was written, a list or a line of names. */
+function namesMadrDecisionMakers(extra: Record<string, unknown> = {}): boolean {
+  const value = extra['decision-makers'];
+  return Array.isArray(value) ? value.length > 0 : typeof value === 'string' && value.trim() !== '';
 }
 
 /** A `Confirmation` heading whose section holds nothing: the next heading of the same or a higher level, or the end, comes first. */
