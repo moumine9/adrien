@@ -183,7 +183,7 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
     {
       title: 'Propose a new decision',
       description:
-        'Record a durable architecture decision as a PROPOSED ADR in the working copy. It is never accepted by this call: an architect accepts it by merging its merge request. Returns possible duplicates instead of writing; pass force:true only if the decision really is distinct.',
+        'Record a durable architecture decision as a PROPOSED ADR in the working copy. It is never accepted by this call: an architect accepts it by merging its merge request. Returns possible duplicates instead of writing; pass force:true only if the decision really is distinct. Propose only a decision that is durable, costly to reverse and bigger than one change. Do not propose a bug fix, a rename, a dependency bump, a style rule a linter enforces, or anything the code and its commit message already explain. Search with adr_search first, and with adr_for_files for the files the decision is about. If a binding ADR already covers it, follow that ADR; if your decision contradicts it, tell the user instead of proposing around it.',
       inputSchema: {
         title: z.string().min(1),
         context: z.string().min(1),
