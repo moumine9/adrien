@@ -1,3 +1,4 @@
+import type { CommonLog } from '../src/common.ts';
 import type { Context } from '../src/context.ts';
 import { adrsForFiles, unverifiedBaseNote } from '../src/for-files.ts';
 import type { Adr, AdrMeta } from '../src/model.ts';
@@ -120,4 +121,89 @@ test('unverifiedBaseNote speaks only when no default branch could be found', () 
   const note = unverifiedBaseNote({ ...view([]), baseUnresolved: true });
   expect(note).toContain('No default branch');
   expect(note).toContain('read as written');
+});
+
+describe('decisions of a common log', () => {
+  const common = (decisions: Adr[]): CommonLog => ({ name: 'common', ctx, view: view(decisions) });
+  const sharedRule = adr('ADR-0010', { components: ['billing-service'], review_rule: 'Shared rule.' });
+  const sharedAnchored = adr('ADR-0011', {
+    components: ['billing-service'],
+    code: ['billing-service:src/Invoices/**'],
+  });
+  const sharedProposed = adr('ADR-0012', { components: ['billing-service'], status: 'proposed' });
+  const sharedWebOnly = adr('ADR-0013', { components: ['web'] });
+  const sharedNoComponents = adr('ADR-0014', { components: [], code: [] });
+  const sharedUnknown = adr('ADR-0015', { components: ['payments'] });
+  const invoice = 'src/Invoices/Invoice.ts';
+
+  test('an accepted common decision binds by component, tagged with its workspace', () => {
+    const [result] = adrsForFiles(ctx, view([]), [invoice], common([sharedRule]));
+    expect(result?.decisions).toEqual([
+      expect.objectContaining({
+        id: 'ADR-0010',
+        workspace: 'common',
+        binding: true,
+        layer: 'base',
+        match: 'component',
+        review_rule: 'Shared rule.',
+      }),
+    ]);
+  });
+
+  test('an accepted common decision binds by its code anchor', () => {
+    const [result] = adrsForFiles(ctx, view([]), [invoice], common([sharedAnchored]));
+    expect(result?.decisions).toMatchObject([
+      {
+        id: 'ADR-0011',
+        workspace: 'common',
+        binding: true,
+        match: 'anchor',
+        anchor: 'billing-service:src/Invoices/**',
+      },
+    ]);
+  });
+
+  test('a proposed common decision and a pending common change never bind or appear', () => {
+    const withPending: CommonLog = {
+      name: 'common',
+      ctx,
+      view: { ...view([sharedRule]), pending: [{ id: 'ADR-0010', kind: 'modified', current: sharedRule }] },
+    };
+    expect(adrsForFiles(ctx, view([]), [invoice], common([sharedProposed]))[0]?.decisions).toEqual([]);
+    expect(adrsForFiles(ctx, view([]), [invoice], withPending)[0]?.decisions.map((d) => d.layer)).toEqual(['base']);
+  });
+
+  test('a common decision naming a component the product lacks matches nothing', () => {
+    expect(adrsForFiles(ctx, view([]), [invoice], common([sharedUnknown]))[0]?.decisions).toEqual([]);
+    expect(adrsForFiles(ctx, view([]), [invoice], common([sharedWebOnly]))[0]?.decisions).toEqual([]);
+  });
+
+  test('a common decision with neither components nor anchors binds nothing', () => {
+    expect(adrsForFiles(ctx, view([]), [invoice], common([sharedNoComponents]))[0]?.decisions).toEqual([]);
+  });
+
+  test('an own decision precedes a common one with the same rank and id', () => {
+    const ownSameId = adr('ADR-0010', { components: ['billing-service'], review_rule: 'Own.' });
+    const [result] = adrsForFiles(ctx, view([ownSameId]), [invoice], common([sharedRule]));
+    expect(result?.decisions.map((d) => [d.id, d.workspace])).toEqual([
+      ['ADR-0010', null],
+      ['ADR-0010', 'common'],
+    ]);
+  });
+
+  test('common decisions rank by the same order as own ones: anchor matches first', () => {
+    const own = adr('ADR-0002', { components: ['billing-service'] });
+    const [result] = adrsForFiles(ctx, view([own]), [invoice], common([sharedAnchored]));
+    expect(result?.decisions.map((d) => [d.id, d.workspace])).toEqual([
+      ['ADR-0011', 'common'],
+      ['ADR-0002', null],
+    ]);
+  });
+
+  test('without a common log the decisions carry workspace null', () => {
+    expect(adrsForFiles(ctx, view([componentWide]), [invoice], null)[0]?.decisions[0]).toMatchObject({
+      workspace: null,
+    });
+    expect(adrsForFiles(ctx, view([componentWide]), [invoice])[0]?.decisions[0]).toMatchObject({ workspace: null });
+  });
 });

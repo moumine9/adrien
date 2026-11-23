@@ -10,6 +10,7 @@ function dec(id: string, over: Partial<FileDecision> = {}): FileDecision {
     title: `Title ${id}`,
     status: 'accepted',
     binding: true,
+    workspace: null,
     layer: 'base',
     pending_kind: null,
     match: 'anchor',

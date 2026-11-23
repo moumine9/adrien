@@ -129,6 +129,10 @@ components:
 ```
 
 - `workspace` is the name of this log: lowercase letters, digits, `.`, `_` and `-`. When it is absent, the product name, lower-cased and slugged, is used; `adrien init --workspace <name>` sets it. A server that serves only one log, whose product has no ASCII name and which has no `workspace`, calls it `default`.
+- `common` says where the common log is: a path, relative to the root of this log, or a git URL, as for `--log`. The
+  accepted decisions of the common log bind this product, matched to its files by the same rule as its own decisions.
+  Proposed and rejected decisions of the common log bind nothing. The common log's own `common` field is ignored. Versions
+  of Adrien that predate this field reject it.
 - `template` picks the headings `adrien new` starts from (`adrien new --template minimal` overrides it for one ADR):
   `standard` (Context, Considered options, Decision, Rationale, Consequences), `minimal` (Context, Decision,
   Consequences) or `madr` (MADR 4's section names, including Confirmation).

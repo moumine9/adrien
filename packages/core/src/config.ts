@@ -21,6 +21,8 @@ export interface LogConfig {
   product: string;
   /** The name of this log (its workspace); when absent, the product name slugged is used. */
   workspace?: string;
+  /** Where the common log is, a path (relative to this log's root) or a git URL. Its accepted decisions bind this product. */
+  common?: string;
   /** Body skeleton for new ADRs. Default `standard`. */
   template?: TemplateName;
   adr_dir: string;
@@ -62,6 +64,7 @@ const componentDef = z.preprocess(
 const logConfigSchema = z.strictObject({
   product: z.string().min(1),
   workspace: z.string().regex(ID, idMessage).optional(),
+  common: z.string().min(1).optional(),
   adr_dir: z.string().min(1).default('docs/adr'),
   id_format: z.string().default('ADR-{n:4}'),
   template: z.enum(TEMPLATE_NAMES).default('standard'),
