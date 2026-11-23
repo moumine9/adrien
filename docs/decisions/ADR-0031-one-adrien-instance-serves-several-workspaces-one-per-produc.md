@@ -1,12 +1,13 @@
 ---
 id: ADR-0031
 title: One Adrien instance serves several workspaces, one per product, plus an optional common one
-status: accepted
+status: superseded
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [format, api]
 components: [core, api, cli]
 review_rule: An instance, local or hosted, can serve several workspaces; each workspace is one decision log with its own standards, ids and, in the hosted version, its own roles, and a common workspace binds every product workspace.
+superseded_by: ADR-0032
 related: [ADR-0030, ADR-0023]
 origin: agent
 ---

@@ -1,15 +1,15 @@
 ---
 id: ADR-0032
 title: A product workspace may record an exception to a common rule, with a reason and a review date
-status: proposed
+status: accepted
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [format, workflow]
 components: [core, api, cli]
 review_rule: An instance serves several workspaces, one per product, plus an optional common one that binds every product; a product workspace may depart from a common rule only through its own accepted decision that names the common decision, gives the reason and sets a review date; without such a decision the common rule binds.
+supersedes: [ADR-0031]
 related: [ADR-0031, ADR-0030, ADR-0023]
 origin: agent
-
 ---
 
 ## Context
