@@ -11,6 +11,7 @@ import { Toggle } from '@/components/ui/toggle.tsx';
 import { toggle } from '@/lib/filters.ts';
 import { layoutGraph } from '@/lib/graph-layout.ts';
 import { useGraph } from '@/lib/queries.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 
 /** Keep nodes that carry any selected tag, and the edges between them. */
 export function filterGraph(graph: GraphResponse, tags: string[]): GraphResponse {
@@ -25,6 +26,7 @@ export function GraphView() {
   const [params, setParams] = useSearchParams();
   const tags = useMemo(() => [...new Set(params.getAll('tag').filter(Boolean))], [params]);
   const titleId = useId();
+  const wp = useWorkspacePath();
 
   const allTags = useMemo(() => [...new Set((graph.data?.nodes ?? []).flatMap((n) => n.tags))].sort(), [graph.data]);
   const visible = useMemo(() => (graph.data ? filterGraph(graph.data, tags) : null), [graph.data, tags]);
@@ -89,13 +91,16 @@ export function GraphView() {
                 {visible.edges.map((e) => (
                   <li key={`${e.type}:${e.from}>${e.to}`}>
                     <Link
-                      to={`/adr/${encodeURIComponent(e.from)}`}
+                      to={wp(`/adr/${encodeURIComponent(e.from)}`)}
                       className="font-heading underline underline-offset-2"
                     >
                       {e.from}
                     </Link>{' '}
                     {e.type === 'supersedes' ? 'replaces' : 'is related to'}{' '}
-                    <Link to={`/adr/${encodeURIComponent(e.to)}`} className="font-heading underline underline-offset-2">
+                    <Link
+                      to={wp(`/adr/${encodeURIComponent(e.to)}`)}
+                      className="font-heading underline underline-offset-2"
+                    >
                       {e.to}
                     </Link>
                     <span className="text-muted-foreground"> ({titles.get(e.to)})</span>

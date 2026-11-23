@@ -17,6 +17,7 @@ import { useAdr, useFileResolver, useGraph, useMeta } from '@/lib/queries.ts';
 import { recordGaps } from '@/lib/record-gaps.ts';
 import { authorityOf, isReviewDue } from '@/lib/status.ts';
 import { cn } from '@/lib/utils.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 
 function DetailSkeleton() {
   return (
@@ -36,9 +37,13 @@ export function DecisionView() {
   const resolveFile = useFileResolver();
   const meta = useMeta();
   const graph = useGraph();
+  const wp = useWorkspacePath();
 
   const back = (
-    <Link to="/" className="inline-flex items-center gap-2 rounded-base font-heading hover-underline print:hidden">
+    <Link
+      to={wp('/')}
+      className="inline-flex items-center gap-2 rounded-base font-heading hover-underline print:hidden"
+    >
       <ArrowLeft aria-hidden className="size-4" strokeWidth={2.5} />
       All decisions
     </Link>
@@ -56,7 +61,7 @@ export function DecisionView() {
           error={adr.error}
           onRetry={notFound ? undefined : () => adr.refetch()}
         >
-          <Link to="/" className={buttonVariants({ variant: 'neutral' })}>
+          <Link to={wp('/')} className={buttonVariants({ variant: 'neutral' })}>
             Back to the decisions
           </Link>
         </ErrorState>
@@ -123,7 +128,7 @@ export function DecisionView() {
             <Replace aria-hidden className="size-4" strokeWidth={2.5} />
             Replaced by
             <Link
-              to={`/adr/${encodeURIComponent(m.superseded_by)}`}
+              to={wp(`/adr/${encodeURIComponent(m.superseded_by)}`)}
               className="font-heading underline decoration-2 underline-offset-4"
             >
               {m.superseded_by}

@@ -7,6 +7,7 @@ import { useChangedSinceOpened, useChangeWatch } from '@/lib/change-watch.ts';
 import { useAdr } from '@/lib/queries.ts';
 import { useSettings } from '@/lib/settings.ts';
 import { cn } from '@/lib/utils.ts';
+import { useWorkspace, useWorkspacePath } from '@/lib/workspace.ts';
 
 export const TOAST_SECONDS = 8;
 export const UPDATED_MS = 2000;
@@ -38,7 +39,9 @@ export function ChangeToast({
   const { changed, version, dismiss, forget } = useChangeWatch();
   const [settings] = useSettings();
   const client = useQueryClient();
-  const match = useMatch('/adr/:id');
+  const workspace = useWorkspace();
+  const wp = useWorkspacePath();
+  const match = useMatch(wp('/adr/:id'));
   // The router has already decoded the id.
   const openId = match?.params.id;
   // The decision on screen, as loaded: the notice is about the version the reader is looking at, not the latest one.
@@ -87,9 +90,10 @@ export function ChangeToast({
   const reload = async () => {
     if (!openId) return;
     handFocusToPage();
-    await client.refetchQueries({ queryKey: ['adr', openId] });
+    const key = ['adr', workspace ?? '', openId];
+    await client.refetchQueries({ queryKey: key });
     // A failed reload leaves the old version on screen, so the notice stays and nothing is "Updated".
-    if (client.getQueryState(['adr', openId])?.status === 'error') return;
+    if (client.getQueryState(key)?.status === 'error') return;
     forget(openId);
     setUpdated(true);
   };

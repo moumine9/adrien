@@ -3,6 +3,7 @@ import { type ComponentProps, type ReactNode, useMemo } from 'react';
 import Markdown, { type Components, defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils.ts';
+import { useWorkspace, workspacePath } from '@/lib/workspace.ts';
 
 /** Maps the file name of a link (`ADR-0007-some-title.md`) to the id of the decision in that file, if the log has one. */
 export type ResolveFile = (fileName: string) => string | undefined;
@@ -18,10 +19,10 @@ const ABSOLUTE_URL = /^(?:[a-z][a-z0-9+.-]*:|\/\/)/i;
  * everything else goes through react-markdown's default transform, which empties `javascript:`, `data:` and other
  * unsafe protocols.
  */
-export function adrUrlTransform(url: string, resolveFile?: ResolveFile): string {
+export function adrUrlTransform(url: string, resolveFile?: ResolveFile, workspace?: string): string {
   const file = ABSOLUTE_URL.test(url) ? undefined : MARKDOWN_FILE.exec(url)?.[1];
   const id = file ? resolveFile?.(file) : undefined;
-  return id ? `#/adr/${encodeURIComponent(id)}` : defaultUrlTransform(url);
+  return id ? `#${workspacePath(workspace, `/adr/${encodeURIComponent(id)}`)}` : defaultUrlTransform(url);
 }
 
 const isExternal = (href: string | undefined) => Boolean(href && /^https?:\/\//i.test(href));
@@ -108,7 +109,11 @@ export function AdrMarkdown({
   className?: string;
   resolveFile?: ResolveFile;
 }) {
-  const urlTransform = useMemo(() => (url: string) => adrUrlTransform(url, resolveFile), [resolveFile]);
+  const workspace = useWorkspace();
+  const urlTransform = useMemo(
+    () => (url: string) => adrUrlTransform(url, resolveFile, workspace),
+    [resolveFile, workspace],
+  );
   return (
     <div className={cn('prose-adr', className)}>
       <Markdown remarkPlugins={[remarkGfm]} skipHtml urlTransform={urlTransform} components={components}>

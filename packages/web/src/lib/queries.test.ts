@@ -30,7 +30,7 @@ describe('query polling', () => {
   it('gives the page queries the setting as their interval, paused in background tabs', async () => {
     const { client } = renderApp('/');
     await screen.findByRole('link', { name: 'Decisions' });
-    const meta = client.getQueryCache().find({ queryKey: ['meta'] });
+    const meta = client.getQueryCache().find({ queryKey: ['meta', ''] });
     expect(meta?.observers[0]?.options.refetchInterval).toBe(5_000);
     expect(meta?.observers[0]?.options.refetchIntervalInBackground).toBe(false);
   });
@@ -38,7 +38,7 @@ describe('query polling', () => {
   it('leaves the decision being read to change only when the reader reloads it', async () => {
     const { client } = renderApp('/adr/ADR-0002');
     await screen.findByRole('heading', { level: 1 });
-    const options = client.getQueryCache().find({ queryKey: ['adr', 'ADR-0002'] })?.observers[0]?.options;
+    const options = client.getQueryCache().find({ queryKey: ['adr', '', 'ADR-0002'] })?.observers[0]?.options;
     expect(options?.refetchInterval).toBe(false);
     expect(options?.refetchOnWindowFocus).toBe(false);
     expect(options?.refetchOnReconnect).toBe(false);
@@ -50,7 +50,7 @@ describe('query polling', () => {
     const { client } = renderApp('/');
     await screen.findByRole('link', { name: 'Decisions' });
     act(() => updateSettings({ refreshSeconds: 0 }));
-    const meta = client.getQueryCache().find({ queryKey: ['meta'] });
+    const meta = client.getQueryCache().find({ queryKey: ['meta', ''] });
     expect(meta?.observers[0]?.options.refetchInterval).toBe(false);
   });
 });

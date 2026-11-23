@@ -2,9 +2,11 @@ import type { CSSProperties } from 'react';
 import { Link } from 'react-router';
 import { type GraphLayout, NODE_H, NODE_W, wrapTitle } from '@/lib/graph-layout.ts';
 import { INK, isRetired, STATUS_STYLES } from '@/lib/status.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 
 export function GraphCanvas({ layout, titleId }: { layout: GraphLayout; titleId: string }) {
   const { width, height } = layout;
+  const wp = useWorkspacePath();
   return (
     <div className="overflow-x-auto panel shadow-shadow">
       <svg
@@ -54,7 +56,7 @@ export function GraphCanvas({ layout, titleId }: { layout: GraphLayout; titleId:
           return (
             <Link
               key={node.id}
-              to={`/adr/${encodeURIComponent(node.id)}`}
+              to={wp(`/adr/${encodeURIComponent(node.id)}`)}
               aria-label={label}
               data-pending={node.pending || undefined}
               className="group outline-none"

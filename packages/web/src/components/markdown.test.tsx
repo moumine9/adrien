@@ -98,4 +98,10 @@ describe('adrUrlTransform', () => {
     expect(adrUrlTransform('//example.com/ADR-0012-cap.md', resolve)).toBe('//example.com/ADR-0012-cap.md');
     expect(adrUrlTransform('javascript:alert(1)')).toBe('');
   });
+
+  it('keeps the workspace in a link to another decision', () => {
+    const resolve = (name: string) => (name === 'ADR-0012-cap.md' ? 'ADR-0012' : undefined);
+    expect(adrUrlTransform('ADR-0012-cap.md', resolve, 'common')).toBe('#/w/common/adr/ADR-0012');
+    expect(adrUrlTransform('https://example.com', resolve, 'common')).toBe('https://example.com');
+  });
 });

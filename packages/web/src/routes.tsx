@@ -1,4 +1,4 @@
-import { lazy } from 'react';
+import { lazy, type ReactElement } from 'react';
 import { Route, Routes } from 'react-router';
 import { Layout } from './components/layout.tsx';
 import { BoardView } from './views/board-view.tsx';
@@ -12,18 +12,26 @@ import { SettingsView } from './views/settings-view.tsx';
 const DecisionView = lazy(() => import('./views/decision-view.tsx').then((m) => ({ default: m.DecisionView })));
 const GraphView = lazy(() => import('./views/graph-view.tsx').then((m) => ({ default: m.GraphView })));
 
+/** The pages, one list shared by the flat routes and the `/w/:workspace` routes. */
+function pageRoutes(): ReactElement[] {
+  return [
+    <Route key="index" index element={<DecisionsView />} />,
+    <Route key="board" path="board" element={<BoardView />} />,
+    <Route key="adr" path="adr/:id" element={<DecisionView />} />,
+    <Route key="graph" path="graph" element={<GraphView />} />,
+    <Route key="files" path="files" element={<FilesView />} />,
+    <Route key="check" path="check" element={<HealthView />} />,
+    <Route key="settings" path="settings" element={<SettingsView />} />,
+    <Route key="not-found" path="*" element={<NotFoundView />} />,
+  ];
+}
+
 export function AppRoutes() {
   return (
     <Routes>
-      <Route element={<Layout />}>
-        <Route index element={<DecisionsView />} />
-        <Route path="board" element={<BoardView />} />
-        <Route path="adr/:id" element={<DecisionView />} />
-        <Route path="graph" element={<GraphView />} />
-        <Route path="files" element={<FilesView />} />
-        <Route path="check" element={<HealthView />} />
-        <Route path="settings" element={<SettingsView />} />
-        <Route path="*" element={<NotFoundView />} />
+      <Route element={<Layout />}>{pageRoutes()}</Route>
+      <Route path="w/:workspace" element={<Layout />}>
+        {pageRoutes()}
       </Route>
     </Routes>
   );

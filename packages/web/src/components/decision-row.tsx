@@ -4,6 +4,7 @@ import { Link } from 'react-router';
 import { BindingBadge, PendingBadge, StatusBadge } from '@/components/badges.tsx';
 import { PendingBand } from '@/components/pending-band.tsx';
 import { fileBindingOf } from '@/lib/status.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 
 type Decision = FileDecisions['decisions'][number];
 
@@ -23,6 +24,7 @@ function MatchNote({ d }: { d: Decision }) {
 
 export function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean }) {
   const binding = fileBindingOf(d, hasNotes);
+  const wp = useWorkspacePath();
   return (
     <li className="space-y-2 px-5 py-4">
       {d.layer === 'pending' && <PendingBand className="-mx-5 -mt-4" />}
@@ -38,7 +40,7 @@ export function DecisionRow({ d, hasNotes }: { d: Decision; hasNotes: boolean })
         {d.pending_kind && <PendingBadge kind={d.pending_kind} />}
       </div>
       <h3 className="text-lg leading-snug">
-        <Link to={`/adr/${encodeURIComponent(d.id)}`} className="hover-underline">
+        <Link to={wp(`/adr/${encodeURIComponent(d.id)}`)} className="hover-underline">
           <span className="tabular-nums">{d.id}</span> {d.title}
         </Link>
       </h3>

@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router';
 import { Chip, DueBadge, STATUS_ICONS, StatusBadge } from '@/components/badges.tsx';
 import { isReviewDue, STATUS_STYLES } from '@/lib/status.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 
 const ORIGIN: Record<AdrMeta['origin'], { label: string; icon: typeof Bot }> = {
   manual: { label: 'Written by a person', icon: UserPen },
@@ -22,9 +23,10 @@ function Fact({ label, children }: { label: string; children: ReactNode }) {
 
 function AdrLink({ id, node }: { id: string; node: GraphNode | undefined }) {
   const Icon = node ? STATUS_ICONS[node.status] : null;
+  const wp = useWorkspacePath();
   return (
     <Link
-      to={`/adr/${encodeURIComponent(id)}`}
+      to={wp(`/adr/${encodeURIComponent(id)}`)}
       className="group flex items-start gap-2 rounded-base py-1 hover-underline"
     >
       {node && Icon && (

@@ -28,7 +28,7 @@ function renderToast(fetchImpl: typeof fetch, dismissAfterMs?: number, route = '
 }
 
 async function firstReading(client: QueryClient) {
-  await waitFor(() => expect(client.getQueryData(['adrs', ''])).toBeDefined());
+  await waitFor(() => expect(client.getQueryData(['adrs', '', ''])).toBeDefined());
 }
 
 async function poll(client: QueryClient) {
@@ -163,7 +163,7 @@ describe('The change toast', () => {
     });
     expect(
       client
-        .getQueryData<{ results: { id: string; revision: string }[] }>(['adrs', ''])
+        .getQueryData<{ results: { id: string; revision: string }[] }>(['adrs', '', ''])
         ?.results.find((row) => row.id === 'ADR-0002')?.revision,
     ).toBe('abcdefabcdef');
     expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement();
@@ -264,7 +264,7 @@ describe('The change toast', () => {
       30,
       '/adr/ADR-0002',
     );
-    await waitFor(() => expect(client.getQueryData(['adr', 'ADR-0002'])).toBeDefined());
+    await waitFor(() => expect(client.getQueryData(['adr', '', 'ADR-0002'])).toBeDefined());
     await firstReading(client);
     patch.current = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
@@ -283,7 +283,7 @@ describe('The change toast', () => {
       30,
       '/adr/ADR-0002',
     );
-    await waitFor(() => expect(client.getQueryData(['adr', 'ADR-0002'])).toBeDefined());
+    await waitFor(() => expect(client.getQueryData(['adr', '', 'ADR-0002'])).toBeDefined());
     await firstReading(client);
     patch.current = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);
@@ -314,7 +314,7 @@ describe('The change toast', () => {
       undefined,
       '/adr/ADR-0002',
     );
-    await waitFor(() => expect(client.getQueryData(['adr', 'ADR-0002'])).toBeDefined());
+    await waitFor(() => expect(client.getQueryData(['adr', '', 'ADR-0002'])).toBeDefined());
     await firstReading(client);
     patch.current = { 'ADR-0002': { revision: 'abcdefabcdef' } };
     await poll(client);

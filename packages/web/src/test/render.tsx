@@ -21,6 +21,8 @@ export interface RenderAppOptions {
   fetch?: typeof fetch;
   /** For debounce tests. */
   fakeTimers?: boolean;
+  /** Reuse a query cache, to render one page after another as a reader switching workspaces would. */
+  client?: QueryClient;
 }
 
 /** Renders the whole app (layout and routes) at `route`, against the mock API, with a fresh query cache. */
@@ -31,9 +33,11 @@ export function renderApp(route: string, options: RenderAppOptions = {}) {
     calls.push(String(input));
     return fetchImpl(input, init);
   }) as typeof fetch);
-  const client = new QueryClient({
-    defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
-  });
+  const client =
+    options.client ??
+    new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+    });
   const user = userEvent.setup(options.fakeTimers ? { advanceTimers: vi.advanceTimersByTime } : {});
   const result = render(
     <QueryClientProvider client={client}>

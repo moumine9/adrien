@@ -7,6 +7,7 @@ import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { useMeta } from '@/lib/queries.ts';
 import { useApplyTheme, useTheme } from '@/lib/theme.ts';
 import { cn } from '@/lib/utils.ts';
+import { useWorkspacePath } from '@/lib/workspace.ts';
 import { BrandMark } from './brand-mark.tsx';
 import { ChangeToast } from './change-toast.tsx';
 import { DemoBanner } from './demo-banner.tsx';
@@ -80,6 +81,7 @@ function useRouteFocus() {
 export function Layout() {
   const meta = useMeta();
   const { pathname } = useLocation();
+  const wp = useWorkspacePath();
   useRouteFocus();
   useApplyTheme();
   return (
@@ -95,7 +97,7 @@ export function Layout() {
       <header className="border-b-4 border-border bg-secondary-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 py-4 sm:px-6">
           <Link
-            to="/"
+            to={wp('/')}
             className="flex items-center gap-2 rounded-base text-[1.75rem] leading-none font-black tracking-[-0.02em]"
             style={{ fontStretch: '125%' }}
           >
@@ -107,12 +109,12 @@ export function Layout() {
               {NAV.map(({ to, label, icon: Icon, end }) => (
                 <li key={to}>
                   <NavLink
-                    to={to}
+                    to={wp(to)}
                     end={end}
                     className={({ isActive }) =>
                       cn(
                         'inline-flex h-10 w-full items-center justify-center gap-2 rounded-base border-2 px-2 font-heading whitespace-nowrap sm:px-4 lg:w-auto',
-                        isActive || (to === '/' && pathname.startsWith('/adr/'))
+                        isActive || (to === '/' && pathname.startsWith(wp('/adr/')))
                           ? 'border-border bg-main text-main-foreground shadow-shadow'
                           : 'border-transparent hover:border-border hover:bg-background',
                       )
