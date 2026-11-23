@@ -42,6 +42,26 @@ describe('A decision that changes while it is open', () => {
     expect(screen.getByRole('heading', { level: 1, name: OLD })).toBeInTheDocument();
   });
 
+  it('on a phone the toast expires but the Reload in the header stays', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(width < 40rem)', media: query }));
+    const patch = { current: {} as Record<string, Moved> };
+    const { client } = await openDecision(patch);
+    vi.useFakeTimers({ toFake: ['setTimeout'], shouldAdvanceTime: true });
+    try {
+      patch.current = { 'ADR-0002': { revision: 'abcdefabcdef', title: NEW } };
+      await pollList(client);
+      await screen.findByText('Changed since you opened this');
+      await act(async () => {
+        vi.advanceTimersByTime(9000);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
+    expect(screen.getByText('Changed since you opened this')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reload' })).toBeInTheDocument();
+  });
+
   it('does not swap the text under the reader when the window regains focus or the connection returns', async () => {
     const patch = { current: {} as Record<string, Moved> };
     const { client } = await openDecision(patch);
