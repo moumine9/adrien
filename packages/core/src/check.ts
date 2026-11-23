@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { anchorMatches, parseAnchor } from './anchors.ts';
-import { type Context, componentRoot, workspacePaths } from './context.ts';
+import { type Context, checkoutPaths, componentRoot } from './context.ts';
 import { gitToplevel, listFiles } from './git.ts';
 import { lintAdrs } from './lint.ts';
 import type { Adr, Status } from './model.ts';
@@ -165,7 +165,7 @@ async function checkouts(ctx: Context, here: boolean): Promise<Map<string, strin
   }
   const logTop = (await gitToplevel(ctx.logRoot)) ?? ctx.logRoot;
   for (const [c, def] of Object.entries(ctx.config.components)) if (def.repo === '.') add(c, logTop);
-  for (const [c, path] of Object.entries(workspacePaths(ctx.env))) if (c in ctx.config.components) add(c, path);
+  for (const [c, path] of Object.entries(checkoutPaths(ctx.env))) if (c in ctx.config.components) add(c, path);
   return roots;
 }
 

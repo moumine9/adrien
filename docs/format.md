@@ -160,7 +160,7 @@ a `.adrien.yaml` found the same way, then its `log:`.
 Anchors are verified only against repos you have checked out. Tell Adrien where they are with either:
 
 - `ADRIEN_REPOS="billing-service=/work/billing;web=C:\work\web"` (semicolon-separated `component=path`), or
-- `$ADRIEN_HOME/workspace.yaml`:
+- `$ADRIEN_HOME/checkouts.yaml` (earlier versions called it `workspace.yaml`, which is still read when there is no `checkouts.yaml`):
 
   ```yaml
   components:

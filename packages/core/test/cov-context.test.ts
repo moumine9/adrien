@@ -6,11 +6,11 @@ import { vi } from 'vitest';
 import { CODE_CONFIG_FILE, CONFIG_FILE } from '../src/config.ts';
 import {
   adrienHome,
+  checkoutPaths,
   componentForPath,
   ensureCachedClone,
   resolveContext,
   syncCachedClone,
-  workspacePaths,
 } from '../src/context.ts';
 import * as gitModule from '../src/git.ts';
 import { configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
@@ -68,11 +68,11 @@ test('a code config can explicitly select components without a git remote', asyn
   expect((await resolveContext({ cwd, env: {} })).codeRepo).toEqual({ root: cwd, components: ['billing-service'] });
 });
 
-test('an empty workspace file still allows environment overrides', () => {
+test('an empty checkouts file still allows environment overrides', () => {
   const home = tmpDir();
-  writeFiles(home, { 'workspace.yaml': '' });
+  writeFiles(home, { 'checkouts.yaml': '' });
   expect(adrienHome({})).toBe(join(homedir(), '.adrien'));
-  expect(workspacePaths({ ADRIEN_HOME: home, ADRIEN_REPOS: 'web=checkout' })).toEqual({ web: 'checkout' });
+  expect(checkoutPaths({ ADRIEN_HOME: home, ADRIEN_REPOS: 'web=checkout' })).toEqual({ web: 'checkout' });
 });
 
 test('a missing local clone source is identified in the error', async () => {

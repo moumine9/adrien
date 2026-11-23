@@ -2,7 +2,7 @@ import { mkdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CODE_CONFIG_FILE, CONFIG_FILE } from '../src/config.ts';
-import { componentForPath, componentRoot, resolveContext, workspacePaths } from '../src/context.ts';
+import { checkoutPaths, componentForPath, componentRoot, resolveContext } from '../src/context.ts';
 import { configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { git, initRepo } from './helpers/git.ts';
 
@@ -90,14 +90,29 @@ test('a path outside every component → null', async () => {
   expect(componentForPath(ctx, 'docs/readme.md')).toBeNull();
 });
 
-test('workspacePaths keeps Windows drive letters and lets ADRIEN_REPOS override workspace.yaml', () => {
+test('checkoutPaths keeps Windows drive letters and lets ADRIEN_REPOS override checkouts.yaml', () => {
   const home = tmpDir();
-  writeFiles(home, { 'workspace.yaml': 'components:\n  billing-service: /old\n  infra: /srv/infra\n' });
-  expect(workspacePaths({ ADRIEN_HOME: home, ADRIEN_REPOS: 'billing-service=/a;web=C:\\code\\web' })).toEqual({
+  writeFiles(home, { 'checkouts.yaml': 'components:\n  billing-service: /old\n  infra: /srv/infra\n' });
+  expect(checkoutPaths({ ADRIEN_HOME: home, ADRIEN_REPOS: 'billing-service=/a;web=C:\\code\\web' })).toEqual({
     'billing-service': '/a',
     infra: '/srv/infra',
     web: 'C:\\code\\web',
   });
+});
+
+test('checkoutPaths still reads the old workspace.yaml when there is no checkouts.yaml', () => {
+  const home = tmpDir();
+  writeFiles(home, { 'workspace.yaml': 'components:\n  billing-service: /old\n' });
+  expect(checkoutPaths({ ADRIEN_HOME: home })).toEqual({ 'billing-service': '/old' });
+});
+
+test('checkoutPaths reads checkouts.yaml and ignores workspace.yaml when both exist', () => {
+  const home = tmpDir();
+  writeFiles(home, {
+    'checkouts.yaml': 'components:\n  billing-service: /new\n',
+    'workspace.yaml': 'components:\n  billing-service: /old\n  infra: /old-infra\n',
+  });
+  expect(checkoutPaths({ ADRIEN_HOME: home })).toEqual({ 'billing-service': '/new' });
 });
 
 test('a component root with a leading dot keeps it', async () => {
