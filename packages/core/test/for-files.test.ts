@@ -253,6 +253,21 @@ describe('an exception to a common decision', () => {
     expect(result?.decisions.filter((d) => d.exemption?.by === 'ADR-0012')).toHaveLength(2);
   });
 
+  test('two exceptions to the same common decision are both listed, with the first as the exemption', () => {
+    const first = exception({ components: [] });
+    const second = adr('ADR-0013', {
+      components: [],
+      exception_to: ['common/ADR-0010'],
+      review_on: '2027-03-04',
+      review_rule: 'Another local rule.',
+    });
+    const [result] = adrsForFiles(ctx, view([first, second]), [invoice], common([sharedRule()]));
+    expect(result?.decisions.filter((d) => d.match === 'exception').map((d) => d.id)).toEqual(['ADR-0012', 'ADR-0013']);
+    expect(result?.decisions).toContainEqual(
+      expect.objectContaining({ id: 'ADR-0010', exemption: { by: 'ADR-0012' } }),
+    );
+  });
+
   test('an exception that matches by itself is listed once', () => {
     const [result] = adrsForFiles(ctx, view([exception()]), [invoice], common([sharedRule()]));
     expect(result?.decisions.filter((d) => d.id === 'ADR-0012')).toHaveLength(1);

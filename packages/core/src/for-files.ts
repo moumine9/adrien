@@ -46,17 +46,15 @@ function matchOf(adr: Adr, component: string, relPath: string): Pick<FileDecisio
 }
 
 /**
- * The first accepted own exception that names `target` and covers this file, as its exemption. An exception with no
- * code anchors covers every file of the product; one with anchors covers only the files they match.
+ * The accepted own exceptions that name `target` and cover this file, in the order they are written. An exception with
+ * no code anchors covers every file of the product; one with anchors covers only the files they match.
  */
-function exemptionOf(exceptions: Adr[], target: string, component: string, relPath: string): Adr | null {
-  for (const exception of exceptions) {
-    if (!exception.meta.exception_to.includes(target)) continue;
-    if (exception.meta.code.length === 0 || matchOf(exception, component, relPath)?.match === 'anchor') {
-      return exception;
-    }
-  }
-  return null;
+function exceptionsFor(exceptions: Adr[], target: string, component: string, relPath: string): Adr[] {
+  return exceptions.filter(
+    (exception) =>
+      exception.meta.exception_to.includes(target) &&
+      (exception.meta.code.length === 0 || matchOf(exception, component, relPath)?.match === 'anchor'),
+  );
 }
 
 function decision(
@@ -125,14 +123,13 @@ export function adrsForFiles(
     for (const adr of commonAccepted) {
       const match = matchOf(adr, component, relPath);
       if (!match || !common) continue;
-      const exception = exemptionOf(exceptions, `${common.name}/${adr.meta.id}`, component, relPath);
-      decisions.push(decision(adr, 'base', null, match, common.name, exception ? { by: exception.meta.id } : null));
-      // The exception holds the rule that replaces the common one, so it is listed even when it names no component
-      // of this file: it was found because it covers the whole workspace.
-      if (
-        exception &&
-        !decisions.some((d) => d.workspace === null && d.layer === 'base' && d.id === exception.meta.id)
-      ) {
+      const covering = exceptionsFor(exceptions, `${common.name}/${adr.meta.id}`, component, relPath);
+      const [first] = covering;
+      decisions.push(decision(adr, 'base', null, match, common.name, first ? { by: first.meta.id } : null));
+      // Each exception holds a rule that replaces the common one, so it is listed even when it names no component of
+      // this file: it was found because it covers the whole workspace. The exemption names the first one.
+      for (const exception of covering) {
+        if (decisions.some((d) => d.workspace === null && d.layer === 'base' && d.id === exception.meta.id)) continue;
         decisions.push(
           decision(exception, 'base', changeOfBase.get(exception) ?? null, { match: 'exception', anchor: null }, null),
         );
