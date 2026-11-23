@@ -42,3 +42,10 @@ describe('a named workspace', () => {
     expect(screen.queryAllByRole('article')).toHaveLength(0);
   });
 });
+
+describe('a workspace named like an object property', () => {
+  it.each(['constructor', '__proto__', 'toString'])('opens #/w/%s without crashing the page', async (name) => {
+    renderApp(`/w/${name}`);
+    expect(await screen.findByRole('navigation', { name: 'Main' })).toBeInTheDocument();
+  });
+});

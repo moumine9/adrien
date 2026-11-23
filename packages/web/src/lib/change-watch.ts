@@ -33,7 +33,7 @@ export function readingChanges(baselines: Map<string, Stamps>, workspace: string
   return before ? changedIds(before, next) : [];
 }
 
-/** What the notice holds for one workspace. */
+/** What the notice holds for one workspace. Kept in a Map: a workspace may be named like an object property (`constructor`). */
 interface Notice {
   changed: ReadonlySet<string>;
   version: number;
@@ -59,15 +59,15 @@ export function useChangeWatch(): {
   const { data } = useAdrs(EMPTY_FILTERS);
   const [settings] = useSettings();
   const baselines = useRef(new Map<string, Stamps>());
-  const [notices, setNotices] = useState<Readonly<Record<string, Notice>>>({});
-  const notice = notices[key] ?? NO_NOTICE;
+  const [notices, setNotices] = useState<ReadonlyMap<string, Notice>>(new Map());
+  const notice = notices.get(key) ?? NO_NOTICE;
   const collecting = settings.changeNotifications;
   const update = useCallback(
     (workspaceKey: string, change: (n: Notice) => Notice) =>
       setNotices((all) => {
-        const current = all[workspaceKey] ?? NO_NOTICE;
+        const current = all.get(workspaceKey) ?? NO_NOTICE;
         const next = change(current);
-        return next === current ? all : { ...all, [workspaceKey]: next };
+        return next === current ? all : new Map(all).set(workspaceKey, next);
       }),
     [],
   );
@@ -75,8 +75,8 @@ export function useChangeWatch(): {
     // Turning notifications off takes away a notice that is already showing, in every workspace.
     if (collecting) return;
     setNotices((all) =>
-      Object.values(all).some((n) => n.changed.size > 0)
-        ? Object.fromEntries(Object.entries(all).map(([k, n]) => [k, { changed: new Set(), version: n.version }]))
+      [...all.values()].some((n) => n.changed.size > 0)
+        ? new Map([...all].map(([k, n]) => [k, { changed: new Set<string>(), version: n.version }]))
         : all,
     );
   }, [collecting]);
