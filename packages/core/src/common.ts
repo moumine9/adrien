@@ -92,6 +92,14 @@ export interface FilesWithCommon {
 export async function forFilesWithCommon(ctx: Context, view: LogView, paths: string[]): Promise<FilesWithCommon> {
   const read = await readCommon(ctx);
   const common = read && 'common' in read ? read.common : null;
-  const notes = [unverifiedBaseNote(view), commonUnreadableNote(read)].filter((note): note is string => note !== null);
-  return { files: adrsForFiles(ctx, view, paths, common), notes };
+  const notes = [unverifiedBaseNote(view)];
+  if (common) {
+    const commonBase = unverifiedBaseNote(common.view);
+    if (commonBase) notes.push(`In the common log "${common.name}": ${commonBase}`);
+  }
+  notes.push(commonUnreadableNote(read));
+  return {
+    files: adrsForFiles(ctx, view, paths, common),
+    notes: notes.filter((note): note is string => note !== null),
+  };
 }

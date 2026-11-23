@@ -5,7 +5,7 @@ import { CONFIG_FILE } from '../src/config.ts';
 import { resolveContext } from '../src/context.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, tmpDir, writeFiles } from './helpers/fixtures.ts';
-import { initRepo } from './helpers/git.ts';
+import { git, initRepo } from './helpers/git.ts';
 
 /** A product log whose config names `common` (or none); returns its root. */
 function productLog(common?: string): string {
@@ -140,6 +140,19 @@ describe('forFilesWithCommon', () => {
     expect(result.files[0]?.decisions.map((d) => [d.id, d.workspace, d.binding])).toEqual([
       ['ADR-0009', 'shared-co', true],
     ]);
+  });
+
+  test('a common log with no default branch adds a note naming it, as an own log does', async () => {
+    const common = sharedWithBilling();
+    initRepo(common);
+    git(common, 'branch', '-m', 'trunk');
+    const root = productWithComponent(common);
+    const ctx = await resolveContext({ cwd: root, env: {} });
+    const view = await loadLogView(root, ctx.config);
+    const result = await forFilesWithCommon(ctx, view, ['src/a.ts']);
+    expect(result.notes).toHaveLength(1);
+    expect(result.notes[0]).toContain('shared-co');
+    expect(result.notes[0]).toContain('No default branch');
   });
 
   test('an unreadable common log keeps the own decisions and adds a note', async () => {
