@@ -63,6 +63,12 @@ test('a common log with no usable workspace name is unreadable: its name must be
   );
 });
 
+test('a common field that points at the product log itself is unreadable, not counted twice', async () => {
+  const ctx = await resolveContext({ cwd: productLog('.'), env: {} });
+  const result = await readCommon(ctx, {});
+  expect(result).toEqual({ unreadable: expect.objectContaining({ message: expect.stringContaining('itself') }) });
+});
+
 test('readCommon reports an unreadable common log instead of throwing, with its location', async () => {
   const ctx = await resolveContext({ cwd: productLog('./missing-log'), env: {} });
   const result = await readCommon(ctx, {});

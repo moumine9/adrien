@@ -33,6 +33,11 @@ export async function readCommon(ctx: Context, env?: NodeJS.ProcessEnv): Promise
   const log = isGitUrl(source) ? source : resolve(ctx.logRoot, source);
   try {
     const commonCtx = await resolveContext({ cwd: ctx.cwd, log, env: env ?? ctx.env });
+    if (commonCtx.logRoot === ctx.logRoot) {
+      return {
+        unreadable: { location: source, message: 'it is the product log itself, which cannot be its own common log' },
+      };
+    }
     const name = workspaceNameOf(commonCtx.config);
     if (name === null) {
       return {
