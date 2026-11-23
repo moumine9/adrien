@@ -43,7 +43,11 @@ export function FileResult({
       ) : (
         <ul className="divide-y divide-rule">
           {entry.decisions.map((d) => (
-            <DecisionRow key={`${d.layer}:${d.id}`} d={d} hasNotes={d.workspace === null ? hasNotes : hasCommonNotes} />
+            <DecisionRow
+              key={`${d.workspace ?? ''}:${d.layer}:${d.id}`}
+              d={d}
+              hasNotes={d.workspace === null ? hasNotes : hasCommonNotes}
+            />
           ))}
         </ul>
       )}

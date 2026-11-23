@@ -1,5 +1,5 @@
 import type { FileDecisions } from '@adrien/api/contract';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router';
 import { FileResult } from './file-result.tsx';
 
@@ -36,5 +36,19 @@ describe('FileResult', () => {
     expect(bindings(renderFile(true, false).container)).toEqual(['unverified', 'binding']);
     expect(bindings(renderFile(false, true).container)).toEqual(['binding', 'unverified']);
     expect(bindings(renderFile(false, false).container)).toEqual(['binding', 'binding']);
+  });
+
+  it('renders the same id from two logs without a duplicate-key warning', () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    renderFile(false, false);
+    expect(screen.getAllByText('ADR-0004')).toHaveLength(2);
+    expect(error.mock.calls.flat().join(' ')).not.toMatch(/same key|unique "key"/);
+    error.mockRestore();
+  });
+
+  it('labels a common row with its workspace and does not link it into the product', () => {
+    renderFile(false, false);
+    expect(screen.getByText('[shared-co]')).toBeInTheDocument();
+    expect(screen.getAllByRole('link')).toHaveLength(1);
   });
 });
