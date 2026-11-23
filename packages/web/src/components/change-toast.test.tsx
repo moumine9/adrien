@@ -275,6 +275,22 @@ describe('The change toast', () => {
     expect(screen.getByTestId('change-toast')).toHaveTextContent('ADR-0002 changed.');
   });
 
+  it('lets a notice about the decision being read expire on a phone, where it would cover the page', async () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({ matches: query === '(width < 40rem)', media: query }));
+    const patch = { current: {} as Record<string, Moved> };
+    const { client } = renderToast(
+      movingFetch(() => patch.current),
+      30,
+      '/adr/ADR-0002',
+    );
+    await waitFor(() => expect(client.getQueryData(['adr', 'ADR-0002'])).toBeDefined());
+    await firstReading(client);
+    patch.current = { 'ADR-0002': { revision: 'abcdefabcdef' } };
+    await poll(client);
+    await screen.findByText('ADR-0002 changed.');
+    await waitFor(() => expect(screen.getByTestId('change-toast')).toBeEmptyDOMElement());
+  });
+
   it('copes with a literal percent sign in the decision id', async () => {
     const patch = { current: {} as Record<string, Moved> };
     const { client } = renderToast(

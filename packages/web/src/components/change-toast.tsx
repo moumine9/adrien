@@ -11,6 +11,9 @@ import { cn } from '@/lib/utils.ts';
 export const TOAST_SECONDS = 8;
 export const UPDATED_MS = 2000;
 
+/** Below `sm` (40rem, as Tailwind has it) the notice is part of the page and sticks to the screen's bottom edge, so it covers what is behind it. */
+const onPhone = () => window.matchMedia?.('(width < 40rem)').matches ?? false;
+
 function message(changed: readonly string[], open: string | undefined): string {
   if (open && changed.length === 1) return `${open} changed.`;
   if (open) return `${open} and ${changed.length - 1} more changed.`;
@@ -22,7 +25,8 @@ function message(changed: readonly string[], open: string | undefined): string {
  * render, because a region that appears together with its text is not announced; it holds the sentence only, so the
  * buttons are not read out with it. The notice never takes focus and never changes what is on the page: the lists
  * refresh themselves, the notice only says that they did. On the decision being read it stays until the reader presses
- * Reload (the decision never changes by itself) or dismisses it. It waits while the pointer or focus is on it.
+ * Reload (the decision never changes by itself) or dismisses it, except on a phone, where it would keep covering the
+ * page: it expires like the others and the "Changed since you opened this" notice in the header keeps the Reload. It waits while the pointer or focus is on it.
  */
 export function ChangeToast({
   dismissAfterMs = TOAST_SECONDS * 1000,
@@ -57,7 +61,7 @@ export function ChangeToast({
   // A new change joins the notice and restarts the timer. A change to the decision being read waits for the reader.
   // biome-ignore lint/correctness/useExhaustiveDependencies: `version` stands for "something changed again".
   useEffect(() => {
-    if (!showChanges || openChanged || held) return;
+    if (!showChanges || (openChanged && !onPhone()) || held) return;
     const timer = setTimeout(dismiss, dismissAfterMs);
     return () => clearTimeout(timer);
   }, [showChanges, openChanged, held, version, dismissAfterMs]);
