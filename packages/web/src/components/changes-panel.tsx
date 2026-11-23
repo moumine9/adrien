@@ -12,6 +12,7 @@ const CHANGED_FIELDS: Array<[keyof AdrMeta, string]> = [
   ['supersedes', 'Supersedes'],
   ['superseded_by', 'Superseded by'],
   ['related', 'Related'],
+  ['exception_to', 'Exception to'],
 ];
 
 function show(v: unknown): string {
