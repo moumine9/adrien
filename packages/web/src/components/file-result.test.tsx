@@ -64,4 +64,16 @@ describe('FileResult', () => {
     expect(screen.getByText(/Exempt by ADR-0012/)).toBeTruthy();
     expect(screen.queryByText('Hint only')).toBeNull();
   });
+
+  it('an exception that governs a file without naming its component says so, not "its component"', () => {
+    const exception = { ...own, id: 'ADR-0012', match: 'exception' };
+    const exceptionEntry = { ...entry, decisions: [exception] } as unknown as FileDecisions;
+    render(
+      <MemoryRouter>
+        <FileResult entry={exceptionEntry} hasNotes={false} hasCommonNotes={false} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByText(/exception to a common decision/i)).toBeTruthy();
+    expect(screen.queryByText(/Matched by its component/)).toBeNull();
+  });
 });

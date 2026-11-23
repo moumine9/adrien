@@ -9,6 +9,14 @@ import { useWorkspacePath } from '@/lib/workspace.ts';
 type Decision = FileDecisions['decisions'][number];
 
 function MatchNote({ d }: { d: Decision }) {
+  if (d.match === 'exception') {
+    return (
+      <span className="inline-flex items-center gap-2 text-sm">
+        <Box aria-hidden className="size-3.5" strokeWidth={2.5} />
+        Applies as an exception to a common decision
+      </span>
+    );
+  }
   return d.match === 'anchor' ? (
     <span className="inline-flex flex-wrap items-center gap-2 text-sm">
       <Anchor aria-hidden className="size-3.5" strokeWidth={2.5} />
