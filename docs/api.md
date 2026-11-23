@@ -1,7 +1,7 @@
 # Local HTTP API
 
-`adrien serve` starts a small read-only HTTP server on top of one ADR log. It is what the web visualizer talks to, and
-it is usable from scripts and dashboards. Every response is JSON unless stated otherwise, and the shapes are the types
+`adrien serve` starts a small read-only HTTP server on top of one ADR log (a workspace). It is what the web visualizer
+talks to, and it is usable from scripts and dashboards. Every response is JSON unless stated otherwise, and the shapes are the types
 in `packages/api/src/contract.ts`.
 
 ```sh
@@ -24,21 +24,39 @@ adrien serve --port 8080 --log ../decisions
 - **Stateless.** Each request re-reads the log, so it always shows what is on disk and in git now.
 - **Errors** are `{ "error": { "code": "ADR_NOT_FOUND", "message": "…" } }` with 404 for `ADR_NOT_FOUND`, 400 for
   `INVALID_INPUT`, 401 for a missing or wrong token (`UNAUTHORIZED`), 403 for a refused host (`FORBIDDEN_HOST`), 405 for a refused method (`METHOD_NOT_ALLOWED`), 404 for
-  an unknown `/api` path (`NOT_FOUND`), and 500 otherwise (the Adrien error code, such as `CONFIG_NOT_FOUND`, or
-  `INTERNAL_ERROR`). API responses carry `Cache-Control: no-store`.
+  an unknown `/api` path (`NOT_FOUND`), 404 for an unknown workspace (`WORKSPACE_NOT_FOUND`), 404 for a flat route
+  used while several workspaces exist (`WORKSPACE_REQUIRED`), and 500 otherwise (the Adrien error code, such as
+  `CONFIG_NOT_FOUND`, or `INTERNAL_ERROR`). API responses carry `Cache-Control: no-store`.
+
+## Workspaces
+
+One server can serve several logs, each a workspace with a name (`adrien serve` serves one). Every route below is served
+twice: flat (`/api/adrs`) and under its workspace (`/api/w/<name>/adrs`, for example `/api/w/acme/adrs/ADR-0001`). The
+token and the host check are the same for every workspace.
+
+- **The default workspace.** With exactly one workspace, the flat routes are that workspace. With several, a flat route
+  answers 404 `WORKSPACE_REQUIRED`, and its message lists the names to use in `/api/w/<name>/...`.
+- **Unknown names** answer 404 `WORKSPACE_NOT_FOUND`.
+- `GET /api/workspaces` lists them: `{ "workspaces": [{ "name": "acme", "product": "Acme", "default": true }] }`.
+  `default` is true only when there is exactly one workspace.
+- `GET /api/meta` carries the workspace's `workspace` name, so a response says which log it describes.
+- `GET /api/for` takes code paths, not workspace names: they are answered against the workspace the route names.
 
 ## Endpoints
 
-| Method and path                         | Returns                                                                                                                                                                                                                   |
-| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `GET /api/meta`                         | `MetaResponse`: product, mode, base ref, tag and component vocabularies, counts by status.                                                                                                                                |
-| `GET /api/adrs`                         | `AdrsResponse`. Filters: `tag` (repeatable, all must match), `component` (repeatable, any), `status` (repeatable, any), `pending=1` (only pending changes), `q` (full-text search; ranked, so the order is by relevance). |
-| `GET /api/adrs/:id`                     | `AdrResponse`: the binding version and the pending change, if any. 404 for an unknown id.                                                                                                                                 |
-| `GET /api/graph`                        | `GraphResponse`: one node per ADR and one edge per `supersedes` or `related` link.                                                                                                                                        |
-| `GET /api/for?path=a.ts&path=b.ts`      | `ForResponse`: the decisions governing each file (paths are relative to the directory `adrien serve` was started in). At least one `path`.                                                                                |
-| `GET /api/check`                        | `CheckResponse`. `lint=1` adds the style warnings.                                                                                                                                                                        |
-| `GET /api/export?format=markdown\|llms` | The generated overview as `text/plain`.                                                                                                                                                                                   |
-| `GET /` and other paths                 | The web visualizer (static files), with `index.html` as the fallback for client-side routes. 404 JSON for unknown `/api/*`.                                                                                               |
+| Method and path                    | Returns                                                                                                                                                                                                                   |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /api/workspaces`              | `WorkspacesResponse`: the names, products and whether each is the default. Not under a workspace.                                                                                                                         |
+| `GET /api/meta`                    | `MetaResponse`: workspace name, product, mode, base ref, tag and component vocabularies, counts by status.                                                                                                                |
+| `GET /api/adrs`                    | `AdrsResponse`. Filters: `tag` (repeatable, all must match), `component` (repeatable, any), `status` (repeatable, any), `pending=1` (only pending changes), `q` (full-text search; ranked, so the order is by relevance). |
+| `GET /api/adrs/:id`                | `AdrResponse`: the binding version and the pending change, if any. 404 for an unknown id.                                                                                                                                 |
+| `GET /api/graph`                   | `GraphResponse`: one node per ADR and one edge per `supersedes` or `related` link.                                                                                                                                        |
+| `GET /api/for?path=a.ts&path=b.ts` | `ForResponse`: the decisions governing each file (paths are relative to the directory `adrien serve` was started in). At least one `path`.                                                                                |
+| `GET /api/check`                   | `CheckResponse`. `lint=1` adds the style warnings.                                                                                                                                                                        |
+| `GET /api/export?format=markdown\  | llms`                                                                                                                                                                                                                     |
+| `GET /` and other paths            | The web visualizer (static files), with `index.html` as the fallback for client-side routes. 404 JSON for unknown `/api/*`.                                                                                               |
+
+Every endpoint above except `/api/workspaces` is also served as `/api/w/<name>/...` (for example `/api/w/acme/graph`).
 
 ## Revision and modified time
 

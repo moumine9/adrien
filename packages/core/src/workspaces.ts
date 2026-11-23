@@ -2,6 +2,9 @@ import { isWorkspaceName, workspaceNameOf } from './config.ts';
 import { type Context, resolveContext, splitEntries } from './context.ts';
 import { AdrienError } from './errors.ts';
 
+/** The name of the only workspace of an instance whose log has no usable name of its own. */
+export const DEFAULT_WORKSPACE = 'default';
+
 /** One log to serve: `name` overrides the log's own workspace name; no `log` means discover it from cwd. */
 export interface WorkspaceSpec {
   name?: string;
@@ -59,7 +62,8 @@ export async function resolveWorkspaces(opts: {
       throw new AdrienError('INVALID_INPUT', `"${spec.name}" is not a valid workspace name.`);
     }
     const ctx = await resolveContext({ cwd: opts.cwd, log: spec.log, env: opts.env });
-    const name = spec.name ?? workspaceNameOf(ctx.config);
+    // A single log that cannot name itself (a product with no ASCII letters) is still served, as "default".
+    const name = spec.name ?? workspaceNameOf(ctx.config) ?? (specs.length === 1 ? DEFAULT_WORKSPACE : null);
     if (name === null) {
       throw new AdrienError(
         'INVALID_INPUT',

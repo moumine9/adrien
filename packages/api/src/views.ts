@@ -1,11 +1,11 @@
 import {
   type Adr,
   AdrienError,
-  type Context,
   type LogView,
   mergedAdrs,
   STATUSES,
   type Status,
+  type Workspace,
   workingRevision,
 } from '@adrien/core';
 import type { AdrFile, AdrResponse, GraphEdge, GraphNode, GraphResponse, MetaResponse } from './contract.ts';
@@ -25,12 +25,14 @@ function mergedById(view: LogView): Adr[] {
   return adrs;
 }
 
-export function metaOf(ctx: Context, view: LogView, version: string): MetaResponse {
+export function metaOf(workspace: Workspace, view: LogView, version: string): MetaResponse {
+  const { ctx } = workspace;
   const adrs = mergedById(view);
   const byStatus = Object.fromEntries(STATUSES.map((status) => [status, 0])) as Record<Status, number>;
   for (const adr of adrs) byStatus[adr.meta.status]++;
   return {
     version,
+    workspace: workspace.name,
     product: ctx.config.product,
     adrDir: ctx.config.adr_dir,
     mode: view.mode,
