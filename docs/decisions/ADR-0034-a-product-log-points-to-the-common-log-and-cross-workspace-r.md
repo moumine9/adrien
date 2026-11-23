@@ -1,7 +1,7 @@
 ---
 id: ADR-0034
 title: A product log points to the common log, and cross-workspace references use workspace/ADR-n in related
-status: proposed
+status: accepted
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [format]

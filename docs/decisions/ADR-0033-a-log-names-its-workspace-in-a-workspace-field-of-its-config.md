@@ -1,7 +1,7 @@
 ---
 id: ADR-0033
 title: A log names its workspace in a workspace field of its configuration
-status: proposed
+status: accepted
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [format]
