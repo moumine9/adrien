@@ -17,7 +17,8 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p packages/web/tsconfig.json",
     "lint:md": "markdownlint-cli2",
     "changelog": "node scripts/changelog.mjs",
-    "changelog:check": "node scripts/check-changelog.mjs"
+    "changelog:check": "node scripts/check-changelog.mjs",
+    "release": "node scripts/release.mjs"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.6.8",
