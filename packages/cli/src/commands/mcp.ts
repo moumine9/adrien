@@ -1,6 +1,6 @@
 import { startStdio } from '@adrien/mcp';
 import type { Command } from 'commander';
-import type { Cli, GlobalOptions } from '../cli.ts';
+import { type Cli, type GlobalOptions, singleLog } from '../cli.ts';
 
 export function registerMcp(program: Command, cli: Cli): void {
   program
@@ -9,6 +9,6 @@ export function registerMcp(program: Command, cli: Cli): void {
     .action(async (_opts: unknown, cmd: Command) => {
       const { log } = cmd.optsWithGlobals<GlobalOptions>();
       // stdout belongs to the protocol from here on: nothing in this command may print to it.
-      await startStdio({ cwd: cli.cwd, log, env: cli.env, version: program.version() });
+      await startStdio({ cwd: cli.cwd, log: singleLog(log), env: cli.env, version: program.version() });
     });
 }

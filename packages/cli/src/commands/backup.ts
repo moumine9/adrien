@@ -10,7 +10,7 @@ import {
   verifyBackup,
 } from '@adrien/core';
 import type { Command } from 'commander';
-import { type Cli, contextOf, type GlobalOptions, printJson } from '../cli.ts';
+import { type Cli, contextOf, type GlobalOptions, printJson, singleLog } from '../cli.ts';
 import { VERSION } from '../version.ts';
 
 export const differs = (v: BackupVerification): boolean => v.changed.length + v.missing.length + v.added.length > 0;
@@ -43,7 +43,8 @@ async function locate(
     if (writable) assertWritable(ctx);
     return { root: ctx.logRoot, config: ctx.config, env: ctx.env };
   } catch (e) {
-    const found = e instanceof AdrienError && /^CONFIG_/.test(e.code) ? findBackupRoot(cli.cwd, globals.log) : null;
+    const found =
+      e instanceof AdrienError && /^CONFIG_/.test(e.code) ? findBackupRoot(cli.cwd, singleLog(globals.log)) : null;
     if (!found) throw e;
     return { root: found, config: null, env: cli.env };
   }

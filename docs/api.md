@@ -30,7 +30,8 @@ adrien serve --port 8080 --log ../decisions
 
 ## Workspaces
 
-One server can serve several logs, each a workspace with a name (`adrien serve` serves one). Every route below is served
+One server can serve several logs, each a workspace with a name (`adrien serve --log name=<path or url>`, repeated or
+`;`-separated; the other commands take one log). Every route below is served
 twice: flat (`/api/adrs`) and under its workspace (`/api/w/<name>/adrs`, for example `/api/w/acme/adrs/ADR-0001`). The
 token and the host check are the same for every workspace.
 

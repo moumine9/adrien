@@ -14,7 +14,7 @@ import {
   writeLogConfig,
 } from '@adrien/core';
 import type { Command } from 'commander';
-import { type Cli, csv } from '../cli.ts';
+import { type Cli, csv, singleLog } from '../cli.ts';
 
 export const AGENTS_SNIPPET = `<!-- adrien:start -->
 ## Architecture decisions (Adrien)
@@ -123,7 +123,7 @@ export function registerInit(program: Command, cli: Cli): void {
     .option('--id-format <format>', 'id format', 'ADR-{n:4}')
     .action((opts: InitOptions, cmd: Command) => {
       const { log } = cmd.optsWithGlobals<{ log?: string }>();
-      if (opts.codeRepo) initCodeRepo(cli, { ...opts, log });
+      if (opts.codeRepo) initCodeRepo(cli, { ...opts, log: singleLog(log) });
       if (opts.agents) initAgents(cli);
       if (!opts.codeRepo && !opts.agents) initLog(cli, opts);
     });

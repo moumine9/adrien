@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_HOST, DEFAULT_PORT, isLoopback, startServer } from '@adrien/api';
-import { AdrienError, syncCachedClone } from '@adrien/core';
+import { AdrienError, resolveWorkspaces, syncCachedClone, type Workspace } from '@adrien/core';
 import { type Command, InvalidArgumentError } from 'commander';
-import { type Cli, contextOf, type GlobalOptions } from '../cli.ts';
+import { type Cli, type GlobalOptions, logSpecs } from '../cli.ts';
 
 const LISTEN_ERRORS = new Set(['EADDRINUSE', 'EADDRNOTAVAIL', 'EACCES', 'ENOTFOUND']);
 
@@ -54,6 +54,25 @@ export function scheduleSync(
   return () => clearInterval(timer);
 }
 
+/** Starts a sync timer for each workspace whose log is read from a git URL, once per log: several names may share one. */
+export function scheduleWorkspaceSyncs(
+  workspaces: readonly Workspace[],
+  everySeconds: number,
+  sync: (dir: string) => Promise<void>,
+  warn: (message: string) => void,
+): () => void {
+  const roots = new Set<string>();
+  const stops: (() => void)[] = [];
+  for (const { ctx } of workspaces) {
+    if (!ctx.readOnly || roots.has(ctx.logRoot)) continue;
+    roots.add(ctx.logRoot);
+    stops.push(scheduleSync(ctx.logRoot, everySeconds, sync, warn));
+  }
+  return () => {
+    for (const stop of stops) stop();
+  };
+}
+
 export function registerServe(program: Command, cli: Cli): void {
   program
     .command('serve')
@@ -81,6 +100,7 @@ export function registerServe(program: Command, cli: Cli): void {
         cmd: Command,
       ) => {
         const { log } = cmd.optsWithGlobals<GlobalOptions>();
+        const specs = logSpecs(log);
         const token = cli.env.ADRIEN_TOKEN?.trim() || undefined;
         assertSafeToExpose(opts.host, token !== undefined, !opts.auth);
         const allowedHosts = [
@@ -90,11 +110,12 @@ export function registerServe(program: Command, cli: Cli): void {
             .map((h) => h.trim())
             .filter(Boolean),
         ];
-        // No log is a usage error now, not a 500 on every request later.
-        const ctx = await contextOf(cli, { log });
+        // A misconfigured set (no log, an unnamed log, a repeated name or log) is a usage error now, not a 400 on every
+        // request later.
+        const workspaces = await resolveWorkspaces({ cwd: cli.cwd, specs, env: cli.env });
         const server = await startServer({
           cwd: cli.cwd,
-          log,
+          logs: specs,
           env: cli.env,
           version: program.version(),
           host: opts.host,
@@ -107,11 +128,17 @@ export function registerServe(program: Command, cli: Cli): void {
           if (!LISTEN_ERRORS.has(e.code ?? '')) throw e;
           throw new AdrienError('INVALID_INPUT', `Cannot listen on ${opts.host}:${opts.port}: ${e.message}`);
         });
-        if (ctx.readOnly && opts.syncEvery > 0)
-          scheduleSync(ctx.logRoot, opts.syncEvery, syncCachedClone, (m) => process.stderr.write(m));
+        if (opts.syncEvery > 0)
+          scheduleWorkspaceSyncs(workspaces.all, opts.syncEvery, syncCachedClone, (m) => process.stderr.write(m));
         // The action ends once the server listens, so the bin prints this line now; the open server keeps the process
         // running until it is interrupted.
-        cli.out(`Adrien serving ${ctx.config.product} at ${server.url}\n`);
+        const [only] = workspaces.all;
+        if (workspaces.all.length === 1 && only)
+          cli.out(`Adrien serving ${only.ctx.config.product} at ${server.url}\n`);
+        else
+          cli.out(
+            `Adrien serving ${workspaces.all.length} workspaces (${workspaces.names().join(', ')}) at ${server.url}\n`,
+          );
       },
     );
 }

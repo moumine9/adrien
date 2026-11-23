@@ -1,6 +1,6 @@
 import { AdrienError } from '@adrien/core';
 import { Command, CommanderError, Option } from 'commander';
-import type { Cli } from './cli.ts';
+import { type Cli, type GlobalOptions, singleLog } from './cli.ts';
 import { registerAccept } from './commands/accept.ts';
 import { registerBackup } from './commands/backup.ts';
 import { registerCheck } from './commands/check.ts';
@@ -44,11 +44,20 @@ export function buildProgram(cli: Cli): Command {
     .description('Architecture Decision Records for developers and their AI agents')
     .version(VERSION, '-v, --version')
     .addOption(
-      new Option('--log <path|url>', 'ADR log to use (default: found from the current directory)').env('ADRIEN_LOG'),
+      new Option(
+        '--log <path|url>',
+        'ADR log to use, as path|url or name=path|url (default: found from the current directory). Only `serve` accepts several, separated by ; or by repeating the flag',
+      )
+        .argParser((value: string, previous: string | undefined) => (previous ? `${previous};${value}` : value))
+        .env('ADRIEN_LOG'),
     )
     .option('--json', 'machine-readable output')
     .exitOverride()
-    .configureOutput({ writeOut: (s) => cli.out(s), writeErr: (s) => cli.err(s) });
+    .configureOutput({ writeOut: (s) => cli.out(s), writeErr: (s) => cli.err(s) })
+    // Every command but serve works on one log: refused here, before any command reads the log.
+    .hook('preAction', (root, action) => {
+      if (action.name() !== 'serve') singleLog(root.opts<GlobalOptions>().log);
+    });
   for (const register of [
     registerInit,
     registerNew,
