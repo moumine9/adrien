@@ -53,6 +53,14 @@ function release(root: string, args: string[], path?: string) {
 const remoteTags = (origin: string) => git(origin, 'tag', '--list');
 
 describe('release prepare', () => {
+  test('says so, instead of a TypeError, when the version in the checkout is itself a prerelease', () => {
+    const { root } = repo('0.2.0-rc.1');
+    const result = release(root, ['prepare', '0.2.0']);
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain('0.2.0-rc.1');
+    expect(result.stderr).not.toContain('TypeError');
+  });
+
   test('refuses a version that is not plain semver', () => {
     for (const version of ['0.2', '0.2.0-rc.1', 'v0.2.0', '0.2.x', '']) {
       const { root } = repo();

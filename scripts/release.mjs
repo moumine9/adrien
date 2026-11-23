@@ -66,6 +66,8 @@ function prepare(args) {
   if (args.length !== 1) fail(USAGE);
   const next = requireVersion(args[0]);
   const current = versionOf(readFileSync(PACKAGE, 'utf8'));
+  if (!parseVersion(current))
+    fail(`The version in ${PACKAGE} is "${current}", not a plain X.Y.Z; set it by hand first.`);
   if (!isGreater(next, current)) fail(`${next} must be greater than ${current}, the version in ${PACKAGE}.`);
   requireCleanTree();
 
@@ -90,7 +92,10 @@ function prepare(args) {
   console.log(`  1. Read and tidy the ${next} entry in ${CHANGELOG}; commit any edit.`);
   console.log(`  2. git push -u origin ${branch}`);
   console.log('  3. Open the pull request and wait for Codex approval and green checks.');
-  console.log('  4. Merge it (never before the checks are green).');
+  console.log(
+    '  4. Merge it only when Codex approved the exact head commit and the checks are green, pinned to that commit:',
+  );
+  console.log('     gh pr merge <number> --merge --match-head-commit <full sha>');
   console.log('  5. git switch main && git pull --ff-only origin main');
   console.log('  6. pnpm release tag, then git push origin vX.Y.Z to publish.');
   console.log('     (or pnpm release tag --push, which does both in one step)');
