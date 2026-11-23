@@ -192,3 +192,31 @@ describe('Pending relationship changes', () => {
     expect(within(pending).queryByText(/The frontmatter is unchanged/)).not.toBeInTheDocument();
   });
 });
+
+describe('Gaps in an accepted decision', () => {
+  async function openWith(patch: (base: AdrResponse) => AdrResponse) {
+    const base = (await (await createMockFetch()('/api/adrs/ADR-0002')).json()) as AdrResponse;
+    renderApp('/adr/ADR-0002', {
+      fetch: overrideFetch((url) => (url.pathname === '/api/adrs/ADR-0002' ? jsonResponse(patch(base)) : undefined)),
+    });
+    await heading('Use PostgreSQL as the system of record for billing');
+  }
+  const withFile = (base: AdrResponse, meta: object, body: string) =>
+    ({ ...base, base: { ...base.base, meta: { ...base.base?.meta, ...meta }, body } }) as AdrResponse;
+
+  it('says so, quietly, when there are no deciders and Confirmation is empty', async () => {
+    await openWith((base) =>
+      withFile(base, { status: 'accepted', deciders: [] }, '## Decision\n\nX.\n\n### Confirmation\n'),
+    );
+    const hint = screen.getByText(/No deciders are named/).closest('p');
+    expect(hint).toHaveTextContent('The Confirmation section is empty');
+    expect(hint).toHaveClass('print:hidden');
+  });
+
+  it('says nothing when the record is complete', async () => {
+    await openWith((base) =>
+      withFile(base, { status: 'accepted', deciders: ['sam.k'] }, '### Confirmation\n\nA test checks it.\n'),
+    );
+    expect(screen.queryByText(/No deciders are named|Confirmation section is empty/)).toBeNull();
+  });
+});
