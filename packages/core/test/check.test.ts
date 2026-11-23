@@ -139,6 +139,27 @@ test('a readable common log with no usable name → common-invalid error naming 
   expect(diags[0]?.message).toContain('workspace');
 });
 
+test('related reaches a decision of a common log whose id_format is custom', async () => {
+  const shared = tmpDir();
+  writeFiles(shared, {
+    [CONFIG_FILE]: configYaml({ product: 'Shared Co', id_format: 'DEC({n:4})' }),
+    'docs/adr/DEC-0001-shared.md': ok('DEC(0001)'),
+  });
+  const root = tmpDir();
+  writeFiles(root, productRelated(shared, ['shared-co/DEC(0001)']));
+  expect(await checkAt(root, { strict: true })).toEqual([]);
+});
+
+test('a local id that contains a slash is a local reference, not a workspace one', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    [CONFIG_FILE]: configYaml({ id_format: 'dec/{n:4}' }),
+    'docs/adr/dec-0001-a.md': ok('dec/0001'),
+    'docs/adr/dec-0002-b.md': ok('dec/0002', { related: ['dec/0001'] }),
+  });
+  expect(await checkAt(root, { strict: true })).toEqual([]);
+});
+
 test('supersedes and superseded_by across workspaces → invalid-ref error naming the field', async () => {
   const root = tmpDir();
   writeFiles(root, {

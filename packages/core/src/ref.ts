@@ -10,8 +10,8 @@ export interface Ref {
   id: string;
 }
 
-/** An id, as far as a reference can tell: the target log may use its own id format, so only its shape is checked. */
-const REF_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
+/** An id, as far as a reference can tell: the target log writes it in its own `id_format`, so only emptiness and spaces are refused. */
+const REF_ID = /^\S+$/;
 
 export function parseRef(text: string): Ref {
   const slash = text.indexOf('/');

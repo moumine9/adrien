@@ -110,6 +110,8 @@ interface RefScope {
 
 /** Checks one `related` entry: a plain id or this log's own `workspace/ADR-n` against this log, the common log's `workspace/ADR-n` against the common log. */
 function relatedLink(adr: Adr, target: string, byId: Map<string, Adr[]>, scope: RefScope, out: Diagnostic[]): void {
+  // An id of this log wins, even when its own format puts a slash in it.
+  if (byId.has(target)) return;
   const ref = parseRef(target);
   if (ref.workspace === null) {
     if (target.includes('/')) {
@@ -119,7 +121,7 @@ function relatedLink(adr: Adr, target: string, byId: Map<string, Adr[]>, scope: 
         ...at(adr),
         message: `${target} is not a reference: write a decision of this log as ADR-n, or of another log as workspace/ADR-n`,
       });
-    } else if (!byId.has(target)) {
+    } else {
       out.push({ severity: 'error', code: 'broken-link', ...at(adr), message: `Links to unknown ADR ${target}` });
     }
     return;

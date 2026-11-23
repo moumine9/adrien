@@ -72,7 +72,7 @@ the target log's own name, its `workspace` (or its product name slugged when `wo
   not.
 - The log named by the prefix cannot be reached from this one: the entry is reported as `unresolved-ref` information,
   which never changes the exit code. A `common` that cannot be reached (a missing path, a failed clone) is reported once as `common-unreadable`, also information; one that was read but cannot serve (it is the product log itself, or has no usable workspace name) is a `common-invalid` error.
-- The text has a `/` but is not a valid `workspace/ADR-n`: an `invalid-ref` error.
+- The text has a `/` but is not a valid `workspace/ADR-n`: an `invalid-ref` error. An id of this log wins, even when its own `id_format` puts a slash in it, and the id after the slash is written as the target log writes it.
 
 ### Body
 
