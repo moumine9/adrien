@@ -7,7 +7,7 @@ export interface Review {
   markdown: string;
   /** Distinct binding decisions. */
   binding: number;
-  /** Distinct non-binding entries: proposals, pending changes and retired decisions. */
+  /** Distinct non-binding entries: proposals, pending changes, exempt and retired decisions. */
   hints: number;
   /** The number of input files. */
   files: number;
@@ -151,7 +151,7 @@ export function buildReview(
           .join(', ')})`;
       const inner = listed(hints, label, maxDecisions, maxFilesPerDecision).join('\n\n');
       sections.push(
-        `<details><summary>Not binding (${hints.length}): proposals, pending changes and retired decisions</summary>\n\n${inner}\n\n</details>`,
+        `<details><summary>Not binding (${hints.length}): proposals, pending changes, exempt and retired decisions</summary>\n\n${inner}\n\n</details>`,
       );
     }
   }

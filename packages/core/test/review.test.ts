@@ -118,7 +118,7 @@ test('non-binding entries go in a details block: proposals, retired ones and pen
       '',
       '### Decisions that govern this change',
       '',
-      '<details><summary>Not binding (3): proposals, pending changes and retired decisions</summary>',
+      '<details><summary>Not binding (3): proposals, pending changes, exempt and retired decisions</summary>',
       '',
       '**ADR-0005** Title ADR-0005 (proposed)',
       'Governs: `a.ts`',

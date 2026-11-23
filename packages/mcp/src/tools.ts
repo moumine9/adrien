@@ -75,7 +75,7 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
     {
       title: 'Decisions governing files',
       description:
-        'Call this BEFORE editing code. For each file, returns the architecture decisions that govern it, with the review_rule to follow. binding:true means an accepted decision on the default branch; binding:false is a pending proposal or a hint. A decision with `workspace` set comes from the common log the product names. If `notes` is present, read it: it says the default branch could not be found, so bindingness is unverified. If `common_notes` is present, read it too: it concerns the common log only (no default branch, or could not be read) and does not affect the own decisions of the product.',
+        'Call this BEFORE editing code. For each file, returns the architecture decisions that govern it, with the review_rule to follow. binding:true means an accepted decision on the default branch; binding:false is a pending proposal or a hint. A decision with `workspace` set comes from the common log the product names. If `notes` is present, read it: it says the default branch could not be found, so bindingness is unverified. If `common_notes` is present, read it too: it concerns the common log only (no default branch, or could not be read) and does not affect the own decisions of the product. A decision with `exemption` set does not apply to that file: an accepted exception of the product, named by `exemption.by`, departs from it, and that exception holds the rule to follow.',
       inputSchema: { paths: z.array(z.string().min(1)).min(1).max(50) },
     },
     handler(opts, async ({ paths }: { paths: string[] }, ctx, view) => {
