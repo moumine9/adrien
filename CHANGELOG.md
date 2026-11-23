@@ -1,3 +1,16 @@
+## [0.9.0](https://github.com/moumine9/adrien/compare/v0.8.3...v0.9.0) (2026-11-23)
+
+### Features
+
+* **core:** check superseded ADRs without a successor and lint ADR file names ([32e753d](https://github.com/moumine9/adrien/commit/32e753d2b26ef32c54a4611ff452642be95e62e2))
+* **mcp:** tell agents when not to propose an ADR ([be9cbe4](https://github.com/moumine9/adrien/commit/be9cbe4a41a66ce3ba62a2504736518c27eaad2d))
+* **web:** hint when an accepted decision names no deciders or leaves Confirmation empty ([eae9e2a](https://github.com/moumine9/adrien/commit/eae9e2a8ebb31366b4425ef7791387a380f1c3a7))
+
+### Bug Fixes
+
+* **web:** even two-row navigation on phones and a toast that never changes the page length ([24bb792](https://github.com/moumine9/adrien/commit/24bb792c9b5637491a654559549582ce1008fa4d))
+* **web:** let the change notice for the open decision expire on phones ([a119890](https://github.com/moumine9/adrien/commit/a11989062a46f2fa4f4d4a47531a0c047450f42f))
+
 ## [0.8.3](https://github.com/moumine9/adrien/compare/v0.8.2...v0.8.3) (2026-11-22)
 
 ### Features
