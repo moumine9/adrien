@@ -90,6 +90,15 @@ test('no write tool can set status or origin, and no tool input has an origin', 
   }
 });
 
+test('adr_propose tells an agent when not to write an ADR', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const { tools } = await client.listTools();
+  const description = tools.find((t) => t.name === 'adr_propose')?.description ?? '';
+  expect(description).toContain('Do not propose');
+  expect(description).toContain('adr_search');
+  expect(description).toContain('adr_for_files');
+});
+
 test('the server tells agents never to accept', async () => {
   const client = await connect({ cwd: monorepo(), version: '9.9.9' });
   expect(client.getServerVersion()).toMatchObject({ name: 'adrien', version: '9.9.9' });

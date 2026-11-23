@@ -274,12 +274,12 @@ scripts and dashboards, and prints its URL. It runs until you stop it. The endpo
 
 `adrien mcp` serves these tools on stdio, from the code repo or log repo it runs in:
 
-| Tool                     | Purpose                                                                                            |
-| ------------------------ | -------------------------------------------------------------------------------------------------- |
-| `adr_for_files`          | The decisions governing the files you are about to change, with their `review_rule`.               |
-| `adr_search`, `adr_list` | Find decisions by text, tag, component or status.                                                  |
-| `adr_get`                | One ADR: the binding version and any pending change.                                               |
-| `adr_propose`            | Record a new decision as `proposed`, origin `agent`. Returns likely duplicates instead of writing. |
-| `adr_propose_change`     | Edit an ADR in the working copy; the merge request is the approval.                                |
+| Tool                     | Purpose                                                                                                                              |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `adr_for_files`          | The decisions governing the files you are about to change, with their `review_rule`.                                                 |
+| `adr_search`, `adr_list` | Find decisions by text, tag, component or status.                                                                                    |
+| `adr_get`                | One ADR: the binding version and any pending change.                                                                                 |
+| `adr_propose`            | Record a new decision as `proposed`, origin `agent`. Returns likely duplicates instead of writing, and says when not to propose one. |
+| `adr_propose_change`     | Edit an ADR in the working copy; the merge request is the approval.                                                                  |
 
 No tool can set `status` or `origin`: an agent never accepts a decision.
