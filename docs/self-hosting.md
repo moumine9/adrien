@@ -1,8 +1,8 @@
 # Self-hosting Adrien
 
 `adrien serve` is the same server you run on a laptop, put where your team can reach it: the read-only HTTP API and the
-web visualizer for one decision log. Nothing here changes how decisions are made. They are still proposed in merge
-requests and approved by merging, and the server only shows what is in git.
+web visualizer for one or more decision logs. Nothing here changes how decisions are made. They are still proposed in
+merge requests and approved by merging, and the server only shows what is in git.
 
 ## What you need
 
@@ -51,7 +51,7 @@ ADRIEN_TOKEN=… adrien serve --host 0.0.0.0 --allowed-host adr.example.com --lo
 
 | Setting                             | Flag                                 | Environment                              | Default                                  |
 | ----------------------------------- | ------------------------------------ | ---------------------------------------- | ---------------------------------------- |
-| Log to serve                        | `--log <path or url>`                | `ADRIEN_LOG`                             | the log found from the working directory |
+| Log to serve                        | `--log [name=]<path or url>`         | `ADRIEN_LOG` (`;`-separated)             | the log found from the working directory |
 | Address to bind                     | `--host <host>`                      |                                          | `127.0.0.1`                              |
 | Port                                | `--port <n>`                         |                                          | `4310`                                   |
 | Access token                        |                                      | `ADRIEN_TOKEN`                           | none: loopback only                      |
@@ -59,10 +59,34 @@ ADRIEN_TOKEN=… adrien serve --host 0.0.0.0 --allowed-host adr.example.com --lo
 | Skip the token                      | `--no-auth`                          |                                          | off                                      |
 | Fetch a git-URL log every N seconds | `--sync-every <n>`                   |                                          | `300` (0 turns it off)                   |
 
+## Several logs
+
+`adrien serve` can serve several logs at once. Repeat `--log`, or separate the entries with `;` in `ADRIEN_LOG`. Each
+entry is `name=<path or url>`, or just `<path or url>`:
+
+```sh
+ADRIEN_TOKEN=… adrien serve --host 0.0.0.0 --allowed-host adr.example.com \
+  --log billing=https://git.example.com/acme/billing-decisions.git \
+  --log web=/srv/web-decisions
+```
+
+Each log is served as a workspace under `/api/w/<name>/`, and the web app shows a chooser. A name given after `=` is the
+workspace's name. Without one, the name is the `workspace` field of the log's `adrien.config.yaml`, then its product
+name. A log whose name cannot be worked out, a repeated name, or the same log twice is a usage error at startup.
+
+One token covers every workspace. A team that needs products isolated from each other runs a separate instance for each.
+The other commands (`list`, `check`, `mcp`, `init --code-repo` and the rest) still take one log: give them several and
+they refuse.
+
 ## Safety rules
 
 - **No token, no network.** Bound to anything but a loopback address, `adrien serve` refuses to start without
   `ADRIEN_TOKEN`. Pass `--no-auth` only when a reverse proxy in front already authenticates every request.
+- **Behind a proxy that authenticates, reach the server only through it.** With `--no-auth`, anyone who can reach the
+  port skips the proxy's checks. Bind the server to loopback (the default) or to a private network, and let the proxy be
+  the only route to it.
+- **A proxy that also uses the shared token** adds `Authorization: Bearer <token>` to each request it forwards. People
+  then are not asked for the token again after they sign in to the proxy.
 - **The token travels as a Bearer token or as the password of Basic authentication** (any user name). Browsers ask for it
   once. The token is read from the environment, never from a flag, so it does not show up in process listings.
 - **Host names are checked before the token.** A request must carry a name you allowed, or it gets 403 whoever it is.

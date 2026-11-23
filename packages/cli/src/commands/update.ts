@@ -16,7 +16,7 @@ import {
   verifyBackup,
 } from '@adrien/core';
 import type { Command } from 'commander';
-import { type Cli, type GlobalOptions, printJson } from '../cli.ts';
+import { type Cli, type GlobalOptions, printJson, singleLog } from '../cli.ts';
 import { VERSION } from '../version.ts';
 import { changeLines, differs, skippedLine } from './backup.ts';
 
@@ -224,7 +224,7 @@ export function registerUpdate(program: Command, cli: Cli): void {
       // Before anything is installed, the decision files are copied: a failed copy stops the update.
       let backup: { id: string; root: string } | null = null;
       try {
-        const found = await deps.backup.logAt(cli.cwd, globals.log, cli.env);
+        const found = await deps.backup.logAt(cli.cwd, singleLog(globals.log), cli.env);
         if (found === null) cli.out('No decision log here, nothing to back up.\n');
         else if (found === 'remote') {
           cli.out('Skipped: the log is a remote clone, so there are no local decision files to back up.\n');

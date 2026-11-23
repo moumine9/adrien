@@ -3,10 +3,11 @@ import { once } from 'node:events';
 import { existsSync, rmSync } from 'node:fs';
 import { request } from 'node:http';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import type { Workspace } from '@adrien/core';
 import { CONFIG_FILE } from '@adrien/core';
 import { configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { initRepo } from '../../core/test/helpers/git.ts';
-import { assertSafeToExpose, scheduleSync } from '../src/commands/serve.ts';
+import { assertSafeToExpose, scheduleSync, scheduleWorkspaceSyncs } from '../src/commands/serve.ts';
 import { runCli } from '../src/program.ts';
 
 const dist = fileURLToPath(new URL('../dist/index.js', import.meta.url));
@@ -67,6 +68,36 @@ test('scheduleSync syncs on every interval, reports a failure and keeps going, a
   stop();
   await vi.advanceTimersByTimeAsync(120_000);
   expect(calls).toHaveLength(3);
+});
+
+test('scheduleWorkspaceSyncs keeps one timer per URL log, and none for a local log', async () => {
+  vi.useFakeTimers();
+  onTestFinished(() => {
+    vi.useRealTimers();
+  });
+  const ws = (name: string, logRoot: string, readOnly: boolean) =>
+    ({ name, ctx: { logRoot, readOnly } }) as unknown as Workspace;
+  const calls: string[] = [];
+  const stop = scheduleWorkspaceSyncs(
+    [
+      ws('a', '/cache/a', true),
+      ws('b', '/cache/b', true),
+      ws('local', '/work/local', false),
+      ws('again', '/cache/a', true),
+    ],
+    60,
+    async (dir) => {
+      calls.push(dir);
+    },
+    () => {},
+  );
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(calls.filter((d) => d === '/cache/a')).toHaveLength(2);
+  expect(calls.filter((d) => d === '/cache/b')).toHaveLength(2);
+  expect(calls).not.toContain('/work/local');
+  stop();
+  await vi.advanceTimersByTimeAsync(120_000);
+  expect(calls).toHaveLength(4);
 });
 
 describe.runIf(existsSync(dist))('adrien serve with a token, from the bundle', () => {
