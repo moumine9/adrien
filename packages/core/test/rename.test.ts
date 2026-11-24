@@ -573,6 +573,36 @@ test('a product configuration that changed after its context was resolved refuse
   });
 });
 
+test('a product whose URL common is the origin of the target is rewritten even when the clone cannot be made', async () => {
+  const shared = tmpDir();
+  writeFiles(shared, {
+    [CONFIG_FILE]: configYaml({ product: 'Shared Co', workspace: 'shared' }),
+    'docs/adr/ADR-0009-shared.md': adrText({ id: 'ADR-0009', title: 'Shared rule', status: 'accepted' }),
+  });
+  const { origin } = initRepo(shared, { origin: true });
+  const url = pathToFileURL(origin ?? '').href;
+  rmSync(origin ?? '', { recursive: true, force: true });
+  const root = tmpDir();
+  writeFiles(root, {
+    'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'acme', common: url }),
+    'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+  });
+  const product = await ctxAt(join(root, 'product'), { ADRIEN_HOME: tmpDir() });
+  applyWorkspaceRename(await planWorkspaceRename({ target: await ctxAt(shared), others: [product], to: 'house' }));
+  expect((await metaOf(product, 'ADR-0002'))?.related).toEqual(['house/ADR-0009']);
+});
+
+test('a product whose common log cannot be read and is not known to be the target is noted, not skipped silently', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'acme', common: '../missing' }),
+  });
+  const product = await ctxAt(join(root, 'product'));
+  const plan = await planWorkspaceRename({ target: await ctxAt(join(root, 'shared')), others: [product], to: 'house' });
+  expect(plan.notes.join('\n')).toMatch(/could not be read/);
+});
+
 test('supersedes and superseded_by are never touched', async () => {
   const root = tmpDir();
   writeFiles(root, {

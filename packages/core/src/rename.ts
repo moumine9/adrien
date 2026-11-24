@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import YAML from 'yaml';
-import { readCommon } from './common.ts';
+import { type CommonResolution, readCommon } from './common.ts';
 import { CONFIG_FILE, isWorkspaceName, loadLogConfig, parseLogConfigText, workspaceNameOf } from './config.ts';
 import type { Context } from './context.ts';
 import { AdrienError } from './errors.ts';
@@ -137,17 +137,27 @@ export async function planWorkspaceRename(opts: {
   const notes: string[] = [];
   const linked: Context[] = [];
   for (const other of others) {
-    const read = await readCommon(other);
-    if (!read || !('common' in read)) continue;
-    // A common named by a path is the target when it is the target's root. A common named by a git URL is a cached clone
-    // of that repo's root: it is the target when the URL is the target's own origin and the target is that repo's root.
-    // Either alone is not enough: another repo can hold a log with the same name, and a log in a subfolder of a repo is
-    // not the log at that repo's root.
-    const commonUrl = other.config.common as string;
+    const commonUrl = other.config.common;
+    if (commonUrl === undefined) continue;
+    // A common named by a git URL is a cached clone of that repo's root: it is the target when the URL is the target's
+    // own origin and the target is that repo's root. That is settled from the URL alone, so a clone that cannot be made
+    // does not hide the product. A log in a subfolder is not the log at the root, and another repo can hold a log with
+    // the same name.
     const sameRepo = isGitUrl(commonUrl) && identity !== null && normalizeRepoUrl(commonUrl) === identity;
-    const sameName = read.common.name === from;
-    if (read.common.ctx.logRoot === target.logRoot || (sameRepo && atRepoRoot)) linked.push(other);
-    else if (isGitUrl(commonUrl) && (sameRepo || sameName)) {
+    if (sameRepo && atRepoRoot) {
+      linked.push(other);
+      continue;
+    }
+    // `common` is set, so there is a resolution to read.
+    const read = (await readCommon(other)) as CommonResolution;
+    if ('unreadable' in read) {
+      notes.push(
+        `${other.logSource} has a common log at ${commonUrl} that could not be read, so it was not checked and not rewritten.`,
+      );
+      continue;
+    }
+    if (read.common.ctx.logRoot === target.logRoot) linked.push(other);
+    else if (isGitUrl(commonUrl) && (sameRepo || read.common.name === from)) {
       const why = !sameRepo
         ? identity === null
           ? 'cannot be matched to this log, which has no `origin`'
