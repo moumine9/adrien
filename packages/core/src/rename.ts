@@ -5,11 +5,12 @@ import { readCommon } from './common.ts';
 import { CONFIG_FILE, isWorkspaceName, loadLogConfig, parseLogConfigText, workspaceNameOf } from './config.ts';
 import type { Context } from './context.ts';
 import { AdrienError } from './errors.ts';
+import { remoteUrl } from './git.ts';
 import { withAdrLocks } from './lock.ts';
 import { readWorkingLog, revisionOfText, writeAdr } from './log.ts';
 import { assertWritable, lockOptions } from './ops.ts';
 import { parseRef } from './ref.ts';
-import { isGitUrl } from './repo-url.ts';
+import { isGitUrl, normalizeRepoUrl } from './repo-url.ts';
 
 /** A link field entry to rename: the field it sits in, and the entry before and after the rename. */
 export interface RenameRef {
@@ -39,12 +40,15 @@ export interface WorkspaceRenamePlan {
   notes: string[];
 }
 
+const NO_IDS: ReadonlySet<string> = new Set();
+
 const conflict = (path: string) =>
   new AdrienError('ADR_CONFLICT', `${path} changed since the rename was planned: plan it again.`);
 
 /**
- * One entry of a link field, renamed when it names the old workspace. An id of the log holding it wins: a local id that
- * contains a slash is never a workspace reference.
+ * One entry of a link field, renamed when it names the old workspace. In `related`, an id of the log holding it wins: a
+ * local id that contains a slash is never a workspace reference. `exception_to` always names a workspace, so it passes
+ * no local ids.
  */
 function renameEntry(entry: string, ownIds: ReadonlySet<string>, from: string, to: string): string {
   if (ownIds.has(entry)) return entry;
@@ -101,15 +105,29 @@ export async function planWorkspaceRename(opts: {
   if (to === from) throw new AdrienError('INVALID_INPUT', `The workspace is already named "${to}".`);
   assertWritable(target);
 
+  const origin = await remoteUrl(target.logRoot);
+  const identity = origin ? normalizeRepoUrl(origin) : null;
+  const notes: string[] = [];
   const linked: Context[] = [];
   for (const other of others) {
     const read = await readCommon(other);
     if (!read || !('common' in read)) continue;
     // A common named by a path is the target when it is the target's root. A common named by a git URL is a cached clone
-    // of another checkout: it is the target when it is named as the target, and then the product is a different repo.
-    const samePath = read.common.ctx.logRoot === target.logRoot;
-    const sameUrl = isGitUrl(other.config.common as string) && read.common.name === from;
-    if (samePath || sameUrl) linked.push(other);
+    // of that repo's root: it is the target when the URL is the target's own origin and the log it holds has the old name.
+    // Either alone is not enough: another repo can hold a log with the same name, and a log in a subfolder of a repo is
+    // not the log at that repo's root.
+    const commonUrl = other.config.common as string;
+    const sameRepo = isGitUrl(commonUrl) && identity !== null && normalizeRepoUrl(commonUrl) === identity;
+    const sameName = read.common.name === from;
+    if (read.common.ctx.logRoot === target.logRoot || (sameRepo && sameName)) linked.push(other);
+    else if (isGitUrl(commonUrl) && (sameRepo || sameName)) {
+      const why = sameRepo
+        ? `holds a log named "${read.common.name}", not this one`
+        : identity === null
+          ? 'cannot be matched to this log, which has no `origin`'
+          : "is not this log's repository";
+      notes.push(`${other.logSource} has a common log at ${commonUrl} that ${why}, so it was not rewritten.`);
+    }
   }
   const targetCommon = await readCommon(target);
   const names = [
@@ -120,7 +138,6 @@ export async function planWorkspaceRename(opts: {
     throw new AdrienError('INVALID_INPUT', `"${to}" is already the name of a log this rename reaches.`);
   }
 
-  const notes: string[] = [];
   const edits: RenameEdit[] = [];
   for (const ctx of [target, ...linked]) {
     const working = readWorkingLog(ctx.logRoot, ctx.config);
@@ -131,7 +148,7 @@ export async function planWorkspaceRename(opts: {
     for (const adr of working.adrs) {
       const refs = [
         ...refsIn('related', adr.meta.related, ownIds, from, to),
-        ...refsIn('exception_to', adr.meta.exception_to, ownIds, from, to),
+        ...refsIn('exception_to', adr.meta.exception_to, NO_IDS, from, to),
       ];
       if (refs.length === 0) continue;
       assertWritable(ctx);
@@ -201,7 +218,7 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
         const adr = adrs.find((candidate) => candidate.path === edit.path);
         if (!adr || adr.revision !== edit.revision) throw conflict(edit.path);
         const related = adr.meta.related.map((entry) => renameEntry(entry, ownIds, plan.from, plan.to));
-        const exception_to = adr.meta.exception_to.map((entry) => renameEntry(entry, ownIds, plan.from, plan.to));
+        const exception_to = adr.meta.exception_to.map((entry) => renameEntry(entry, NO_IDS, plan.from, plan.to));
         return { logRoot, adr: { ...adr, meta: { ...adr.meta, related, exception_to } } };
       });
     });

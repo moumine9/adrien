@@ -297,6 +297,97 @@ test('a product whose common is a git URL of a log named as the target is rewrit
   expect((await metaOf(product, 'ADR-0002'))?.related).toEqual(['house/ADR-0009']);
 });
 
+test('an exception_to entry is renamed even when a local id of the product has the same text', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: '../shared',
+      id_format: 'shared/{n:4}',
+    }),
+    'product/docs/adr/shared-0009-local.md': adrText({ id: 'shared/0009', title: 'Local' }),
+    'product/docs/adr/shared-0010-skip.md': adrText({
+      id: 'shared/0010',
+      title: 'Skip',
+      related: ['shared/0009'],
+      exception_to: ['shared/0009'],
+    }),
+  });
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  applyWorkspaceRename(await planWorkspaceRename({ target: shared, others: [product], to: 'house' }));
+  const meta = await metaOf(product, 'shared/0010');
+  expect(meta?.exception_to).toEqual(['house/0009']);
+  expect(meta?.related).toEqual(['shared/0009']);
+});
+
+/** A log named `shared` that is its own git repo with an origin, and the file URL of that origin. */
+function remoteShared(): { dir: string; url: string } {
+  const dir = tmpDir();
+  writeFiles(dir, {
+    [CONFIG_FILE]: configYaml({ product: 'Shared Co', workspace: 'shared' }),
+    'docs/adr/ADR-0009-shared.md': adrText({ id: 'ADR-0009', title: 'Shared rule', status: 'accepted' }),
+  });
+  const { origin } = initRepo(dir, { origin: true });
+  return { dir, url: pathToFileURL(origin ?? '').href };
+}
+
+test.each([
+  ['the target has another origin', true, /not this log's repository/],
+  ['the target has no origin', false, /no `origin`/],
+])(
+  'a product whose git URL common is another repo with the same name is left alone and noted (%s)',
+  async (_n, hasOrigin, wording) => {
+    const stranger = remoteShared();
+    const target = tmpDir();
+    writeFiles(target, {
+      [CONFIG_FILE]: configYaml({ product: 'Shared Co', workspace: 'shared' }),
+      'docs/adr/ADR-0009-shared.md': adrText({ id: 'ADR-0009', title: 'Shared rule', status: 'accepted' }),
+    });
+    initRepo(target, { origin: hasOrigin });
+    const root = tmpDir();
+    writeFiles(root, {
+      'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'acme', common: stranger.url }),
+      'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+    });
+    const env = { ADRIEN_HOME: tmpDir() };
+    const product = await ctxAt(join(root, 'product'), env);
+    const plan = await planWorkspaceRename({ target: await ctxAt(target), others: [product], to: 'house' });
+    applyWorkspaceRename(plan);
+    expect((await metaOf(product, 'ADR-0002'))?.related).toEqual(['shared/ADR-0009']);
+    expect(plan.notes.join('\n')).toMatch(wording);
+  },
+);
+
+test('a product whose git URL common is the repo of the target but holds another log is left alone and noted', async () => {
+  const repo = tmpDir();
+  writeFiles(repo, {
+    [CONFIG_FILE]: configYaml({ product: 'Root Co', workspace: 'root' }),
+    'sub/adrien.config.yaml': configYaml({ product: 'Shared Co', workspace: 'shared' }),
+    'sub/docs/adr/ADR-0009-shared.md': adrText({ id: 'ADR-0009', title: 'Shared rule', status: 'accepted' }),
+  });
+  const { origin } = initRepo(repo, { origin: true });
+  const root = tmpDir();
+  writeFiles(root, {
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: pathToFileURL(origin ?? '').href,
+    }),
+    'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['root/ADR-0001'] }),
+  });
+  const product = await ctxAt(join(root, 'product'), { ADRIEN_HOME: tmpDir() });
+  const plan = await planWorkspaceRename({
+    target: await ctxAt(join(repo, 'sub')),
+    others: [product],
+    to: 'house',
+  });
+  expect(plan.edits).toEqual([]);
+  expect(plan.notes.join('\n')).toMatch(/holds a log named "root", not this one/);
+});
+
 test('supersedes and superseded_by are never touched', async () => {
   const root = tmpDir();
   writeFiles(root, {

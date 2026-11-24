@@ -168,7 +168,8 @@ components:
 `adrien rename-workspace <new-name>` renames the log. It sets the `workspace` field of its `adrien.config.yaml`; a log
 that had none gets the field, and its `product` is left as it is. It then rewrites each `related` and `exception_to`
 entry that names the old name, `<old>/ADR-n`, as `<new-name>/ADR-n`, keeping the id after the slash. It does this in the
-log itself, and in every other log of the run whose `common` field points to this one, since only those name it. Accepted
+log itself, and in every other log of the run whose `common` field points to this one, since only those name it (a git URL points to it when it is this log's `origin`; a
+common log that only has the same name is another repo and is reported, not rewritten). Accepted
 ADRs are rewritten too: on an accepted ADR, `exception_to` may change only by its prefix, so a rename is allowed and a
 retarget, an added or a removed entry is not. Supersession links, file names, ids and the rest of each file are left as
 they are. `--dry-run` prints the changes and writes nothing. Everything is checked before the first write, and a change
