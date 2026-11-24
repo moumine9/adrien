@@ -363,7 +363,7 @@ test.each([
   },
 );
 
-test('a product whose git URL common is the repo of the target but holds another log is left alone and noted', async () => {
+test('a product whose git URL common is the repo of a subfolder target is left alone and noted', async () => {
   const repo = tmpDir();
   writeFiles(repo, {
     [CONFIG_FILE]: configYaml({ product: 'Root Co', workspace: 'root' }),
@@ -387,7 +387,7 @@ test('a product whose git URL common is the repo of the target but holds another
     to: 'house',
   });
   expect(plan.edits).toEqual([]);
-  expect(plan.notes.join('\n')).toMatch(/holds a log named "root", not this one/);
+  expect(plan.notes.join('\n')).toMatch(/subfolder/);
 });
 
 test('a rename is refused, and nothing written, when a rewritten related entry would name a local id', async () => {
@@ -519,6 +519,58 @@ test('a same-named product with no entries naming the old name gets no note', as
   const product = await ctxAt(join(root, 'product'));
   const plan = await planWorkspaceRename({ target: shared, others: [product], to: 'house' });
   expect(plan.notes).toEqual([]);
+});
+
+test('a product whose URL common is the root log of the repo is left alone when a subfolder log is renamed', async () => {
+  const repo = tmpDir();
+  writeFiles(repo, {
+    [CONFIG_FILE]: configYaml({ product: 'Root Co', workspace: 'shared' }),
+    'docs/adr/ADR-0009-shared.md': adrText({ id: 'ADR-0009', title: 'Root rule', status: 'accepted' }),
+    'sub/adrien.config.yaml': configYaml({ product: 'Sub Co', workspace: 'shared' }),
+    'sub/docs/adr/ADR-0001-sub.md': adrText({ id: 'ADR-0001', title: 'Sub rule', status: 'accepted' }),
+  });
+  const { origin } = initRepo(repo, { origin: true });
+  const root = tmpDir();
+  writeFiles(root, {
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: pathToFileURL(origin ?? '').href,
+    }),
+    'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+  });
+  const product = await ctxAt(join(root, 'product'), { ADRIEN_HOME: tmpDir() });
+  const plan = await planWorkspaceRename({ target: await ctxAt(join(repo, 'sub')), others: [product], to: 'house' });
+  expect(plan.edits).toEqual([]);
+  expect(plan.notes.join('\n')).toMatch(/subfolder/);
+});
+
+test('a configuration that changed after the context was resolved refuses the plan', async () => {
+  const root = tmpDir();
+  writeFiles(root, sharedFiles());
+  const shared = await ctxAt(join(root, 'shared'));
+  writeFiles(root, { 'shared/adrien.config.yaml': configYaml({ product: 'Shared Co', workspace: 'intermediate' }) });
+  await expect(planWorkspaceRename({ target: shared, others: [], to: 'house' })).rejects.toMatchObject({
+    code: 'ADR_CONFLICT',
+  });
+});
+
+test('a product configuration that changed after its context was resolved refuses the plan', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    ...productFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+    }),
+  });
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  writeFiles(root, {
+    'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'shared', common: '../shared' }),
+  });
+  await expect(planWorkspaceRename({ target: shared, others: [product], to: 'house' })).rejects.toMatchObject({
+    code: 'ADR_CONFLICT',
+  });
 });
 
 test('supersedes and superseded_by are never touched', async () => {

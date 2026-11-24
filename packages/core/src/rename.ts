@@ -1,11 +1,12 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import YAML from 'yaml';
 import { readCommon } from './common.ts';
 import { CONFIG_FILE, isWorkspaceName, loadLogConfig, parseLogConfigText, workspaceNameOf } from './config.ts';
 import type { Context } from './context.ts';
 import { AdrienError } from './errors.ts';
-import { remoteUrl } from './git.ts';
+import { gitToplevel, remoteUrl } from './git.ts';
 import { withAdrLocks } from './lock.ts';
 import { readWorkingLog, revisionOfText, writeAdr } from './log.ts';
 import { assertWritable, lockOptions } from './ops.ts';
@@ -79,6 +80,17 @@ function refsIn(
   });
 }
 
+/**
+ * The configuration file of a log, read once: its text and revision. A file that no longer parses to the configuration
+ * the context was resolved with has changed since, and everything decided from that context would be stale.
+ */
+function readConfigOnce(ctx: Context): { text: string; revision: string } {
+  const file = join(ctx.logRoot, CONFIG_FILE);
+  const text = readFileSync(file, 'utf8');
+  if (!isDeepStrictEqual(parseLogConfigText(text, file), ctx.config)) throw conflict(CONFIG_FILE);
+  return { text, revision: revisionOfText(text) };
+}
+
 /** The config text with its `workspace` set, keeping comments and key order. Validated, so a bad result never reaches disk. */
 function setWorkspaceName(text: string, name: string, label: string): string {
   const doc = YAML.parseDocument(text);
@@ -99,6 +111,10 @@ export async function planWorkspaceRename(opts: {
   to: string;
 }): Promise<WorkspaceRenamePlan> {
   const { target, others, to } = opts;
+  // The configuration is read once, here, before anything is awaited: the name, the revision and the text written back
+  // all come from this one read.
+  const targetConfig = readConfigOnce(target);
+  const otherConfigs = new Map(others.map((other) => [other, readConfigOnce(other)]));
   const from = workspaceNameOf(target.config);
   if (from === null) {
     throw new AdrienError(
@@ -117,25 +133,26 @@ export async function planWorkspaceRename(opts: {
 
   const origin = await remoteUrl(target.logRoot);
   const identity = origin ? normalizeRepoUrl(origin) : null;
+  const atRepoRoot = (await gitToplevel(target.logRoot)) === target.logRoot;
   const notes: string[] = [];
   const linked: Context[] = [];
   for (const other of others) {
     const read = await readCommon(other);
     if (!read || !('common' in read)) continue;
     // A common named by a path is the target when it is the target's root. A common named by a git URL is a cached clone
-    // of that repo's root: it is the target when the URL is the target's own origin and the log it holds has the old name.
+    // of that repo's root: it is the target when the URL is the target's own origin and the target is that repo's root.
     // Either alone is not enough: another repo can hold a log with the same name, and a log in a subfolder of a repo is
     // not the log at that repo's root.
     const commonUrl = other.config.common as string;
     const sameRepo = isGitUrl(commonUrl) && identity !== null && normalizeRepoUrl(commonUrl) === identity;
     const sameName = read.common.name === from;
-    if (read.common.ctx.logRoot === target.logRoot || (sameRepo && sameName)) linked.push(other);
+    if (read.common.ctx.logRoot === target.logRoot || (sameRepo && atRepoRoot)) linked.push(other);
     else if (isGitUrl(commonUrl) && (sameRepo || sameName)) {
-      const why = sameRepo
-        ? `holds a log named "${read.common.name}", not this one`
-        : identity === null
+      const why = !sameRepo
+        ? identity === null
           ? 'cannot be matched to this log, which has no `origin`'
-          : "is not this log's repository";
+          : "is not this log's repository"
+        : "is the root of this log's repository, and this log is in a subfolder of it";
       notes.push(`${other.logSource} has a common log at ${commonUrl} that ${why}, so it was not rewritten.`);
     }
   }
@@ -151,12 +168,8 @@ export async function planWorkspaceRename(opts: {
   const edits: RenameEdit[] = [];
   const configs: WorkspaceRenamePlan['configs'] = [];
   for (const ctx of [target, ...linked]) {
-    if (ctx !== target) {
-      configs.push({
-        logRoot: ctx.logRoot,
-        revision: revisionOfText(readFileSync(join(ctx.logRoot, CONFIG_FILE), 'utf8')),
-      });
-    }
+    if (ctx !== target)
+      configs.push({ logRoot: ctx.logRoot, revision: (otherConfigs.get(ctx) as { revision: string }).revision });
     const working = readWorkingLog(ctx.logRoot, ctx.config);
     // A log named like the target reads `old/ADR-n` as its own decision, so those entries are not about the target.
     if (ctx !== target && workspaceNameOf(ctx.config) === from) {
@@ -192,15 +205,14 @@ export async function planWorkspaceRename(opts: {
     }
   }
 
-  const configText = readFileSync(join(target.logRoot, CONFIG_FILE), 'utf8');
   return {
     from,
     to,
     config: {
       logRoot: target.logRoot,
       path: CONFIG_FILE,
-      revision: revisionOfText(configText),
-      text: setWorkspaceName(configText, to, join(target.logRoot, CONFIG_FILE)),
+      revision: targetConfig.revision,
+      text: setWorkspaceName(targetConfig.text, to, join(target.logRoot, CONFIG_FILE)),
     },
     edits,
     configs,
