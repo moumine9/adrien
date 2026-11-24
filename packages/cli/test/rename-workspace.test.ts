@@ -38,7 +38,8 @@ function snapshot(root: string): Record<string, string> {
   for (const rel of readdirSync(root, { recursive: true, encoding: 'utf8' })) {
     if (rel.includes('.adrien')) continue;
     const full = join(root, rel);
-    if (statSync(full).isFile()) files[rel] = readFileSync(full, 'utf8');
+    // Keys use `/` on every platform, so a test can name a file the same way everywhere.
+    if (statSync(full).isFile()) files[rel.replaceAll('\\', '/')] = readFileSync(full, 'utf8');
   }
   return files;
 }
