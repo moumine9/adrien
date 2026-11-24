@@ -92,6 +92,29 @@ test('createAdr records review_on', async () => {
   expect(result.written && result.adr.meta.review_on).toBe('2027-06-01');
 });
 
+test('createAdr records exception_to', async () => {
+  const { ctx, view } = await load(makeLog());
+  const result = createAdr(
+    ctx,
+    view,
+    { title: 'Depart from it', exception_to: ['shared/ADR-0009'], review_on: '2027-06-01' },
+    { today: TODAY },
+  );
+  expect(result.written && result.adr.meta.exception_to).toEqual(['shared/ADR-0009']);
+});
+
+test.each([['ADR-0009'], ['not a ref/'], ['acme/ADR-0009']])(
+  "createAdr refuses exception_to %s (a plain id or this log's own name) and writes nothing",
+  async (entry) => {
+    const { ctx, view } = await load(makeLog());
+    const before = readWorkingLog(ctx.logRoot, ctx.config).adrs.length;
+    expect(() => createAdr(ctx, view, { title: 'Depart', exception_to: [entry] }, { today: TODAY })).toThrow(
+      /exception_to/,
+    );
+    expect(readWorkingLog(ctx.logRoot, ctx.config).adrs.length).toBe(before);
+  },
+);
+
 test('a --subdir that escapes the ADR dir → INVALID_INPUT and nothing written', async () => {
   const root = makeLog();
   const { ctx, view } = await load(root);

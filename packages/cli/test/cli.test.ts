@@ -240,6 +240,15 @@ test('new --review-on records the date, and check flags it once it has passed', 
   expect((await run(root, 'new', 'Bad date', '--review-on', 'soon')).code).toBe(2);
 });
 
+test('new --exception-to records the references', async () => {
+  const root = log();
+  const created = await run(root, 'new', 'Depart from it', '--exception-to', 'shared/ADR-0009,shared/ADR-0010');
+  expect(created.code).toBe(0);
+  const text = readFileSync(join(root, 'docs/adr/ADR-0001-depart-from-it.md'), 'utf8');
+  expect(text).toContain('exception_to: [shared/ADR-0009, shared/ADR-0010]');
+  expect((await run(root, 'new', 'Bad ref', '--exception-to', 'ADR-0001')).code).toBe(2);
+});
+
 test('export prints the index, writes it with --out using links relative to the file, and rejects a bad format', async () => {
   const root = log({
     'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A', status: 'accepted', review_rule: 'Rule.' }),

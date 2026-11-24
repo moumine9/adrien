@@ -82,7 +82,8 @@ it names: all the files of the product when it has no `code` anchors, otherwise 
 exempted common decision stays listed, marked `EXEMPT (by ADR-n)`, and is not binding for those files. Only an accepted
 exception on the default branch exempts anything. An exception needs `review_on`: without it `adrien check` warns with
 `exception-without-review`. Once the review date passes it is reported as due like any decision, and it stays in force
-until it is renewed, replaced or removed.
+until it is renewed, replaced or removed. `adrien new --exception-to <list> --review-on <date>` and the `adr_propose` tool
+(`exception_to`, `review_on`) write both when the decision is proposed.
 
 ### Body
 

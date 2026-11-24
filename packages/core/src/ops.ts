@@ -1,6 +1,7 @@
 import { unlinkSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { parseAnchor } from './anchors.ts';
+import { workspaceNameOf } from './config.ts';
 import type { Context } from './context.ts';
 import { type DuplicateHit, findDuplicates } from './duplicates.ts';
 import { AdrienError } from './errors.ts';
@@ -9,6 +10,7 @@ import { formatId, nextIdNumber } from './ids.ts';
 import { type LockOptions, withAdrLocks } from './lock.ts';
 import { adrFilePath, readWorkingLog, reserveId, revisionOf, writeAdr } from './log.ts';
 import type { Adr, AdrMeta, Origin, TemplateName } from './model.ts';
+import { parseRef } from './ref.ts';
 import { slugify } from './slug.ts';
 import { type LogView, workingAdrs } from './view.ts';
 
@@ -21,6 +23,8 @@ export interface NewAdrInput {
   review_on?: string;
   sources?: string[];
   related?: string[];
+  /** Common decisions this one departs from, as `workspace/ADR-n`. */
+  exception_to?: string[];
   body?: string;
   /** The skeleton to start from when no `body` is given. Default: the config's `template`. */
   template?: TemplateName;
@@ -77,10 +81,22 @@ export function assertWritable(ctx: Context): void {
 
 export function validateInput(
   ctx: Context,
-  input: { tags?: string[]; components?: string[]; code?: string[]; review_on?: string },
+  input: { tags?: string[]; components?: string[]; code?: string[]; review_on?: string; exception_to?: string[] },
 ): void {
   if (input.review_on !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(input.review_on)) {
     throw new AdrienError('INVALID_INPUT', `review_on "${input.review_on}" must be a date like 2027-03-04`);
+  }
+  // As `check` reads it: an exception always names a decision of a common log, written workspace/ADR-n.
+  const own = workspaceNameOf(ctx.config);
+  const badExceptions = (input.exception_to ?? []).filter((entry) => {
+    const { workspace } = parseRef(entry);
+    return workspace === null || workspace === own;
+  });
+  if (badExceptions.length) {
+    throw new AdrienError(
+      'INVALID_INPUT',
+      `Invalid exception_to: ${badExceptions.join(', ')}. Write a decision of the common log as workspace/ADR-n, not a plain id or this log's own name.`,
+    );
   }
   const known = Object.keys(ctx.config.components);
   const badTags = (input.tags ?? []).filter((t) => !ctx.config.tags.includes(t));
@@ -170,7 +186,7 @@ export function createAdr(
           sources: input.sources ?? [],
           supersedes: [],
           related: input.related ?? [],
-          exception_to: [],
+          exception_to: input.exception_to ?? [],
           deciders: [],
           origin: input.origin ?? 'manual',
           contested: false,

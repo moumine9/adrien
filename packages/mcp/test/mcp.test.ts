@@ -202,6 +202,19 @@ test('adr_propose writes status proposed, origin agent, with the sections filled
   expect(text).toContain('## Considered options\n');
 });
 
+test('adr_propose records exception_to and review_on', async () => {
+  const root = monorepo();
+  const client = await connect({ cwd: root });
+  const { structured } = await call(client, 'adr_propose', {
+    ...proposal,
+    exception_to: ['shared/ADR-0009'],
+    review_on: '2027-06-01',
+  });
+  const text = readFileSync(join(root, ...structured.path.split('/')), 'utf8');
+  expect(text).toContain('exception_to: [shared/ADR-0009]');
+  expect(text).toContain('review_on: 2027-06-01');
+});
+
 test('two adr_propose calls in flight at once get distinct ids and both files survive', async () => {
   const root = monorepo();
   const client = await connect({ cwd: root });
