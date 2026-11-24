@@ -200,6 +200,8 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
         code: strings.optional(),
         sources: strings.optional(),
         related: strings.optional(),
+        exception_to: strings.optional(),
+        review_on: z.string().optional(),
         force: z.boolean().optional(),
       },
     },
@@ -219,6 +221,8 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
           code?: string[];
           sources?: string[];
           related?: string[];
+          exception_to?: string[];
+          review_on?: string;
           force?: boolean;
         },
         ctx,
@@ -242,6 +246,8 @@ export function registerTools(server: McpServer, opts: ServerOptions): void {
             review_rule: a.review_rule,
             sources: a.sources,
             related: a.related,
+            exception_to: a.exception_to,
+            review_on: a.review_on,
             body,
             origin: 'agent',
           },

@@ -8,6 +8,7 @@ interface NewOptions {
   code: string[];
   reviewRule?: string;
   reviewOn?: string;
+  exceptionTo?: string;
   subdir?: string;
   template?: string;
   force?: boolean;
@@ -23,6 +24,7 @@ export function registerNew(program: Command, cli: Cli): void {
     .option('--code <component:glob>', 'code it governs (repeatable)', collect, [])
     .option('--review-rule <text>', 'one checkable sentence for reviewers and agents')
     .option('--review-on <date>', 'when to look at this decision again, as YYYY-MM-DD')
+    .option('--exception-to <list>', 'common decisions this one departs from, as workspace/ADR-n, comma-separated')
     .option('--subdir <path>', 'folder inside the ADR dir')
     .option('--template <name>', `body skeleton: ${TEMPLATE_NAMES.join(', ')} (default: the config's template)`)
     .option('--force', 'create even if a similar title exists')
@@ -45,6 +47,7 @@ export function registerNew(program: Command, cli: Cli): void {
           code: opts.code,
           review_rule: opts.reviewRule,
           review_on: opts.reviewOn,
+          exception_to: csv(opts.exceptionTo),
           subdir: opts.subdir,
           template: opts.template as TemplateName | undefined,
         },
