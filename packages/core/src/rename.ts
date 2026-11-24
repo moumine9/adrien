@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import YAML from 'yaml';
@@ -6,9 +6,10 @@ import { type CommonResolution, readCommon } from './common.ts';
 import { CONFIG_FILE, isWorkspaceName, loadLogConfig, parseLogConfigText, workspaceNameOf } from './config.ts';
 import type { Context } from './context.ts';
 import { AdrienError } from './errors.ts';
+import { serializeAdr } from './frontmatter.ts';
 import { gitToplevel, remoteUrl } from './git.ts';
 import { withAdrLocks } from './lock.ts';
-import { readWorkingLog, revisionOfText, writeAdr } from './log.ts';
+import { assertInsideLog, readWorkingLog, revisionOfText, writeTextAtomic } from './log.ts';
 import { assertWritable, lockOptions } from './ops.ts';
 import { parseRef } from './ref.ts';
 import { isGitUrl, normalizeRepoUrl } from './repo-url.ts';
@@ -281,7 +282,62 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
         return { logRoot, adr: { ...adr, meta: { ...adr.meta, related, exception_to } } };
       });
     });
-    for (const write of writes) writeAdr(write.logRoot, write.adr);
-    writeFileSync(configFile, plan.config.text);
+    // Each file's text before the first write, so a failed write can be put back.
+    const steps: Step[] = [
+      ...writes.map(({ logRoot, adr }) => {
+        const file = join(logRoot, ...adr.path.split('/'));
+        assertInsideLog(logRoot, file, adr.path);
+        return { file, original: readFileSync(file, 'utf8'), write: () => writeTextAtomic(file, serializeAdr(adr)) };
+      }),
+      {
+        file: configFile,
+        original: readFileSync(configFile, 'utf8'),
+        write: () => writeTextAtomic(configFile, plan.config.text),
+      },
+    ];
+    const written: Step[] = [];
+    try {
+      for (const step of steps) {
+        step.write();
+        written.push(step);
+      }
+    } catch (error) {
+      rollBack(written, steps.slice(written.length), error);
+    }
   });
+}
+
+/** A file the apply writes, with the text it had before the write. */
+interface Step {
+  file: string;
+  original: string;
+  write: () => void;
+}
+
+/** The message of an error the file calls threw, which are always `Error`s. */
+const messageOf = (error: unknown): string => (error as Error).message;
+
+/**
+ * Puts back the files already written, in reverse order, then rethrows the original error. The file whose write failed
+ * was never replaced, because a write is atomic. A file that cannot be put back is reported with the others, and the
+ * error names each one.
+ */
+function rollBack(written: readonly Step[], pending: readonly Step[], cause: unknown): never {
+  const lines: string[] = [];
+  let restoredAll = true;
+  for (const step of [...written].reverse()) {
+    try {
+      writeTextAtomic(step.file, step.original);
+      lines.push(`${step.file}: restored`);
+    } catch (e) {
+      restoredAll = false;
+      lines.push(`${step.file}: left renamed (restore failed: ${messageOf(e)})`);
+    }
+  }
+  if (restoredAll) throw cause;
+  for (const step of pending) lines.push(`${step.file}: unchanged`);
+  throw new AdrienError(
+    'ADR_CONFLICT',
+    `The rename failed (${messageOf(cause)}) and could not be fully undone, so the log is in a mixed state: put the files marked "left renamed" back by hand, or rename them again.\n${lines.join('\n')}`,
+  );
 }
