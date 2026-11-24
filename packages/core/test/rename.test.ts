@@ -846,12 +846,19 @@ test('a config write that fails after every ADR was written restores all of them
   expect(tempFilesIn(root)).toEqual([]);
 });
 
-test('a temp file whose write fails is removed, and the original error is rethrown', async () => {
-  const { root, config } = renameFixture();
+test('a temp file whose write fails after it was created is removed, and the original error is rethrown', async () => {
+  const { root } = renameFixture();
   const plan = await fixturePlan(root);
   const before = snapshot(root);
   const injected = new Error('no space left');
-  failOnce('write', `${config}.tmp-${process.pid}`, injected);
+  let spent = false;
+  // The temp file is written through its descriptor, which the hook sees as a number.
+  faults.hook = (op, path) => {
+    if (op === 'write' && /^\d+$/.test(path) && !spent) {
+      spent = true;
+      throw injected;
+    }
+  };
   expect(applyError(plan)).toBe(injected);
   expect(snapshot(root)).toEqual(before);
   expect(tempFilesIn(root)).toEqual([]);

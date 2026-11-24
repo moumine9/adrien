@@ -1,8 +1,10 @@
 import { createHash } from 'node:crypto';
 import {
+  closeSync,
   existsSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
   realpathSync,
@@ -148,8 +150,13 @@ export function writeTextAtomic(file: string, content: string): void {
   let created = false;
   try {
     // 'wx' fails on any existing path, a link included, so the write can never be redirected to another file.
-    writeFileSync(temp, content, { flag: 'wx' });
+    const fd = openSync(temp, 'wx');
     created = true;
+    try {
+      writeFileSync(fd, content);
+    } finally {
+      closeSync(fd);
+    }
     renameSync(temp, target);
   } catch (e) {
     // Only a temp file this call created is removed: an existing one is not ours.
