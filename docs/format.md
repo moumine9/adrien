@@ -173,7 +173,8 @@ common log that only has the same name is another repo and is reported, not rewr
 ADRs are rewritten too: on an accepted ADR, `exception_to` may change only by its prefix, so a rename is allowed and a
 retarget, an added or a removed entry is not. Supersession links, file names, ids and the rest of each file are left as
 they are. `--dry-run` prints the changes and writes nothing. Everything is checked before the first write: a rename that would make a `related` entry read as a local id of its log is
-refused, so choose another name. A change
+refused, so choose another name. A product that has the same name as the log being renamed keeps its `<old>/ADR-n`
+entries, which name its own decisions, and the command says so. A change
 made to one of those files since the plan refuses the rename.
 
 Run it from the log you rename, and try `--dry-run` first. With several logs in `ADRIEN_LOG` (or `--log`), the log renamed

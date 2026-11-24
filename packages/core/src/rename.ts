@@ -36,6 +36,8 @@ export interface WorkspaceRenamePlan {
   /** The target log's configuration: its planned text, and the revision it was planned on. */
   config: { logRoot: string; path: string; revision: string; text: string };
   edits: RenameEdit[];
+  /** The configuration of every other log the plan depends on, as read: a change since refuses the apply. */
+  configs: Array<{ logRoot: string; revision: string }>;
   /** What could not be checked, for the person to look at. */
   notes: string[];
 }
@@ -147,8 +149,27 @@ export async function planWorkspaceRename(opts: {
   }
 
   const edits: RenameEdit[] = [];
+  const configs: WorkspaceRenamePlan['configs'] = [];
   for (const ctx of [target, ...linked]) {
+    if (ctx !== target) {
+      configs.push({
+        logRoot: ctx.logRoot,
+        revision: revisionOfText(readFileSync(join(ctx.logRoot, CONFIG_FILE), 'utf8')),
+      });
+    }
     const working = readWorkingLog(ctx.logRoot, ctx.config);
+    // A log named like the target reads `old/ADR-n` as its own decision, so those entries are not about the target.
+    if (ctx !== target && workspaceNameOf(ctx.config) === from) {
+      const named = working.adrs.some((adr) =>
+        [...adr.meta.related, ...adr.meta.exception_to].some((entry) => parseRef(entry).workspace === from),
+      );
+      if (named) {
+        notes.push(
+          `${ctx.logSource} has the same name as this log, so its "${from}/..." references name its own decisions and were kept.`,
+        );
+      }
+      continue;
+    }
     for (const problem of working.problems) {
       notes.push(`${problem.path} could not be read in ${ctx.logSource}, so its references were not checked.`);
     }
@@ -182,6 +203,7 @@ export async function planWorkspaceRename(opts: {
       text: setWorkspaceName(configText, to, join(target.logRoot, CONFIG_FILE)),
     },
     edits,
+    configs,
     notes,
   };
 }
@@ -219,6 +241,9 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
 
   withLogs(groups, env, () => {
     if (revisionOfText(readFileSync(configFile, 'utf8')) !== plan.config.revision) throw conflict(plan.config.path);
+    for (const { logRoot, revision } of plan.configs) {
+      if (revisionOfText(readFileSync(join(logRoot, CONFIG_FILE), 'utf8')) !== revision) throw conflict(CONFIG_FILE);
+    }
     const writes = groups.flatMap(([logRoot, edits]) => {
       const { adrs } = readWorkingLog(logRoot, loadLogConfig(logRoot));
       const ownIds = new Set(adrs.map((adr) => adr.meta.id));

@@ -1,10 +1,12 @@
 import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { runCheck } from '../src/check.ts';
 import { CONFIG_FILE, loadLogConfig } from '../src/config.ts';
 import { type Context, resolveContext } from '../src/context.ts';
 import { readWorkingLog } from '../src/log.ts';
 import { applyWorkspaceRename, planWorkspaceRename } from '../src/rename.ts';
+import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { initRepo } from './helpers/git.ts';
 
@@ -429,6 +431,94 @@ test('a local id created after the plan that a rewritten related entry would nam
   const before = snapshot(root);
   expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
   expect(snapshot(root)).toEqual(before);
+});
+
+test('a linked product with the same own name keeps its self-prefixed references, and a note says so', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'shared', common: '../shared' }),
+    'product/docs/adr/ADR-0001-local.md': adrText({ id: 'ADR-0001', title: 'Local' }),
+    'product/docs/adr/ADR-0002-next.md': adrText({ id: 'ADR-0002', title: 'Next', related: ['shared/ADR-0001'] }),
+  });
+  const before = snapshot(join(root, 'product'));
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  const plan = await planWorkspaceRename({ target: shared, others: [product], to: 'house' });
+  applyWorkspaceRename(plan);
+  expect(snapshot(join(root, 'product'))).toEqual(before);
+  expect(plan.notes.join('\n')).toMatch(/same name/);
+});
+
+test('a change to the configuration of an edited product since the plan refuses the apply', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    ...productFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+    }),
+  });
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  const plan = await planWorkspaceRename({ target: shared, others: [product], to: 'house' });
+  writeFiles(root, {
+    'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'shared', common: '../shared' }),
+  });
+  const before = snapshot(root);
+  expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
+  expect(snapshot(root)).toEqual(before);
+});
+
+/** The link diagnostics `check` reports for a log, as `code message` lines. */
+async function linkProblems(dir: string, env: NodeJS.ProcessEnv): Promise<string[]> {
+  const ctx = await ctxAt(dir, env);
+  const diags = await runCheck(ctx, await loadLogView(ctx.logRoot, ctx.config));
+  return diags
+    .filter((d) => ['broken-link', 'invalid-ref', 'unresolved-ref'].includes(d.code))
+    .map((d) => `${d.code} ${d.message}`);
+}
+
+test('check reports the same link problems on every log before and after a rename', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'shared/docs/adr/ADR-0010-next.md': adrText({
+      id: 'ADR-0010',
+      title: 'Next',
+      related: ['shared/ADR-0009', 'ADR-0009'],
+    }),
+    ...productFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({
+        id: 'ADR-0002',
+        title: 'Use it',
+        related: ['shared/ADR-0009', 'other/ADR-0003'],
+        exception_to: ['shared/ADR-0009'],
+      }),
+    }),
+  });
+  const env = { ADRIEN_HOME: tmpDir() };
+  const dirs = [join(root, 'shared'), join(root, 'product')];
+  const before = await Promise.all(dirs.map((dir) => linkProblems(dir, env)));
+  const shared = await ctxAt(dirs[0] as string);
+  const product = await ctxAt(dirs[1] as string);
+  applyWorkspaceRename(await planWorkspaceRename({ target: shared, others: [product], to: 'house' }));
+  const after = await Promise.all(dirs.map((dir) => linkProblems(dir, env)));
+  expect(after.map((lines) => lines.map((l) => l.split(' ')[0]))).toEqual(
+    before.map((lines) => lines.map((l) => l.split(' ')[0])),
+  );
+});
+
+test('a same-named product with no entries naming the old name gets no note', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'shared', common: '../shared' }),
+    'product/docs/adr/ADR-0001-local.md': adrText({ id: 'ADR-0001', title: 'Local' }),
+  });
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  const plan = await planWorkspaceRename({ target: shared, others: [product], to: 'house' });
+  expect(plan.notes).toEqual([]);
 });
 
 test('supersedes and superseded_by are never touched', async () => {
