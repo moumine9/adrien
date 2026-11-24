@@ -68,7 +68,7 @@ token and the host check are the same for every workspace.
 | `GET /api/graph`                   | `GraphResponse`: one node per ADR and one edge per `supersedes` or `related` link.                                                                                                                                        |
 | `GET /api/for?path=a.ts&path=b.ts` | `ForResponse`: the decisions governing each file (paths are relative to the directory `adrien serve` was started in). At least one `path`.                                                                                |
 | `GET /api/check`                   | `CheckResponse`. `lint=1` adds the style warnings.                                                                                                                                                                        |
-| `GET /api/export?format=markdown\  | llms`                                                                                                                                                                                                                     |
+| `GET /api/export?format=llms`      | The generated overview as `text/plain`. `format` is `markdown` (the default) or `llms`; another value is refused with 400 (`INVALID_INPUT`).                                                                              |
 | `GET /` and other paths            | The web visualizer (static files), with `index.html` as the fallback for client-side routes. 404 JSON for unknown `/api/*`.                                                                                               |
 
 Every endpoint above except `/api/workspaces` is also served as `/api/w/<name>/...` (for example `/api/w/acme/graph`).
