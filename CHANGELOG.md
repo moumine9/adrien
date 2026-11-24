@@ -1,3 +1,23 @@
+## [0.11.0](https://github.com/moumine9/adrien/compare/v0.10.0...v0.11.0) (2026-11-24)
+
+A workspace can be renamed, with every reachable reference rewritten and a catch-up for logs renamed elsewhere. A decision can record an exception when it is proposed.
+
+### Features
+
+* **cli:** `adrien rename-workspace <new-name>` renames the log's workspace and rewrites the `related` and `exception_to` entries that name the old name, in this log and in the logs whose `common` points to it; `--dry-run` shows the changes first ([caf17e2](https://github.com/moumine9/adrien/commit/caf17e2bfb1090d56e75aec208045e52e358bf33))
+* **cli:** `rename-workspace --also <log-dir>` checks logs outside `ADRIEN_LOG`, and `rename-workspace <new-name> --from <old-name>` catches up, from inside it, a log that was renamed elsewhere ([82f88bd](https://github.com/moumine9/adrien/commit/82f88bdff33afd1d5ec12c343c470f8cbcb5b4f4))
+* **cli:** `adrien new --exception-to <list>`, and `exception_to` and `review_on` in the MCP `adr_propose` tool, record an exception when a decision is proposed; a plain id or the log's own name is refused ([801eae8](https://github.com/moumine9/adrien/commit/801eae856047833dda4a6f1011e611b94b47ec30))
+
+### Notes
+
+* A rename that fails on a write puts every file back as it was. A process killed in the middle is not covered.
+* A log that was not reached by a rename keeps the old name until you run the catch-up in it; until then `adrien check` shows its references as `unresolved-ref`, which is information and never fails the check.
+* A common log read by URL is cloned once: if its clone still has the old name, the catch-up says which directory to remove.
+
+### Compatibility
+
+* Additions only: the command `rename-workspace`, the option `adrien new --exception-to` and the `adr_propose` inputs `exception_to` and `review_on`. Nothing existing changes.
+
 ## [0.10.0](https://github.com/moumine9/adrien/compare/v0.9.0...v0.10.0) (2026-11-23)
 
 One Adrien instance can now serve several workspaces (one per product), a product can be bound by a common log, and a product can record an exception to a common decision. A single log needs no change to keep working.
