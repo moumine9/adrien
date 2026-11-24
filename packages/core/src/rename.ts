@@ -285,6 +285,8 @@ export async function planReferenceCatchUp(opts: {
     }
     if (name !== to) throw fail(`its common log is named "${name}", not "${to}".`);
     configs.push({ logRoot: ctx.logRoot, revision: config.revision });
+    // The common log's name was just checked, so its configuration is part of what the plan depends on.
+    configs.push({ logRoot: read.common.ctx.logRoot, revision: readConfigOnce(read.common.ctx).revision });
     assertWritable(ctx);
     edits.push(...editsIn(ctx, from, to, notes));
   }

@@ -1172,3 +1172,22 @@ test('a catch-up refusal for a URL common still named like the old name names th
   expect((error as Error).message).toContain('cached clone');
   expect((error as Error).message).toContain(home);
 });
+
+test('a catch-up plan is refused when the common log was renamed again after the plan', async () => {
+  const root = tmpDir();
+  writeFiles(
+    root,
+    catchUpFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({
+        id: 'ADR-0002',
+        title: 'Use it',
+        related: ['shared/ADR-0009'],
+      }),
+    }),
+  );
+  const plan = await catchUpPlan(root);
+  writeFiles(root, { 'shared/adrien.config.yaml': configYaml({ product: 'Shared Co', workspace: 'castle' }) });
+  const before = snapshot(root);
+  expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
+  expect(snapshot(root)).toEqual(before);
+});
