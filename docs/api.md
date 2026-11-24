@@ -54,8 +54,8 @@ token and the host check are the same for every workspace.
   that are anchored to other paths, each as `id`, `title`, `workspace` and its `anchors` in that component, closest
   folders first and at most ten, and how many were left out. They do not govern the file and carry no rule. A file
   outside every component has `component: null` and empty lists: no decision can be found for it.
-  Each list is present only when it has entries. `notes` also warns when the common log has no
-  default branch to verify its decisions against.
+- A `GET /api/for` response has `notes` and `common_notes` only when they have entries; every file always has `nearby`
+  and `nearby_omitted`.
 
 ## Endpoints
 
