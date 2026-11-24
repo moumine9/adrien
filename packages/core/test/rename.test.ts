@@ -861,10 +861,9 @@ test('a temp file that cannot be removed does not hide the original error', asyn
   const { root, config } = renameFixture();
   const plan = await fixturePlan(root);
   const injected = new Error('no space left');
-  const temp = `${config}.tmp-${process.pid}`;
   let spent = false;
   faults.hook = (op, path) => {
-    if (op === 'write' && path === temp && !spent) {
+    if (op === 'rename' && path === config && !spent) {
       spent = true;
       throw injected;
     }
@@ -910,4 +909,17 @@ test('a symlinked ADR is rewritten through the link, which stays a link', async 
   applyWorkspaceRename(await fixturePlan(root));
   expect(lstatSync(link).isSymbolicLink()).toBe(true);
   expect(readFileSync(link, 'utf8')).toContain('house/ADR-0009');
+});
+
+test('a temp path that already exists, as a link to a file elsewhere, is never written through', async () => {
+  const { root, one } = renameFixture();
+  const plan = await fixturePlan(root);
+  const outside = join(tmpDir(), 'outside.txt');
+  writeFileSync(outside, 'keep me');
+  const temp = `${one}.tmp-${process.pid}`;
+  symlinkSync(outside, temp);
+  expect(applyError(plan)).toMatchObject({ code: 'EEXIST' });
+  expect(readFileSync(outside, 'utf8')).toBe('keep me');
+  expect(lstatSync(temp).isSymbolicLink()).toBe(true);
+  expect(readFileSync(one, 'utf8')).toContain('shared/ADR-0009');
 });

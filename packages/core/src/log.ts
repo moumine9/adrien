@@ -145,14 +145,20 @@ export const revisionOf = (logRoot: string, adrPath: string): string =>
 export function writeTextAtomic(file: string, content: string): void {
   const target = realpathSync(file);
   const temp = `${target}.tmp-${process.pid}`;
+  let created = false;
   try {
-    writeFileSync(temp, content);
+    // 'wx' fails on any existing path, a link included, so the write can never be redirected to another file.
+    writeFileSync(temp, content, { flag: 'wx' });
+    created = true;
     renameSync(temp, target);
   } catch (e) {
-    try {
-      unlinkSync(temp);
-    } catch {
-      // The temp file was never created, or cannot be removed: the original error is the one to report.
+    // Only a temp file this call created is removed: an existing one is not ours.
+    if (created) {
+      try {
+        unlinkSync(temp);
+      } catch {
+        // It cannot be removed: the original error is the one to report.
+      }
     }
     throw e;
   }
