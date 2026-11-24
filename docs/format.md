@@ -163,6 +163,28 @@ components:
 - `repo` is matched against a checkout's git remote, so `https://…`, `git@…:` and `ssh://…` forms of the same repo are
   the same repo, with or without `.git`.
 
+## Renaming a workspace
+
+`adrien rename-workspace <new-name>` renames the log. It sets the `workspace` field of its `adrien.config.yaml`; a log
+that had none gets the field, and its `product` is left as it is. It then rewrites each `related` and `exception_to`
+entry that names the old name, `<old>/ADR-n`, as `<new-name>/ADR-n`, keeping the id after the slash. It does this in the
+log itself, and in every other log of the run whose `common` field points to this one, since only those name it. Accepted
+ADRs are rewritten too: on an accepted ADR, `exception_to` may change only by its prefix, so a rename is allowed and a
+retarget, an added or a removed entry is not. Supersession links, file names, ids and the rest of each file are left as
+they are. `--dry-run` prints the changes and writes nothing. Everything is checked before the first write, and a change
+made to one of those files since the plan refuses the rename.
+
+Run it from the log you rename, and try `--dry-run` first. With several logs in `ADRIEN_LOG` (or `--log`), the log renamed
+is the one the current directory belongs to. Only the logs listed there are reached: a log outside that list keeps its
+references to the old name. An instance entry `<old>=<path>` in `ADRIEN_LOG` keeps the old name until it is changed.
+
+A common log and its products are separate repositories, merged separately. Until a product's rewritten references are
+merged too, its references to the old name show as `unresolved-ref`, which is information and never fails `check`. An
+exception to a common decision then no longer exempts the files it governs, so the common decision binds again. Merge the
+rename of the common log and of its products together.
+
+Bookmarks and addresses that carry the old name, such as `/api/w/<old>/`, are not kept.
+
 ## `.adrien.yaml` (in a code repo)
 
 ```yaml
@@ -203,7 +225,7 @@ flagged in the same merge request.
 ## Changing an ADR from several places
 
 The CLI, an MCP server and an editor can all touch the same log at once. Adrien keeps one writer per ADR: a command that
-changes an ADR (`accept`, `status`, `supersede`, `renumber`, and the changes an agent proposes) first takes that ADR's
+changes an ADR (`accept`, `status`, `supersede`, `renumber`, `rename-workspace`, and the changes an agent proposes) first takes that ADR's
 lock, a small file under `.adrien/locks/` that git ignores, and holds it for the read, the change and the write. A second
 process waits for it, up to 5 seconds (set `ADRIEN_LOCK_TIMEOUT_MS` to change that), and then fails with `ADR_LOCKED`,
 naming the ADR and the holder. Nothing is written in that case, so it is safe to try again. The lock protects each

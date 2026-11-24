@@ -57,7 +57,7 @@ function assertFresh(ctx: Context, adr: Adr, expected: string | undefined): void
 const todayOf = (opts?: OpOptions) => opts?.today ?? new Date().toISOString().slice(0, 10);
 
 /** `ADRIEN_LOCK_TIMEOUT_MS` sets how long a change waits for another process to let go of an ADR; anything else keeps the default. */
-function lockOptions(env: NodeJS.ProcessEnv): LockOptions {
+export function lockOptions(env: NodeJS.ProcessEnv): LockOptions {
   const timeoutMs = Number(env.ADRIEN_LOCK_TIMEOUT_MS);
   return Number.isInteger(timeoutMs) && timeoutMs > 0 ? { timeoutMs } : {};
 }
