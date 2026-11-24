@@ -89,8 +89,8 @@ Adrien keeps its own architecture decisions in
 
 ## Status
 
-Early. The local core (format, CLI, MCP server) is what exists today. Next: a server and API, a web UI, and detection
-of decisions hiding in merge requests, chat and tickets.
+Early. What exists today: the format, the CLI, the MCP server, and `adrien serve`, a read-only HTTP API that also
+serves a web visualizer and can be self-hosted for a team.
 
 ## License
 
