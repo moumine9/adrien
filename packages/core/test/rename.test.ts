@@ -388,6 +388,49 @@ test('a product whose git URL common is the repo of the target but holds another
   expect(plan.notes.join('\n')).toMatch(/holds a log named "root", not this one/);
 });
 
+test('a rename is refused, and nothing written, when a rewritten related entry would name a local id', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: '../shared',
+      id_format: 'house/{n:4}',
+    }),
+    'product/docs/adr/house-0009-local.md': adrText({ id: 'house/0009', title: 'Local' }),
+    'product/docs/adr/house-0010-next.md': adrText({ id: 'house/0010', title: 'Next', related: ['shared/0009'] }),
+  });
+  const before = snapshot(root);
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  await expect(planWorkspaceRename({ target: shared, others: [product], to: 'house' })).rejects.toThrow(
+    /house\/0009.*local id/,
+  );
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('a local id created after the plan that a rewritten related entry would name refuses the apply', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: '../shared',
+      id_format: 'house/{n:4}',
+    }),
+    'product/docs/adr/house-0010-next.md': adrText({ id: 'house/0010', title: 'Next', related: ['shared/0009'] }),
+  });
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  const plan = await planWorkspaceRename({ target: shared, others: [product], to: 'house' });
+  writeFiles(root, { 'product/docs/adr/house-0009-local.md': adrText({ id: 'house/0009', title: 'Local' }) });
+  const before = snapshot(root);
+  expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
+  expect(snapshot(root)).toEqual(before);
+});
+
 test('supersedes and superseded_by are never touched', async () => {
   const root = tmpDir();
   writeFiles(root, {

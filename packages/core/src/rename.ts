@@ -42,6 +42,12 @@ export interface WorkspaceRenamePlan {
 
 const NO_IDS: ReadonlySet<string> = new Set();
 
+const collision = (where: string, entry: string, next: string) =>
+  new AdrienError(
+    'INVALID_INPUT',
+    `Renaming would make "${entry}" in ${where} read "${next}", which is a local id of that log: choose another name.`,
+  );
+
 const conflict = (path: string) =>
   new AdrienError('ADR_CONFLICT', `${path} changed since the rename was planned: plan it again.`);
 
@@ -62,9 +68,11 @@ function refsIn(
   ownIds: ReadonlySet<string>,
   from: string,
   to: string,
+  where: string,
 ): RenameRef[] {
   return entries.flatMap((entry) => {
     const next = renameEntry(entry, ownIds, from, to);
+    if (field === 'related' && next !== entry && ownIds.has(next)) throw collision(where, entry, next);
     return next === entry ? [] : [{ field, from: entry, to: next }];
   });
 }
@@ -147,8 +155,8 @@ export async function planWorkspaceRename(opts: {
     const ownIds = new Set(working.adrs.map((adr) => adr.meta.id));
     for (const adr of working.adrs) {
       const refs = [
-        ...refsIn('related', adr.meta.related, ownIds, from, to),
-        ...refsIn('exception_to', adr.meta.exception_to, NO_IDS, from, to),
+        ...refsIn('related', adr.meta.related, ownIds, from, to, `${adr.meta.id} in ${ctx.logSource}`),
+        ...refsIn('exception_to', adr.meta.exception_to, NO_IDS, from, to, adr.meta.id),
       ];
       if (refs.length === 0) continue;
       assertWritable(ctx);
@@ -217,7 +225,11 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
       return edits.map((edit) => {
         const adr = adrs.find((candidate) => candidate.path === edit.path);
         if (!adr || adr.revision !== edit.revision) throw conflict(edit.path);
-        const related = adr.meta.related.map((entry) => renameEntry(entry, ownIds, plan.from, plan.to));
+        const related = adr.meta.related.map((entry) => {
+          const next = renameEntry(entry, ownIds, plan.from, plan.to);
+          if (next !== entry && ownIds.has(next)) throw conflict(edit.path);
+          return next;
+        });
         const exception_to = adr.meta.exception_to.map((entry) => renameEntry(entry, NO_IDS, plan.from, plan.to));
         return { logRoot, adr: { ...adr, meta: { ...adr.meta, related, exception_to } } };
       });
