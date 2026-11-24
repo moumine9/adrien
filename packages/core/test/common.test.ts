@@ -196,7 +196,7 @@ describe('forFilesWithCommon', () => {
     const ctx = await resolveContext({ cwd: plain, env: {} });
     const view = await loadLogView(plain, ctx.config);
     expect(await forFilesWithCommon(ctx, view, ['src/a.ts'])).toEqual({
-      files: [{ file: 'src/a.ts', component: 'billing-service', decisions: [] }],
+      files: [{ file: 'src/a.ts', component: 'billing-service', decisions: [], nearby: [], nearby_omitted: 0 }],
       notes: [],
       commonNotes: [],
     });

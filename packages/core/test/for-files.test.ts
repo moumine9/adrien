@@ -113,7 +113,7 @@ test('binding first, then anchor matches before component matches, then by id', 
 
 test('a file outside any component → component null, decisions []', () => {
   expect(adrsForFiles(ctx, view([anchored]), ['../elsewhere/x.ts'])).toEqual([
-    { file: '../elsewhere/x.ts', component: null, decisions: [] },
+    { file: '../elsewhere/x.ts', component: null, decisions: [], nearby: [], nearby_omitted: 0 },
   ]);
 });
 
@@ -327,5 +327,116 @@ describe('an exception to a common decision', () => {
     expect(result?.decisions).toContainEqual(
       expect.objectContaining({ id: 'ADR-0010', binding: false, exemption: { by: 'ADR-0012' } }),
     );
+  });
+});
+
+describe('nearby decisions (ADR-0036)', () => {
+  const importer = 'src/Importers/InvoiceImporter.ts';
+  const elsewhere = (id: string, glob: string, over: Partial<AdrMeta> = {}) =>
+    adr(id, { components: ['billing-service'], code: [`billing-service:${glob}`], ...over });
+  const common = (decisions: Adr[]): CommonLog => ({ name: 'common', ctx, view: view(decisions) });
+  const nearbyIds = (v: LogView, file = importer, c: CommonLog | null = null) =>
+    adrsForFiles(ctx, v, [file], c)[0]?.nearby.map((n) => [n.id, n.workspace]);
+
+  test('a decision of the same component anchored to another path is listed, even when another decision governs', () => {
+    const [file] = adrsForFiles(ctx, view([anchored, componentWide, webOnly]), [importer]);
+    expect(file?.decisions.map((d) => d.id)).toEqual(['ADR-0002']);
+    expect(file?.nearby).toEqual([
+      { id: 'ADR-0001', title: 'Title ADR-0001', workspace: null, anchors: ['billing-service:src/Invoices/**'] },
+    ]);
+    expect(file?.nearby_omitted).toBe(0);
+  });
+
+  test('the decision that covers a file is not nearby for it', () => {
+    expect(nearbyIds(view([anchored]), 'src/Invoices/Invoice.ts')).toEqual([]);
+  });
+
+  test('only accepted decisions on the default branch are nearby', () => {
+    const proposedElsewhere = elsewhere('ADR-0006', 'src/Payments/**', { status: 'proposed' });
+    const deprecated = elsewhere('ADR-0007', 'src/Payments/**', { status: 'deprecated' });
+    const added = elsewhere('ADR-0008', 'src/Payments/**');
+    const pendingOnly: PendingChange = { id: 'ADR-0008', kind: 'added', current: added };
+    expect(nearbyIds(view([proposedElsewhere, deprecated], [pendingOnly]))).toEqual([]);
+  });
+
+  test('a decision already listed for the file in another layer is not nearby', () => {
+    const widened = { ...anchored, meta: { ...anchored.meta, code: ['billing-service:src/**'] } };
+    const pending: PendingChange = { id: 'ADR-0001', kind: 'modified', base: anchored, current: widened };
+    const [file] = adrsForFiles(ctx, view([anchored], [pending]), [importer]);
+    expect(file?.decisions.map((d) => [d.id, d.layer])).toEqual([['ADR-0001', 'pending']]);
+    expect(file?.nearby).toEqual([]);
+  });
+
+  test("only the anchors in the file's component are given", () => {
+    const both = adr('ADR-0009', {
+      components: ['billing-service', 'web'],
+      code: ['billing-service:src/Invoices/**', 'web:src/**', 'billing-service:lib/**'],
+    });
+    expect(adrsForFiles(ctx, view([both]), [importer])[0]?.nearby).toEqual([
+      {
+        id: 'ADR-0009',
+        title: 'Title ADR-0009',
+        workspace: null,
+        anchors: ['billing-service:src/Invoices/**', 'billing-service:lib/**'],
+      },
+    ]);
+  });
+
+  test('closest folders first, then by id; at most ten, with a count of the rest', () => {
+    const far = Array.from({ length: 11 }, (_, i) => elsewhere(`ADR-01${String(i + 1).padStart(2, '0')}`, 'lib/x/**'));
+    const sibling = elsewhere('ADR-0120', 'src/Importers/Other.ts');
+    const cousin = elsewhere('ADR-0115', 'src/Payments/**');
+    const [file] = adrsForFiles(ctx, view([...far, cousin, sibling]), [importer]);
+    expect(file?.nearby.map((n) => n.id)).toEqual([
+      'ADR-0120',
+      'ADR-0115',
+      'ADR-0101',
+      'ADR-0102',
+      'ADR-0103',
+      'ADR-0104',
+      'ADR-0105',
+      'ADR-0106',
+      'ADR-0107',
+      'ADR-0108',
+    ]);
+    expect(file?.nearby_omitted).toBe(3);
+  });
+
+  test('a decision is as close as its closest anchor', () => {
+    const twoAnchors = adr('ADR-0130', {
+      components: ['billing-service'],
+      code: ['billing-service:lib/**', 'billing-service:src/Importers/Other.ts'],
+    });
+    const cousin = elsewhere('ADR-0115', 'src/Payments/**');
+    expect(nearbyIds(view([cousin, twoAnchors]))).toEqual([
+      ['ADR-0130', null],
+      ['ADR-0115', null],
+    ]);
+  });
+
+  test("a common log's accepted decision anchored elsewhere is nearby with its workspace, after an own one of the same id", () => {
+    const own = elsewhere('ADR-0011', 'src/Payments/**');
+    const shared = elsewhere('ADR-0011', 'src/Payments/**');
+    const sharedProposed = elsewhere('ADR-0016', 'src/Payments/**', { status: 'proposed' });
+    expect(nearbyIds(view([own]), importer, common([shared, sharedProposed]))).toEqual([
+      ['ADR-0011', null],
+      ['ADR-0011', 'common'],
+    ]);
+  });
+
+  test('a common decision that an accepted exception exempts for the file is not nearby', () => {
+    const shared = elsewhere('ADR-0010', 'src/Invoices/**');
+    const exception = (code: string[]) =>
+      adr('ADR-0012', {
+        components: ['billing-service'],
+        code,
+        exception_to: ['common/ADR-0010'],
+        review_on: '2027-03-04',
+      });
+    expect(nearbyIds(view([exception([])]), importer, common([shared]))).toEqual([]);
+    expect(nearbyIds(view([exception(['billing-service:src/Invoices/**'])]), importer, common([shared]))).toEqual([
+      ['ADR-0010', 'common'],
+      ['ADR-0012', null],
+    ]);
   });
 });

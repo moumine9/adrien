@@ -50,6 +50,10 @@ token and the host check are the same for every workspace.
   (`exception_to`, ADR-0035) departs from this common decision for this file. The decision stays listed with
   `binding: false`; every accepted exception that covers the file holds a rule to follow and is listed too, with
   `match: "exception"` when it names no component of the file; `by` names the first of them.
+- A `GET /api/for` file has `nearby` and `nearby_omitted` (ADR-0036): the accepted decisions of the file's component
+  that are anchored to other paths, each as `id`, `title`, `workspace` and its `anchors` in that component, closest
+  folders first and at most ten, and how many were left out. They do not govern the file and carry no rule. A file
+  outside every component has `component: null` and empty lists: no decision can be found for it.
   Each list is present only when it has entries. `notes` also warns when the common log has no
   default branch to verify its decisions against.
 

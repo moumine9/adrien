@@ -271,7 +271,7 @@ function forFiles(view: View, paths: string[], variant: MockVariant): ForRespons
   const files: FileDecisions[] = paths.map((path) => {
     const file = path.replace(/\\/g, '/').replace(/^\.\//, '');
     const entry = Object.entries(COMPONENTS).find(([, c]) => c.root && file.startsWith(`${c.root}/`));
-    if (!entry) return { file, component: null, decisions: [] };
+    if (!entry) return { file, component: null, decisions: [], nearby: [], nearby_omitted: 0 };
     const [component, { root }] = entry;
     const relPath = file.slice((root as string).length + 1);
 
@@ -338,7 +338,13 @@ function forFiles(view: View, paths: string[], variant: MockVariant): ForRespons
         a.layer.localeCompare(b.layer) ||
         (a.workspace ?? '').localeCompare(b.workspace ?? ''),
     );
-    return { file, component, decisions };
+    // ADR-0036, simplified: accepted decisions anchored elsewhere in the component, by id, at most ten.
+    const near = view.base
+      .filter((a) => a.meta.status === 'accepted' && !decisions.some((d) => d.id === a.meta.id && !d.workspace))
+      .map((a) => ({ a, anchors: a.meta.code.filter((c) => c.startsWith(`${component}:`)) }))
+      .filter(({ a, anchors }) => anchors.length > 0 && !match(a))
+      .map(({ a, anchors }) => ({ id: a.meta.id, title: a.meta.title, workspace: null, anchors }));
+    return { file, component, decisions, nearby: near.slice(0, 10), nearby_omitted: Math.max(0, near.length - 10) };
   });
   if (variant === 'unresolved') {
     return {

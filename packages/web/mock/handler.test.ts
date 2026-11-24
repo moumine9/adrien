@@ -83,7 +83,9 @@ describe('mock API', () => {
     expect(charge?.component).toBe('billing-service');
     expect(charge?.decisions[0]).toMatchObject({ id: 'ADR-0004', binding: true, match: 'anchor' });
     expect(charge?.decisions.some((d) => d.layer === 'pending' && !d.binding)).toBe(true);
-    expect(readme).toEqual({ file: 'README.md', component: null, decisions: [] });
+    expect(readme).toEqual({ file: 'README.md', component: null, decisions: [], nearby: [], nearby_omitted: 0 });
+    expect(charge?.nearby.map((n) => n.id)).toEqual(['ADR-0002', 'ADR-0009', 'ADR-0011']);
+    expect(charge?.nearby_omitted).toBe(0);
     expect(r.notes).toBeUndefined();
     expect(get<ForResponse>('/api/for?path=platform/deploy/app.yaml', 'unresolved').body.notes).toHaveLength(1);
   });

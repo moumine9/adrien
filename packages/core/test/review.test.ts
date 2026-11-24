@@ -26,11 +26,13 @@ const file = (path: string, ...decisions: FileDecision[]): FileDecisions => ({
   file: path,
   component: 'web',
   decisions,
+  nearby: [],
+  nearby_omitted: 0,
 });
 
 test('no files, or files that no decision governs, say so and still carry the footer', () => {
   expect(buildReview([])).toEqual({ markdown: NONE, binding: 0, hints: 0, files: 0 });
-  expect(buildReview([{ file: 'loose.txt', component: null, decisions: [] }])).toEqual({
+  expect(buildReview([{ file: 'loose.txt', component: null, decisions: [], nearby: [], nearby_omitted: 0 }])).toEqual({
     markdown: NONE,
     binding: 0,
     hints: 0,
@@ -286,7 +288,7 @@ test('counts are distinct decisions, and files is the number of input files', ()
   const review = buildReview([
     file('a.ts', dec('ADR-0007'), dec('ADR-0008')),
     file('b.ts', dec('ADR-0007'), dec('ADR-0009', { binding: false, status: 'proposed' })),
-    { file: 'c.txt', component: null, decisions: [] },
+    { file: 'c.txt', component: null, decisions: [], nearby: [], nearby_omitted: 0 },
   ]);
   expect(review).toEqual({ markdown: expect.any(String), binding: 2, hints: 1, files: 3 });
 });
@@ -312,4 +314,11 @@ test('a common decision exempt for one file and binding for another: binding for
   expect(binding).not.toContain('a.ts');
   expect(details).toContain('`a.ts`');
   expect(details).toContain('(accepted, exempt by ADR-0012)');
+});
+
+test('the review comment leaves out the decisions anchored elsewhere (ADR-0036)', () => {
+  const near = { id: 'ADR-0042', title: 'Anchored elsewhere', workspace: null, anchors: ['web:lib/**'] };
+  const review = buildReview([{ ...file('a.ts', dec('ADR-0007')), nearby: [near], nearby_omitted: 2 }]);
+  expect(review).toMatchObject({ binding: 1, hints: 0, files: 1 });
+  expect(review.markdown).not.toContain('ADR-0042');
 });

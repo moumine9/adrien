@@ -2,6 +2,7 @@ import type { FileDecisions } from '@adrien/api/contract';
 import { Box, FileCode } from 'lucide-react';
 import { Chip } from '@/components/badges.tsx';
 import { DecisionRow } from '@/components/decision-row.tsx';
+import { NearbyList } from '@/components/nearby-list.tsx';
 
 /** `hasNotes` flags the product's own rows as unverified; `hasCommonNotes` does the same for the common log's rows. */
 export function FileResult({
@@ -38,7 +39,7 @@ export function FileResult({
         <p className="px-5 py-4 text-muted-foreground">
           {entry.component
             ? 'No decision governs this file.'
-            : 'This file is outside every declared component, so no decision applies to it.'}
+            : 'This file is outside every declared component, so Adrien cannot tell which decisions apply to it.'}
         </p>
       ) : (
         <ul className="divide-y divide-rule">
@@ -51,6 +52,7 @@ export function FileResult({
           ))}
         </ul>
       )}
+      {entry.nearby.length > 0 && <NearbyList entry={entry} />}
     </section>
   );
 }

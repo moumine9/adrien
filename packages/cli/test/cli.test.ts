@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { CONFIG_FILE } from '@adrien/core';
 import { adrText, configYaml, sharedLog, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { git, initRepo } from '../../core/test/helpers/git.ts';
+import { formatFileDecisions } from '../src/output.ts';
 import { runCli, VERSION } from '../src/program.ts';
 
 function run(cwd: string, ...argv: string[]) {
@@ -159,7 +160,60 @@ test('for <file> in a monorepo prints the BINDING ADR and its rule', async () =>
       '  ADR-0001 BINDING Render dates in the user locale',
       '    rule: Format dates with the locale helper.',
       'README.md',
-      '  (not inside a linked component)',
+      '  (outside every linked component, so no decision can be found for it)',
+      '',
+    ].join('\n'),
+  );
+});
+
+test('for <file> says when no decision covers it and lists the decisions anchored elsewhere in its component', async () => {
+  const root = log({
+    'apps/web/src/new/b.ts': 'export {};\n',
+    'docs/adr/ADR-0001-a.md': adrText({
+      id: 'ADR-0001',
+      title: 'Render dates in the user locale',
+      status: 'accepted',
+      code: ['web:src/dates/**'],
+      review_rule: 'Format dates with the locale helper.',
+    }),
+  });
+  const result = await run(root, 'for', 'apps/web/src/new/b.ts');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toBe(
+    [
+      'apps/web/src/new/b.ts [web]',
+      '  (no decision covers this file)',
+      '  nearby, anchored elsewhere in web (not binding here):',
+      '    ADR-0001 Render dates in the user locale  web:src/dates/**',
+      '',
+    ].join('\n'),
+  );
+});
+
+test('the for output names the common log of a nearby decision and counts the ones left out', () => {
+  const nearby = (id: string, workspace: string | null) => ({
+    id,
+    title: `Title ${id}`,
+    workspace,
+    anchors: ['web:src/a/**', 'web:src/b/**'],
+  });
+  const text = formatFileDecisions([
+    {
+      file: 'apps/web/src/c.ts',
+      component: 'web',
+      decisions: [],
+      nearby: [nearby('ADR-0002', null), nearby('ADR-0009', 'shared-co')],
+      nearby_omitted: 3,
+    },
+  ]);
+  expect(text).toBe(
+    [
+      'apps/web/src/c.ts [web]',
+      '  (no decision covers this file)',
+      '  nearby, anchored elsewhere in web (not binding here):',
+      '    ADR-0002 Title ADR-0002  web:src/a/**, web:src/b/**',
+      '    [shared-co] ADR-0009 Title ADR-0009  web:src/a/**, web:src/b/**',
+      '    and 3 more: adrien list --component web',
       '',
     ].join('\n'),
   );
