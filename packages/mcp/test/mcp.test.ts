@@ -118,6 +118,26 @@ test('adr_for_files returns the binding ADR with its review_rule', async () => {
   });
 });
 
+test('adr_for_files lists the decisions anchored elsewhere in the component of a file no decision covers', async () => {
+  const client = await connect({ cwd: monorepo({ 'apps/web/lib/x.ts': 'export {};\n' }) });
+  const { structured } = await call(client, 'adr_for_files', { paths: ['apps/web/lib/x.ts'] });
+  expect(structured.files[0]).toEqual({
+    file: 'apps/web/lib/x.ts',
+    component: 'web',
+    decisions: [],
+    nearby: [{ id: 'ADR-0001', title: 'Render dates in the user locale', workspace: null, anchors: ['web:src/**'] }],
+    nearby_omitted: 0,
+  });
+});
+
+test('adr_for_files tells an agent what an empty answer and a nearby decision mean', async () => {
+  const { tools } = await (await connect({ cwd: monorepo() })).listTools();
+  const description = tools.find((t) => t.name === 'adr_for_files')?.description ?? '';
+  expect(description).toContain('`component: null`');
+  expect(description).toContain('`nearby`');
+  expect(description).toContain('`nearby_omitted`');
+});
+
 test('adr_for_files carries a note when no default branch can be found, and none otherwise', async () => {
   const plain = await call(await connect({ cwd: monorepo() }), 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
   expect(plain.structured.notes).toBeUndefined();

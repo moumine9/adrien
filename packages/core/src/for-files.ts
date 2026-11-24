@@ -1,4 +1,5 @@
-import { anchorMatches, excerpt, parseAnchor } from './anchors.ts';
+import picomatch from 'picomatch';
+import { type Anchor, anchorMatches, excerpt, parseAnchor } from './anchors.ts';
 import type { CommonLog } from './common.ts';
 import { type Context, componentForPath } from './context.ts';
 import { toPosix } from './log.ts';
@@ -27,11 +28,27 @@ export interface FileDecision {
   exemption: { by: string } | null;
 }
 
+/** An accepted decision anchored elsewhere in the file's component (ADR-0036). It does not govern the file. */
+export interface NearbyDecision {
+  id: string;
+  title: string;
+  /** The name of the common log the decision comes from; null for the product's own log. */
+  workspace: string | null;
+  /** The decision's anchors in the file's component; none of them matches the file. */
+  anchors: string[];
+}
+
 export interface FileDecisions {
   file: string;
   component: string | null;
   decisions: FileDecision[];
+  /** Closest folders first, at most `NEARBY_MAX`; empty for a file outside every component. */
+  nearby: NearbyDecision[];
+  /** How many nearby decisions were left out past `NEARBY_MAX`. */
+  nearby_omitted: number;
 }
+
+export const NEARBY_MAX = 10;
 
 const RETIRED: ReadonlySet<Status> = new Set(['rejected', 'superseded', 'deprecated']);
 
@@ -43,6 +60,25 @@ function matchOf(adr: Adr, component: string, relPath: string): Pick<FileDecisio
   if (hit) return { match: 'anchor', anchor: hit.raw };
   if (anchors.length === 0 && adr.meta.components.includes(component)) return { match: 'component', anchor: null };
   return null;
+}
+
+/** The anchors of `adr` in `component` when it has some and none matches the file; empty otherwise. */
+function anchorsElsewhere(adr: Adr, component: string, relPath: string): string[] {
+  const own = adr.meta.code.filter((raw) => parseAnchor(raw)?.component === component);
+  return own.some((raw) => anchorMatches(parseAnchor(raw) as Anchor, component, relPath)) ? [] : own;
+}
+
+/** How many leading folders of the file the fixed part of the closest anchor shares. */
+function closeness(anchors: string[], relPath: string): number {
+  const folders = relPath.split('/').slice(0, -1);
+  return Math.max(
+    ...anchors.map((raw) => {
+      const base = picomatch.scan((parseAnchor(raw) as Anchor).glob).base.split('/');
+      let shared = 0;
+      while (shared < folders.length && folders[shared] === base[shared]) shared++;
+      return shared;
+    }),
+  );
 }
 
 /**
@@ -108,7 +144,7 @@ export function adrsForFiles(
   return paths.map((path) => {
     const file = toPosix(path);
     const location = componentForPath(ctx, path);
-    if (!location) return { file, component: null, decisions: [] };
+    if (!location) return { file, component: null, decisions: [], nearby: [], nearby_omitted: 0 };
     const { component, relPath } = location;
     const decisions: FileDecision[] = [];
     for (const adr of view.base) {
@@ -135,7 +171,34 @@ export function adrsForFiles(
         );
       }
     }
-    return { file, component, decisions: decisions.sort(order) };
+    const listed = (id: string, workspace: string | null) =>
+      decisions.some((d) => d.id === id && d.workspace === workspace);
+    const near: (NearbyDecision & { closeness: number })[] = [];
+    const consider = (adr: Adr, workspace: string | null) => {
+      const anchors = anchorsElsewhere(adr, component, relPath);
+      if (anchors.length === 0 || listed(adr.meta.id, workspace)) return;
+      near.push({ id: adr.meta.id, title: adr.meta.title, workspace, anchors, closeness: closeness(anchors, relPath) });
+    };
+    for (const adr of view.base) if (adr.meta.status === 'accepted') consider(adr, null);
+    for (const adr of commonAccepted) {
+      // A common decision exempted for this file does not apply to it, wherever it is anchored (ADR-0035).
+      const name = (common as CommonLog).name;
+      if (exceptionsFor(exceptions, `${name}/${adr.meta.id}`, component, relPath).length === 0) consider(adr, name);
+    }
+    near.sort(
+      (a, b) =>
+        b.closeness - a.closeness ||
+        a.id.localeCompare(b.id) ||
+        Number(a.workspace !== null) - Number(b.workspace !== null),
+    );
+    const nearby = near.slice(0, NEARBY_MAX).map(({ closeness: _, ...entry }) => entry);
+    return {
+      file,
+      component,
+      decisions: decisions.sort(order),
+      nearby,
+      nearby_omitted: near.length - nearby.length,
+    };
   });
 }
 
