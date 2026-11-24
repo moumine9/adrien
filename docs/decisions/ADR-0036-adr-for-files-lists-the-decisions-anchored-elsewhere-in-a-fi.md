@@ -1,16 +1,11 @@
 ---
 id: ADR-0036
 title: adr_for_files lists the decisions anchored elsewhere in a file's component
-status: proposed
+status: accepted
 date: 2026-11-24
 tags: [agents, api]
 components: [core, cli, mcp, api, web]
-code:
-  - core:src/for-files.ts
-  - cli:src/output.ts
-  - mcp:src/tools.ts
-  - api:src/contract.ts
-  - web:src/components/file-result.tsx
+code: [core:src/for-files.ts, cli:src/output.ts, mcp:src/tools.ts, api:src/contract.ts, web:src/components/file-result.tsx, web:src/components/nearby-list.tsx]
 review_rule: A file's nearby list holds only accepted decisions of its component whose anchors match other paths, at most ten with a count of the rest, never binding and without their review rule, and nothing shows a nearby entry as governing the file.
 related: [ADR-0002, ADR-0034, ADR-0035]
 origin: agent
