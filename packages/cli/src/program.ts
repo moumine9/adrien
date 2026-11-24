@@ -11,6 +11,7 @@ import { registerLint } from './commands/lint.ts';
 import { registerList } from './commands/list.ts';
 import { registerMcp } from './commands/mcp.ts';
 import { registerNew } from './commands/new.ts';
+import { registerRenameWorkspace } from './commands/rename-workspace.ts';
 import { registerRenumber } from './commands/renumber.ts';
 import { registerReview } from './commands/review.ts';
 import { registerSearch } from './commands/search.ts';
@@ -39,6 +40,9 @@ export interface CliResult {
 
 const CLEAN_EXITS = new Set(['commander.helpDisplayed', 'commander.version', 'commander.help']);
 
+/** The commands that take several logs: `serve` serves them, `rename-workspace` reads them to find the logs that name its target. */
+const MULTI_LOG_COMMANDS = new Set(['serve', 'rename-workspace']);
+
 export function buildProgram(cli: Cli): Command {
   const program = new Command('adrien')
     .description('Architecture Decision Records for developers and their AI agents')
@@ -54,9 +58,10 @@ export function buildProgram(cli: Cli): Command {
     .option('--json', 'machine-readable output')
     .exitOverride()
     .configureOutput({ writeOut: (s) => cli.out(s), writeErr: (s) => cli.err(s) })
-    // Every command but serve works on one log: refused here, before any command reads the log.
+    // Every command but serve works on one log: refused here, before any command reads the log. rename-workspace reads
+    // several, to find the logs that name the one it renames.
     .hook('preAction', (root, action) => {
-      if (action.name() !== 'serve') singleLog(root.opts<GlobalOptions>().log);
+      if (!MULTI_LOG_COMMANDS.has(action.name())) singleLog(root.opts<GlobalOptions>().log);
     });
   for (const register of [
     registerInit,
@@ -72,6 +77,7 @@ export function buildProgram(cli: Cli): Command {
     registerStatus,
     registerSupersede,
     registerRenumber,
+    registerRenameWorkspace,
     registerSync,
     registerExport,
     registerMcp,

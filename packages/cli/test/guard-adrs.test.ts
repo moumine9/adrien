@@ -98,6 +98,24 @@ test('with the adr label, a proposed ADR may change in any way', () => {
   expect(guardChanges({ adrLabel: true, changes: [modified(PROPOSED, rewritten)] })).toEqual([]);
 });
 
+const EXCEPTION = 'exception_to:\n  - corp/ADR-5\nreview_on: 2027-03-04\nreview_rule:';
+
+test('an accepted ADR may change an exception_to entry by its workspace prefix only, as a rename does', () => {
+  const before = ACCEPTED.replace('review_rule:', EXCEPTION);
+  const renamed = before.replace('corp/ADR-5', 'house/ADR-5');
+  expect(guardChanges({ adrLabel: true, changes: [modified(before, renamed)] })).toEqual([]);
+});
+
+test('an accepted ADR may not retarget an exception_to entry, or add or remove one', () => {
+  const before = ACCEPTED.replace('review_rule:', EXCEPTION);
+  const retargeted = before.replace('corp/ADR-5', 'corp/ADR-9');
+  expect(guardChanges({ adrLabel: true, changes: [modified(before, retargeted)] })).toEqual([FROZEN]);
+  const added = before.replace('  - corp/ADR-5', '  - corp/ADR-5\n  - house/ADR-5');
+  expect(guardChanges({ adrLabel: true, changes: [modified(before, added)] })).toEqual([FROZEN]);
+  const removed = before.replace(/exception_to:\n {2}- corp\/ADR-5\n/, 'exception_to: []\n');
+  expect(guardChanges({ adrLabel: true, changes: [modified(before, removed)] })).toEqual([FROZEN]);
+});
+
 test('an accepted ADR may move to superseded or deprecated, with its links and review date', () => {
   const superseded = ACCEPTED.replace('status: accepted', 'status: superseded')
     .replace(

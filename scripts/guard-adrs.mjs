@@ -45,9 +45,31 @@ function canonical(value) {
   );
 }
 
-/** The parsed ADR without the fields an accepted ADR may change (its body is compared on its own). */
-function frozenPart(adr) {
-  return canonical(Object.fromEntries(Object.entries(adr.meta).filter(([key]) => !EDITABLE_ON_ACCEPTED.has(key))));
+/**
+ * True when `exception_to` changed only by workspace prefixes: the same entries in the same order, each with the same id
+ * after its first `/`. A rename of a workspace does exactly that, and nothing else is allowed on an accepted ADR.
+ */
+function onlyPrefixesChanged(before, after) {
+  if (before.length !== after.length) return false;
+  return before.every((entry, index) => {
+    const slash = entry.indexOf('/');
+    const headSlash = after[index].indexOf('/');
+    return slash !== -1 && headSlash !== -1 && entry.slice(slash + 1) === after[index].slice(headSlash + 1);
+  });
+}
+
+/**
+ * The parsed ADR without the fields an accepted ADR may change (its body is compared on its own). `exception_to` is left
+ * out only when `skipExceptions` says its change is a rename of prefixes.
+ */
+function frozenPart(adr, skipExceptions) {
+  return canonical(
+    Object.fromEntries(
+      Object.entries(adr.meta).filter(
+        ([key]) => !EDITABLE_ON_ACCEPTED.has(key) && !(skipExceptions && key === 'exception_to'),
+      ),
+    ),
+  );
 }
 
 /** The failures for a modified ADR, given its base and head text. An ADR that was not accepted at base is free. */
@@ -69,7 +91,11 @@ function adrFailures({ path, base, head }) {
   if (after.meta.status !== 'accepted' && !STATUSES_AFTER_ACCEPTED.has(after.meta.status)) {
     failures.push(`${id} is accepted; it may only become superseded or deprecated.`);
   }
-  if (frozenPart(before) !== frozenPart(after) || before.body.trimEnd() !== after.body.trimEnd()) {
+  const prefixOnly = onlyPrefixesChanged(before.meta.exception_to, after.meta.exception_to);
+  if (
+    frozenPart(before, prefixOnly) !== frozenPart(after, prefixOnly) ||
+    before.body.trimEnd() !== after.body.trimEnd()
+  ) {
     failures.push(`${id} is accepted; its text is frozen. Supersede it with a new ADR.`);
   }
   return failures;

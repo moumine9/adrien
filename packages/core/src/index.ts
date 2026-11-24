@@ -19,6 +19,7 @@ export * from './model.ts';
 export * from './modified.ts';
 export * from './ops.ts';
 export * from './paths.ts';
+export * from './rename.ts';
 export * from './repo-url.ts';
 export * from './review.ts';
 export * from './slug.ts';
