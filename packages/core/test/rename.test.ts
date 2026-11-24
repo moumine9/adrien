@@ -6,7 +6,7 @@ import { runCheck } from '../src/check.ts';
 import { CONFIG_FILE, loadLogConfig } from '../src/config.ts';
 import { type Context, resolveContext } from '../src/context.ts';
 import { readWorkingLog } from '../src/log.ts';
-import { applyWorkspaceRename, planWorkspaceRename } from '../src/rename.ts';
+import { applyWorkspaceRename, planReferenceCatchUp, planWorkspaceRename } from '../src/rename.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { initRepo } from './helpers/git.ts';
@@ -264,7 +264,7 @@ test('comments and key order in the config survive the rename', async () => {
   });
   const target = await ctxAt(join(root, 'log'));
   const plan = await planWorkspaceRename({ target, others: [], to: 'store' });
-  expect(plan.config.text).toBe(
+  expect(plan.config?.text).toBe(
     [
       '# Acme, kept by hand',
       'product: Acme',
@@ -929,4 +929,246 @@ test('a temp path that already exists, as a link to a file elsewhere, is never w
   expect(readFileSync(outside, 'utf8')).toBe('keep me');
   expect(lstatSync(temp).isSymbolicLink()).toBe(true);
   expect(readFileSync(one, 'utf8')).toContain('shared/ADR-0009');
+});
+
+/** A common log named `house` (already renamed), and a product `acme` whose own ADRs are given. */
+function catchUpFiles(extra: Record<string, string> = {}): Record<string, string> {
+  return { ...sharedFiles('house'), ...productFiles(extra) };
+}
+
+/** Three product ADRs that name the old workspace, so a catch-up writes three files. */
+function catchUpFixture(): { root: string; two: string; config: string } {
+  const root = tmpDir();
+  writeFiles(
+    root,
+    catchUpFiles({
+      'product/docs/adr/ADR-0001-use-one.md': adrText({
+        id: 'ADR-0001',
+        title: 'Use one',
+        related: ['shared/ADR-0009'],
+      }),
+      'product/docs/adr/ADR-0002-use-two.md': adrText({
+        id: 'ADR-0002',
+        title: 'Use two',
+        related: ['shared/ADR-0009'],
+      }),
+      'product/docs/adr/ADR-0003-use-three.md': adrText({
+        id: 'ADR-0003',
+        title: 'Use three',
+        related: ['shared/ADR-0009'],
+      }),
+    }),
+  );
+  return {
+    root,
+    two: join(root, 'product/docs/adr/ADR-0002-use-two.md'),
+    config: join(root, 'product', CONFIG_FILE),
+  };
+}
+
+async function catchUpPlan(root: string) {
+  const product = await ctxAt(join(root, 'product'));
+  return planReferenceCatchUp({ logs: [product], from: 'shared', to: 'house' });
+}
+
+test('catch-up rewrites the related and exception_to entries that name the old name, and leaves the others', async () => {
+  const root = tmpDir();
+  writeFiles(
+    root,
+    catchUpFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({
+        id: 'ADR-0002',
+        title: 'Use it',
+        related: ['shared/ADR-0009', 'other/ADR-0003', 'ADR-0001'],
+        exception_to: ['shared/ADR-0009'],
+      }),
+    }),
+  );
+  const product = await ctxAt(join(root, 'product'));
+  const before = snapshot(root);
+  const plan = await planReferenceCatchUp({ logs: [product], from: 'shared', to: 'house' });
+  expect(plan.config).toBeNull();
+  applyWorkspaceRename(plan);
+  const meta = await metaOf(product, 'ADR-0002');
+  expect(meta?.related).toEqual(['house/ADR-0009', 'other/ADR-0003', 'ADR-0001']);
+  expect(meta?.exception_to).toEqual(['house/ADR-0009']);
+  const after = snapshot(root);
+  expect(Object.keys(after).filter((rel) => after[rel] !== before[rel])).toEqual([
+    'product/docs/adr/ADR-0002-use-it.md',
+  ]);
+});
+
+test.each<[string, Record<string, string>, RegExp]>([
+  [
+    'has no common field',
+    { ...sharedFiles('house'), 'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'acme' }) },
+    /has no common field/,
+  ],
+  [
+    'names a common log that is named otherwise',
+    { ...sharedFiles('other'), ...productFiles() },
+    /named "other", not "house"/,
+  ],
+  [
+    'names a common log that is still named from',
+    { ...sharedFiles('shared'), ...productFiles() },
+    /still named "shared"/,
+  ],
+  [
+    'names a common log that cannot be read',
+    {
+      ...sharedFiles('house'),
+      'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'acme', common: '../missing' }),
+    },
+    /cannot be read/,
+  ],
+  [
+    'is itself named from',
+    {
+      ...sharedFiles('house'),
+      'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'shared', common: '../shared' }),
+    },
+    /its own decisions/,
+  ],
+  [
+    'is itself named to',
+    {
+      ...sharedFiles('house'),
+      'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'house', common: '../shared' }),
+    },
+    /already named "house"/,
+  ],
+])('catch-up refuses a product whose log %s', async (_case, files, wording) => {
+  const root = tmpDir();
+  writeFiles(root, files);
+  const product = await ctxAt(join(root, 'product'));
+  await expect(planReferenceCatchUp({ logs: [product], from: 'shared', to: 'house' })).rejects.toThrow(wording);
+});
+
+test('catch-up refuses a new name that is not a valid workspace name, or is the old one', async () => {
+  const root = tmpDir();
+  writeFiles(root, catchUpFiles());
+  const product = await ctxAt(join(root, 'product'));
+  await expect(planReferenceCatchUp({ logs: [product], from: 'shared', to: 'Bad Name' })).rejects.toThrow(
+    /not a valid/,
+  );
+  await expect(planReferenceCatchUp({ logs: [product], from: 'shared', to: 'shared' })).rejects.toThrow(/the old one/);
+});
+
+test('catch-up refuses a rewritten related entry that would name a local id, and writes nothing', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles('house'),
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: '../shared',
+      id_format: 'house/{n:4}',
+    }),
+    'product/docs/adr/house-0009-local.md': adrText({ id: 'house/0009', title: 'Local' }),
+    'product/docs/adr/house-0010-next.md': adrText({ id: 'house/0010', title: 'Next', related: ['shared/0009'] }),
+  });
+  const before = snapshot(root);
+  await expect(catchUpPlan(root)).rejects.toThrow(/house\/0009.*local id/);
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('catch-up over several logs refuses all of them when one fails, and writes nothing', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...catchUpFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+    }),
+    'bare/adrien.config.yaml': configYaml({ product: 'Bare', workspace: 'bare' }),
+  });
+  const product = await ctxAt(join(root, 'product'));
+  const bare = await ctxAt(join(root, 'bare'));
+  const before = snapshot(root);
+  await expect(planReferenceCatchUp({ logs: [product, bare], from: 'shared', to: 'house' })).rejects.toThrow(
+    /has no common field/,
+  );
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('a catch-up apply writes the ADRs only', async () => {
+  const { root } = catchUpFixture();
+  const plan = await catchUpPlan(root);
+  const before = snapshot(root);
+  applyWorkspaceRename(plan);
+  const after = snapshot(root);
+  const changed = Object.keys(after).filter((rel) => after[rel] !== before[rel]);
+  expect(changed).toHaveLength(3);
+  expect(changed.every((rel) => rel.startsWith('product/docs/adr/'))).toBe(true);
+});
+
+test('a catch-up apply puts every ADR back when a write fails', async () => {
+  const { root, two } = catchUpFixture();
+  const plan = await catchUpPlan(root);
+  const before = snapshot(root);
+  const injected = new Error('disk full');
+  failOnce('rename', two, injected);
+  expect(applyError(plan)).toBe(injected);
+  expect(snapshot(root)).toEqual(before);
+  expect(tempFilesIn(root)).toEqual([]);
+});
+
+test('a catch-up apply refuses when a product config changed after the plan, and writes nothing', async () => {
+  const { root, config } = catchUpFixture();
+  const plan = await catchUpPlan(root);
+  writeFileSync(config, `# edited\n${readFileSync(config, 'utf8')}`);
+  const before = snapshot(root);
+  expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('after a catch-up, check no longer reports the old name as unresolved and finds no broken link', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    ...productFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({
+        id: 'ADR-0002',
+        title: 'Use it',
+        related: ['shared/ADR-0009'],
+        exception_to: ['shared/ADR-0009'],
+      }),
+    }),
+  });
+  const env = { ADRIEN_HOME: tmpDir() };
+  const productDir = join(root, 'product');
+  // The common log was renamed elsewhere: the product still names it `shared`.
+  writeFiles(root, { 'shared/adrien.config.yaml': configYaml({ product: 'Shared Co', workspace: 'house' }) });
+  const before = await linkProblems(productDir, env);
+  expect(before.some((line) => line.startsWith('unresolved-ref'))).toBe(true);
+  const product = await ctxAt(productDir);
+  applyWorkspaceRename(await planReferenceCatchUp({ logs: [product], from: 'shared', to: 'house' }));
+  expect(await linkProblems(productDir, env)).toEqual([]);
+});
+
+test('a catch-up refusal for a path common still named like the old name has no clone advice', async () => {
+  const root = tmpDir();
+  writeFiles(root, { ...sharedFiles(), ...productFiles({}) });
+  const product = await ctxAt(join(root, 'product'));
+  const error = await planReferenceCatchUp({ logs: [product], from: 'shared', to: 'house' }).catch((e: Error) => e);
+  expect((error as Error).message).toContain('merge that rename.');
+  expect((error as Error).message).not.toContain('cached clone');
+});
+
+test('a catch-up refusal for a URL common still named like the old name names the clone to remove', async () => {
+  const repo = tmpDir();
+  writeFiles(repo, { [CONFIG_FILE]: configYaml({ product: 'Root Co', workspace: 'shared' }) });
+  const { origin } = initRepo(repo, { origin: true });
+  const root = tmpDir();
+  writeFiles(root, {
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: pathToFileURL(origin ?? '').href,
+    }),
+  });
+  const home = tmpDir();
+  const product = await ctxAt(join(root, 'product'), { ADRIEN_HOME: home });
+  const error = await planReferenceCatchUp({ logs: [product], from: 'shared', to: 'house' }).catch((e: Error) => e);
+  expect((error as Error).message).toContain('cached clone');
+  expect((error as Error).message).toContain(home);
 });
