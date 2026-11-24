@@ -35,8 +35,8 @@ export interface RenameEdit {
 export interface WorkspaceRenamePlan {
   from: string;
   to: string;
-  /** The target log's configuration: its planned text, and the revision it was planned on. */
-  config: { logRoot: string; path: string; revision: string; text: string };
+  /** The target log's configuration: its planned text, and the revision it was planned on. Null for a catch-up. */
+  config: { logRoot: string; path: string; revision: string; text: string } | null;
   edits: RenameEdit[];
   /** The configuration of every other log the plan depends on, as read: a change since refuses the apply. */
   configs: Array<{ logRoot: string; revision: string }>;
@@ -78,6 +78,36 @@ function refsIn(
     const next = renameEntry(entry, ownIds, from, to);
     if (field === 'related' && next !== entry && ownIds.has(next)) throw collision(where, entry, next);
     return next === entry ? [] : [{ field, from: entry, to: next }];
+  });
+}
+
+/**
+ * The edits of one log: its `related` and `exception_to` entries that name `from`, rewritten to `to`. Its problems are
+ * noted, and a log that must be written is refused when it is read-only.
+ */
+function editsIn(ctx: Context, from: string, to: string, notes: string[]): RenameEdit[] {
+  const working = readWorkingLog(ctx.logRoot, ctx.config);
+  for (const problem of working.problems) {
+    notes.push(`${problem.path} could not be read in ${ctx.logSource}, so its references were not checked.`);
+  }
+  const ownIds = new Set(working.adrs.map((adr) => adr.meta.id));
+  return working.adrs.flatMap((adr) => {
+    const refs = [
+      ...refsIn('related', adr.meta.related, ownIds, from, to, `${adr.meta.id} in ${ctx.logSource}`),
+      ...refsIn('exception_to', adr.meta.exception_to, NO_IDS, from, to, adr.meta.id),
+    ];
+    if (refs.length === 0) return [];
+    assertWritable(ctx);
+    return [
+      {
+        logRoot: ctx.logRoot,
+        readOnly: ctx.readOnly,
+        id: adr.meta.id,
+        path: adr.path,
+        revision: adr.revision as string,
+        refs,
+      },
+    ];
   });
 }
 
@@ -181,10 +211,9 @@ export async function planWorkspaceRename(opts: {
   for (const ctx of [target, ...linked]) {
     if (ctx !== target)
       configs.push({ logRoot: ctx.logRoot, revision: (otherConfigs.get(ctx) as { revision: string }).revision });
-    const working = readWorkingLog(ctx.logRoot, ctx.config);
     // A log named like the target reads `old/ADR-n` as its own decision, so those entries are not about the target.
     if (ctx !== target && workspaceNameOf(ctx.config) === from) {
-      const named = working.adrs.some((adr) =>
+      const named = readWorkingLog(ctx.logRoot, ctx.config).adrs.some((adr) =>
         [...adr.meta.related, ...adr.meta.exception_to].some((entry) => parseRef(entry).workspace === from),
       );
       if (named) {
@@ -194,26 +223,7 @@ export async function planWorkspaceRename(opts: {
       }
       continue;
     }
-    for (const problem of working.problems) {
-      notes.push(`${problem.path} could not be read in ${ctx.logSource}, so its references were not checked.`);
-    }
-    const ownIds = new Set(working.adrs.map((adr) => adr.meta.id));
-    for (const adr of working.adrs) {
-      const refs = [
-        ...refsIn('related', adr.meta.related, ownIds, from, to, `${adr.meta.id} in ${ctx.logSource}`),
-        ...refsIn('exception_to', adr.meta.exception_to, NO_IDS, from, to, adr.meta.id),
-      ];
-      if (refs.length === 0) continue;
-      assertWritable(ctx);
-      edits.push({
-        logRoot: ctx.logRoot,
-        readOnly: ctx.readOnly,
-        id: adr.meta.id,
-        path: adr.path,
-        revision: adr.revision as string,
-        refs,
-      });
-    }
+    edits.push(...editsIn(ctx, from, to, notes));
   }
 
   return {
@@ -229,6 +239,58 @@ export async function planWorkspaceRename(opts: {
     configs,
     notes,
   };
+}
+
+/**
+ * Plans the catch-up of logs whose common log was renamed to `to` after the rename ran elsewhere: in each log, the
+ * `related` and `exception_to` entries that name `from` are rewritten to `to`. Nothing is renamed and no configuration is
+ * written, so the plan's `config` is null. Every log is checked first, so one that fails refuses the whole plan.
+ */
+export async function planReferenceCatchUp(opts: {
+  logs: readonly Context[];
+  from: string;
+  to: string;
+}): Promise<WorkspaceRenamePlan> {
+  const { logs, from, to } = opts;
+  const edits: RenameEdit[] = [];
+  const configs: WorkspaceRenamePlan['configs'] = [];
+  const notes: string[] = [];
+  // Every configuration is read once, before anything is awaited.
+  const readConfigs = new Map(logs.map((ctx) => [ctx, readConfigOnce(ctx)]));
+  for (const ctx of logs) {
+    const config = readConfigs.get(ctx) as { revision: string };
+    const fail = (message: string) => new AdrienError('INVALID_INPUT', `${ctx.logSource}: ${message}`);
+    if (!isWorkspaceName(to)) throw fail(`"${to}" is not a valid workspace name.`);
+    if (from === to) throw fail(`The new name "${to}" is the old one: nothing to catch up.`);
+    const own = workspaceNameOf(ctx.config);
+    if (own === from) {
+      throw fail(`it is named "${from}", so its "${from}/..." references name its own decisions.`);
+    }
+    if (own === to) {
+      throw fail(`it is already named "${to}", so "${from}/..." references rewritten to it would read as its own.`);
+    }
+    if (ctx.config.common === undefined) {
+      throw fail('it has no common field, so it is not a product of a common log: nothing to catch up.');
+    }
+    const read = (await readCommon(ctx)) as CommonResolution;
+    if ('unreadable' in read) {
+      throw fail(`its common log at ${read.unreadable.location} cannot be read: ${read.unreadable.message}`);
+    }
+    const { name } = read.common;
+    if (name === from) {
+      const cached = isGitUrl(ctx.config.common)
+        ? ` Its common log is read from a cached clone, which is reused as it is: remove ${read.common.ctx.logRoot} so the next run clones it again.`
+        : '';
+      throw fail(`its common log is still named "${from}": rename it to "${to}" first, or merge that rename.${cached}`);
+    }
+    if (name !== to) throw fail(`its common log is named "${name}", not "${to}".`);
+    configs.push({ logRoot: ctx.logRoot, revision: config.revision });
+    // The common log's name was just checked, so its configuration is part of what the plan depends on.
+    configs.push({ logRoot: read.common.ctx.logRoot, revision: readConfigOnce(read.common.ctx).revision });
+    assertWritable(ctx);
+    edits.push(...editsIn(ctx, from, to, notes));
+  }
+  return { from, to, config: null, edits, configs, notes };
 }
 
 /** Runs `fn` while holding the locks of each log's edited ADRs, one log after another, in the order given. */
@@ -260,10 +322,12 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
   const byLog = new Map<string, RenameEdit[]>();
   for (const edit of plan.edits) byLog.set(edit.logRoot, [...(byLog.get(edit.logRoot) ?? []), edit]);
   const groups = [...byLog].sort(([a], [b]) => a.localeCompare(b));
-  const configFile = join(plan.config.logRoot, plan.config.path);
+  const { config } = plan;
 
   withLogs(groups, env, () => {
-    if (revisionOfText(readFileSync(configFile, 'utf8')) !== plan.config.revision) throw conflict(plan.config.path);
+    if (config && revisionOfText(readFileSync(join(config.logRoot, config.path), 'utf8')) !== config.revision) {
+      throw conflict(config.path);
+    }
     for (const { logRoot, revision } of plan.configs) {
       if (revisionOfText(readFileSync(join(logRoot, CONFIG_FILE), 'utf8')) !== revision) throw conflict(CONFIG_FILE);
     }
@@ -283,18 +347,15 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
       });
     });
     // Each file's text before the first write, so a failed write can be put back.
-    const steps: Step[] = [
-      ...writes.map(({ logRoot, adr }) => {
-        const file = join(logRoot, ...adr.path.split('/'));
-        assertInsideLog(logRoot, file, adr.path);
-        return { file, original: readFileSync(file, 'utf8'), write: () => writeTextAtomic(file, serializeAdr(adr)) };
-      }),
-      {
-        file: configFile,
-        original: readFileSync(configFile, 'utf8'),
-        write: () => writeTextAtomic(configFile, plan.config.text),
-      },
-    ];
+    const steps: Step[] = writes.map(({ logRoot, adr }) => {
+      const file = join(logRoot, ...adr.path.split('/'));
+      assertInsideLog(logRoot, file, adr.path);
+      return { file, original: readFileSync(file, 'utf8'), write: () => writeTextAtomic(file, serializeAdr(adr)) };
+    });
+    if (config) {
+      const file = join(config.logRoot, config.path);
+      steps.push({ file, original: readFileSync(file, 'utf8'), write: () => writeTextAtomic(file, config.text) });
+    }
     const written: Step[] = [];
     try {
       for (const step of steps) {

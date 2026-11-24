@@ -181,8 +181,14 @@ made to one of those files since the plan refuses the rename. A write that fails
 and its state. A process killed in the middle is not covered.
 
 Run it from the log you rename, and try `--dry-run` first. With several logs in `ADRIEN_LOG` (or `--log`), the log renamed
-is the one the current directory belongs to. Only the logs listed there are reached: a log outside that list keeps its
-references to the old name. An instance entry `<old>=<path>` in `ADRIEN_LOG` keeps the old name until it is changed.
+is the one the current directory belongs to. The logs listed there are reached, and so are the logs given with
+`--also <log-dir>` (repeatable). A log outside both keeps its references to the old name, and the command says so. An
+instance entry `<old>=<path>` in `ADRIEN_LOG` keeps the old name until it is changed.
+
+A product that was not reached is caught up later, from inside it: `adrien rename-workspace <new-name> --from <old-name>`
+rewrites only its `related` and `exception_to` entries that name `<old-name>`, and renames nothing. It refuses unless its
+common log is already named `<new-name>`. `--also` and `--dry-run` work there too. The old name stays only in the logs
+that were not reached.
 
 A common log and its products are separate repositories, merged separately. Until a product's rewritten references are
 merged too, its references to the old name show as `unresolved-ref`, which is information and never fails `check`. An
