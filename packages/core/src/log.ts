@@ -1,5 +1,15 @@
 import { createHash } from 'node:crypto';
-import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname, join, posix } from 'node:path';
 import type { LogConfig } from './config.ts';
 import { AdrienError } from './errors.ts';
@@ -126,3 +136,24 @@ export const revisionOfText = (text: string): string => createHash('sha256').upd
 /** The revision of an ADR file as it is on disk right now. */
 export const revisionOf = (logRoot: string, adrPath: string): string =>
   revisionOfText(readFileSync(join(logRoot, ...adrPath.split('/')), 'utf8'));
+
+/**
+ * Replaces the text of a file in one step: the new text goes to a temp file beside it, which is then renamed over it, so
+ * a reader sees the old text or the new one. The temp name ends in `.tmp-<pid>`, which no log reader picks up. A symlink
+ * is followed, so the link stays and its target is replaced. The file must exist.
+ */
+export function writeTextAtomic(file: string, content: string): void {
+  const target = realpathSync(file);
+  const temp = `${target}.tmp-${process.pid}`;
+  try {
+    writeFileSync(temp, content);
+    renameSync(temp, target);
+  } catch (e) {
+    try {
+      unlinkSync(temp);
+    } catch {
+      // The temp file was never created, or cannot be removed: the original error is the one to report.
+    }
+    throw e;
+  }
+}

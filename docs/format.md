@@ -177,7 +177,8 @@ retarget, an added or a removed entry is not. Supersession links, file names, id
 they are. `--dry-run` prints the changes and writes nothing. Everything is checked before the first write: a rename that would make a `related` entry read as a local id of its log is
 refused, so choose another name. A product that has the same name as the log being renamed keeps its `<old>/ADR-n`
 entries, which name its own decisions, and the command says so. A change
-made to one of those files since the plan refuses the rename.
+made to one of those files since the plan refuses the rename. A write that fails part way puts every file back as it was; if a file cannot be put back, the error lists each file
+and its state. A process killed in the middle is not covered.
 
 Run it from the log you rename, and try `--dry-run` first. With several logs in `ADRIEN_LOG` (or `--log`), the log renamed
 is the one the current directory belongs to. Only the logs listed there are reached: a log outside that list keeps its

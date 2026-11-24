@@ -1,6 +1,7 @@
-import { readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { afterEach, vi } from 'vitest';
 import { runCheck } from '../src/check.ts';
 import { CONFIG_FILE, loadLogConfig } from '../src/config.ts';
 import { type Context, resolveContext } from '../src/context.ts';
@@ -9,6 +10,34 @@ import { applyWorkspaceRename, planWorkspaceRename } from '../src/rename.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
 import { initRepo } from './helpers/git.ts';
+
+/** Fault injection for the file calls of an apply: `hook` runs before each call and may throw to fail it. */
+const faults = vi.hoisted(() => ({
+  hook: undefined as undefined | ((op: 'write' | 'rename' | 'unlink', path: string) => void),
+}));
+
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return {
+    ...actual,
+    writeFileSync: (...args: Parameters<typeof actual.writeFileSync>) => {
+      faults.hook?.('write', String(args[0]));
+      return actual.writeFileSync(...args);
+    },
+    renameSync: (from: string, to: string) => {
+      faults.hook?.('rename', to);
+      return actual.renameSync(from, to);
+    },
+    unlinkSync: (file: string) => {
+      faults.hook?.('unlink', file);
+      return actual.unlinkSync(file);
+    },
+  };
+});
+
+afterEach(() => {
+  faults.hook = undefined;
+});
 
 const ctxAt = (dir: string, env?: NodeJS.ProcessEnv): Promise<Context> => resolveContext({ cwd: dir, env });
 
@@ -734,4 +763,151 @@ test('apply refuses when the config changed after the plan, and writes no ADR', 
   const before = snapshot(root);
   expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
   expect(snapshot(root)).toEqual(before);
+});
+
+/** The temp files a write may have left under `root`. */
+const tempFilesIn = (root: string): string[] =>
+  readdirSync(root, { recursive: true, encoding: 'utf8' }).filter((rel) => rel.includes('.tmp-'));
+
+/** Makes the first `op` on `path` throw `error`; later calls go through, so a restore of that file can succeed. */
+function failOnce(op: 'write' | 'rename' | 'unlink', path: string, error: Error): void {
+  let spent = false;
+  faults.hook = (called, target) => {
+    if (!spent && called === op && target === path) {
+      spent = true;
+      throw error;
+    }
+  };
+}
+
+/** A shared log, and a product whose three ADRs each refer to the shared decision: an apply writes three ADRs, then the config. */
+function renameFixture(): { root: string; one: string; two: string; three: string; config: string } {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    ...productFiles({
+      'product/docs/adr/ADR-0001-use-one.md': adrText({
+        id: 'ADR-0001',
+        title: 'Use one',
+        related: ['shared/ADR-0009'],
+      }),
+      'product/docs/adr/ADR-0002-use-two.md': adrText({
+        id: 'ADR-0002',
+        title: 'Use two',
+        related: ['shared/ADR-0009'],
+      }),
+      'product/docs/adr/ADR-0003-use-three.md': adrText({
+        id: 'ADR-0003',
+        title: 'Use three',
+        related: ['shared/ADR-0009'],
+      }),
+    }),
+  });
+  return {
+    root,
+    one: join(root, 'product/docs/adr/ADR-0001-use-one.md'),
+    two: join(root, 'product/docs/adr/ADR-0002-use-two.md'),
+    three: join(root, 'product/docs/adr/ADR-0003-use-three.md'),
+    config: join(root, 'shared', CONFIG_FILE),
+  };
+}
+
+async function fixturePlan(root: string) {
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  return planWorkspaceRename({ target: shared, others: [product], to: 'house' });
+}
+
+test('a rename that succeeds leaves no temp file behind', async () => {
+  const { root } = renameFixture();
+  applyWorkspaceRename(await fixturePlan(root));
+  expect(tempFilesIn(root)).toEqual([]);
+});
+
+test('a write that fails midway puts every file back as it was, and rethrows the original error', async () => {
+  const { root, two } = renameFixture();
+  const plan = await fixturePlan(root);
+  const before = snapshot(root);
+  const injected = new Error('disk full');
+  failOnce('rename', two, injected);
+  expect(applyError(plan)).toBe(injected);
+  expect(snapshot(root)).toEqual(before);
+  expect(tempFilesIn(root)).toEqual([]);
+});
+
+test('a config write that fails after every ADR was written restores all of them', async () => {
+  const { root, config } = renameFixture();
+  const plan = await fixturePlan(root);
+  const before = snapshot(root);
+  const injected = new Error('config locked');
+  failOnce('rename', config, injected);
+  expect(applyError(plan)).toBe(injected);
+  expect(snapshot(root)).toEqual(before);
+  expect(tempFilesIn(root)).toEqual([]);
+});
+
+test('a temp file whose write fails is removed, and the original error is rethrown', async () => {
+  const { root, config } = renameFixture();
+  const plan = await fixturePlan(root);
+  const before = snapshot(root);
+  const injected = new Error('no space left');
+  failOnce('write', `${config}.tmp-${process.pid}`, injected);
+  expect(applyError(plan)).toBe(injected);
+  expect(snapshot(root)).toEqual(before);
+  expect(tempFilesIn(root)).toEqual([]);
+});
+
+test('a temp file that cannot be removed does not hide the original error', async () => {
+  const { root, config } = renameFixture();
+  const plan = await fixturePlan(root);
+  const injected = new Error('no space left');
+  const temp = `${config}.tmp-${process.pid}`;
+  let spent = false;
+  faults.hook = (op, path) => {
+    if (op === 'write' && path === temp && !spent) {
+      spent = true;
+      throw injected;
+    }
+    if (op === 'unlink') throw new Error('unlink refused');
+  };
+  expect(applyError(plan)).toBe(injected);
+});
+
+test('a restore that also fails names each file as restored, left renamed or unchanged', async () => {
+  const { root, one, two, three, config } = renameFixture();
+  const plan = await fixturePlan(root);
+  const injected = new Error('disk full');
+  let spent = false;
+  faults.hook = (op, path) => {
+    if (op !== 'rename') return;
+    if (path === two && !spent) {
+      spent = true;
+      throw injected;
+    }
+    if (path === one && spent) throw new Error('read-only volume');
+  };
+  const error = applyError(plan);
+  expect(error).toMatchObject({ code: 'ADR_CONFLICT' });
+  const message = (error as Error).message;
+  expect(message).toContain('disk full');
+  expect(message).toContain(`${one}: left renamed`);
+  expect(message).toContain('mixed state');
+  expect(message).toContain(`${two}: unchanged`);
+  expect(message).toContain(`${three}: unchanged`);
+  expect(message).toContain(`${config}: unchanged`);
+});
+
+test('a symlinked ADR is rewritten through the link, which stays a link', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles(),
+    'product/store/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+    'product/adrien.config.yaml': configYaml({ product: 'Acme', workspace: 'acme', common: '../shared' }),
+  });
+  mkdirSync(join(root, 'product/docs/adr'), { recursive: true });
+  const link = join(root, 'product/docs/adr/ADR-0002-use-it.md');
+  symlinkSync(join(root, 'product/store/ADR-0002-use-it.md'), link);
+  applyWorkspaceRename(await fixturePlan(root));
+  expect(lstatSync(link).isSymbolicLink()).toBe(true);
+  expect(readFileSync(link, 'utf8')).toContain('house/ADR-0009');
 });
