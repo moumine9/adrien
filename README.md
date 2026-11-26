@@ -2,6 +2,12 @@
 
 <img src="assets/icon-512.png" alt="The Adrien mark: a stack of three decision records, the front one marked with an A" width="112" height="112" align="right">
 
+[![CI](https://github.com/moumine9/adrien/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/moumine9/adrien/actions/workflows/ci.yml)
+[![npm](https://img.shields.io/npm/v/adrien)](https://www.npmjs.com/package/adrien)
+[![Node.js](https://img.shields.io/node/v/adrien)](https://nodejs.org/)
+[![License: AGPL-3.0](https://img.shields.io/github/license/moumine9/adrien)](LICENSE)
+[![Docs](https://img.shields.io/badge/docs-online-blue)](https://moumine9.github.io/adrien/docs/)
+
 Architecture decisions for developers **and their AI agents**. (Yes, the name is a nod to ADR.)
 
 Decisions get made in merge-request threads, chat and tickets, and then they are lost. Nobody has an overview, nothing
