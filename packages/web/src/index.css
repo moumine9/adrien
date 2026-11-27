@@ -147,6 +147,25 @@
   animation: toast-enter 150ms ease-out;
 }
 
+@keyframes loading-slide {
+  from {
+    background-position: 0% 0;
+  }
+  to {
+    background-position: 100% 0;
+  }
+}
+
+/* The header's loading stripe: a solid bar with a band of the page colour sliding across it. Without motion the solid
+   bar is still there, so the loading state stays visible under prefers-reduced-motion. */
+@utility loading-bar {
+  @apply absolute inset-x-0 bottom-0 h-1 bg-main;
+  background-image: linear-gradient(90deg, transparent, var(--background), transparent);
+  background-size: 35% 100%;
+  background-repeat: no-repeat;
+  animation: loading-slide 1.2s ease-in-out infinite;
+}
+
 /* Unlayered, so it outranks the utilities layer without !important. */
 @media (prefers-reduced-motion: reduce) {
   *,
