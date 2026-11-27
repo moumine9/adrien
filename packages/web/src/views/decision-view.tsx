@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router';
 import { BindingBadge, DueBadge, PendingBadge, StatusBadge } from '@/components/badges.tsx';
 import { ErrorState } from '@/components/error-state.tsx';
 import { FactsPanel } from '@/components/facts-panel.tsx';
+import { LineageList } from '@/components/lineage-list.tsx';
 import { AdrMarkdown } from '@/components/markdown.tsx';
 import { PendingSection, pendingFileOf } from '@/components/pending-section.tsx';
 import { RecordGapsHint } from '@/components/record-gaps-hint.tsx';
@@ -13,6 +14,7 @@ import { Button, buttonVariants } from '@/components/ui/button.tsx';
 import { Skeleton } from '@/components/ui/skeleton.tsx';
 import { ApiRequestError } from '@/lib/api.ts';
 import { useChangedSinceOpened } from '@/lib/change-watch.ts';
+import { supersessionChain } from '@/lib/lineage.ts';
 import { useAdr, useFileResolver, useGraph, useMeta } from '@/lib/queries.ts';
 import { recordGaps } from '@/lib/record-gaps.ts';
 import { authorityOf, isReviewDue } from '@/lib/status.ts';
@@ -84,6 +86,7 @@ export function DecisionView() {
   const onlyPending = !data.base;
   const { binding, sentence } = authorityOf({ status: m.status, layer: onlyPending ? 'pending' : 'base' }, meta.data);
   const nodes = new Map((graph.data?.nodes ?? []).map((n) => [n.id, n]));
+  const chain = graph.data ? supersessionChain(graph.data, m.id) : [];
 
   return (
     <article className="decision-record space-y-8">
@@ -153,8 +156,9 @@ export function DecisionView() {
             <p className="text-muted-foreground">This decision has no text beyond its frontmatter.</p>
           )}
         </section>
-        <aside className="lg:col-span-4">
+        <aside className="space-y-6 lg:col-span-4">
           <FactsPanel file={primary} nodes={nodes} />
+          <LineageList chain={chain} currentId={m.id} />
         </aside>
       </div>
 
