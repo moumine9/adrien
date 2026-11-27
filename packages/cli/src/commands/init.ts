@@ -18,6 +18,7 @@ import { type Cli, csv, singleLog } from '../cli.ts';
 
 export const AGENTS_SNIPPET = `<!-- adrien:start -->
 ## Architecture decisions (Adrien)
+
 Before changing code, call the \`adr_for_files\` MCP tool with the files you will touch, and follow the \`review_rule\` of every binding ADR, in the code you write or change (do not rewrite other code only to make it comply). If your change contradicts an accepted ADR, stop and tell the user instead of working around it. Record a new durable decision with \`adr_propose\`. Never set an ADR's status to \`accepted\` yourself.
 <!-- adrien:end -->`;
 
@@ -94,10 +95,10 @@ function initAgents(cli: Cli): void {
   const file = join(cli.cwd, 'AGENTS.md');
   const current = existsSync(file) ? readFileSync(file, 'utf8') : null;
   let next: string;
-  if (current === null) next = `${AGENTS_SNIPPET}\n`;
+  // A missing or blank file gets a top-level heading, so that markdownlint's first-line rule passes.
+  if (current === null || current.trim() === '') next = `# Agent instructions\n\n${AGENTS_SNIPPET}\n`;
   else if (AGENTS_BLOCK.test(current)) next = current.replace(AGENTS_BLOCK, () => AGENTS_SNIPPET);
-  else
-    next = `${current}${current === '' || current.endsWith('\n\n') ? '' : current.endsWith('\n') ? '\n' : '\n\n'}${AGENTS_SNIPPET}\n`;
+  else next = `${current}${current.endsWith('\n\n') ? '' : current.endsWith('\n') ? '\n' : '\n\n'}${AGENTS_SNIPPET}\n`;
   writeFileSync(file, next);
   cli.out(`${current === null ? 'Created' : 'Updated'} AGENTS.md with the Adrien block.\n`);
   const claude = join(cli.cwd, 'CLAUDE.md');
