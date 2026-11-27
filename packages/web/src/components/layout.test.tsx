@@ -47,6 +47,15 @@ describe('Theme across tabs', () => {
   });
 });
 
+describe('Footer', () => {
+  it('names the product, version, workspace and folder it reads', async () => {
+    renderApp('/');
+    expect(
+      await screen.findByText('Adrien 0.1.0, workspace adrien, reading docs/decisions. This view is read-only.'),
+    ).toBeInTheDocument();
+  });
+});
+
 describe('Settings link', () => {
   it('is the last entry of the main navigation, with a gear icon beside its label', async () => {
     renderApp('/');

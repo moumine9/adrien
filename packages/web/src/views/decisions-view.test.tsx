@@ -37,7 +37,9 @@ describe('Decisions view', () => {
     expect(
       await screen.findByRole('link', { name: 'Use PostgreSQL as the system of record for billing' }),
     ).toBeVisible();
-    expect(screen.getByText('13 decisions in docs/decisions, 3 pending changes in this checkout.')).toBeInTheDocument();
+    expect(
+      screen.getByText('13 decisions in workspace adrien (docs/decisions), 3 pending changes in this checkout.'),
+    ).toBeInTheDocument();
 
     const pg = screen
       .getByRole('link', { name: 'Use PostgreSQL as the system of record for billing' })
