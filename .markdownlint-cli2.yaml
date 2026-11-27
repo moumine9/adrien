@@ -1,6 +1,9 @@
 # Lints the repo's own docs. Biome formats Markdown too, so style rules that would fight it are left to Biome.
 globs:
   - "README.md"
+  - "AGENTS.md"
+  - "CLAUDE.md"
+  - "assets/**/*.md"
   - "docs/**/*.md"
 ignores:
   - "node_modules/**"
