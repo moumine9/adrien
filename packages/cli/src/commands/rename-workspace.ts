@@ -25,7 +25,7 @@ export function registerRenameWorkspace(program: Command, cli: Cli): void {
   program
     .command('rename-workspace')
     .description(
-      'Rename this log: its workspace field, and the related and exception_to references that name the old name in the logs whose common field points to it. With --from, catch up this log only: rewrite its references to the old name',
+      'Rename this log: its workspace field, its ADR folder when that folder is named after the old name, and the related and exception_to references that name the old name in the logs whose common field points to it. With --from, catch up this log only: rewrite its references to the old name',
     )
     .argument('<new-name>', 'the new workspace name')
     .option('--dry-run', 'show what would change, and write nothing')
@@ -36,7 +36,7 @@ export function registerRenameWorkspace(program: Command, cli: Cli): void {
     )
     .addHelpText(
       'after',
-      '\nRun it from the log you rename, and try --dry-run first. Merge a common log and its products together. A log in another repository keeps the old name until it is caught up with --from.',
+      '\nRun it from the log you rename, and try --dry-run first. When the ADR folder moves, stage both folders (git add -A) before you commit. Merge a common log and its products together. A log in another repository keeps the old name until it is caught up with --from.',
     )
     .action(async (to: string, opts: RenameOptions, cmd: Command) => {
       const globals = cmd.optsWithGlobals<GlobalOptions>();
@@ -55,7 +55,15 @@ export function registerRenameWorkspace(program: Command, cli: Cli): void {
         if (applied) applyWorkspaceRename(plan, cli.env);
         const references = referencesOf(plan);
         if (globals.json) {
-          return printJson(cli, { from: plan.from, to, applied, file: null, references, notes: plan.notes });
+          return printJson(cli, {
+            from: plan.from,
+            to,
+            applied,
+            file: null,
+            references,
+            notes: plan.notes,
+            move: null,
+          });
         }
         cli.out(
           references.length === 0
@@ -83,10 +91,18 @@ export function registerRenameWorkspace(program: Command, cli: Cli): void {
       ];
       const references = referencesOf(plan);
       const file = join(target.logRoot, CONFIG_FILE);
-      if (globals.json) return printJson(cli, { from: plan.from, to, applied, file, references, notes });
+      const move = plan.move && { from: plan.move.from, to: plan.move.to };
+      if (globals.json) return printJson(cli, { from: plan.from, to, applied, file, references, notes, move });
 
       cli.out(`${applied ? 'Renamed' : 'Would rename'} workspace ${plan.from} -> ${to}\n`);
       cli.out(`  ${file}: workspace is now ${to}\n`);
+      if (move) {
+        cli.out(`${applied ? 'Moved' : 'Would move'} the ADR folder: ${move.from} -> ${move.to}\n`);
+        cli.out(`Update any CODEOWNERS entry for ${move.from}/ to ${move.to}/.\n`);
+        cli.out(
+          `Stage both folders before you commit, since \`git commit -a\` leaves the new one out: git add -A ${move.from} ${move.to}\n`,
+        );
+      }
       for (const ref of references) cli.out(`  ${ref.path}: ${ref.field} ${ref.from} -> ${ref.to}\n`);
       for (const note of notes) cli.out(`Note: ${note}\n`);
     });

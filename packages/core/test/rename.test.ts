@@ -1,4 +1,14 @@
-import { lstatSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, vi } from 'vitest';
@@ -548,7 +558,8 @@ test('a same-named product with no entries naming the old name gets no note', as
   const shared = await ctxAt(join(root, 'shared'));
   const product = await ctxAt(join(root, 'product'));
   const plan = await planWorkspaceRename({ target: shared, others: [product], to: 'house' });
-  expect(plan.notes).toEqual([]);
+  // The only note is the target's own folder, which is not named after the workspace: the product adds none.
+  expect(plan.notes).toEqual(['The ADR folder docs/adr is not named after the workspace, so it was left where it is.']);
 });
 
 test('a product whose URL common is the root log of the repo is left alone when a subfolder log is renamed', async () => {
@@ -637,7 +648,7 @@ test('supersedes and superseded_by are never touched', async () => {
   const root = tmpDir();
   writeFiles(root, {
     ...sharedFiles(),
-    [`shared/docs/adr/ADR-0010-next.md`]: adrText({
+    'shared/docs/adr/ADR-0010-next.md': adrText({
       id: 'ADR-0010',
       title: 'Next',
       supersedes: ['shared/ADR-0001'],
@@ -1191,4 +1202,188 @@ test('a catch-up plan is refused when the common log was renamed again after the
   const before = snapshot(root);
   expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
   expect(snapshot(root)).toEqual(before);
+});
+
+/** A log named `old` whose ADR folder is `adrDir`, with ADR-0002 referring to ADR-0001 by the old name. */
+function movableLog(adrDir: string, name = 'old'): Record<string, string> {
+  return {
+    'log/adrien.config.yaml': configYaml({ product: 'Old', workspace: name, adr_dir: adrDir }),
+    [`log/${adrDir}/ADR-0001-a.md`]: adrText({ id: 'ADR-0001', title: 'A' }),
+    [`log/${adrDir}/ADR-0002-b.md`]: adrText({ id: 'ADR-0002', title: 'B', related: [`${name}/ADR-0001`] }),
+  };
+}
+
+test('the ADR folder moves to the new name when its last segment is the old name, and adr_dir follows', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  expect(plan.move).toEqual({ logRoot: join(root, 'log'), from: 'adrien-docs/old', to: 'adrien-docs/new' });
+  applyWorkspaceRename(plan);
+  expect(existsSync(join(root, 'log/adrien-docs/old'))).toBe(false);
+  expect(readFileSync(join(root, 'log/adrien-docs/new/ADR-0002-b.md'), 'utf8')).toContain('new/ADR-0001');
+  const after = await ctxAt(join(root, 'log'));
+  expect(after.config.adr_dir).toBe('adrien-docs/new');
+  expect(readWorkingLog(after.logRoot, after.config).adrs.map((adr) => adr.meta.id)).toEqual(['ADR-0001', 'ADR-0002']);
+});
+
+test('an adr_dir that is only the old name becomes the new name', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('old'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  expect(plan.move).toEqual({ logRoot: join(root, 'log'), from: 'old', to: 'new' });
+  applyWorkspaceRename(plan);
+  expect(existsSync(join(root, 'log/new/ADR-0001-a.md'))).toBe(true);
+  expect((await ctxAt(join(root, 'log'))).config.adr_dir).toBe('new');
+});
+
+test('an ADR folder whose last segment is not the old name is left where it is, with a note', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('docs/adr'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  expect(plan.move).toBeNull();
+  expect(plan.notes).toContain('The ADR folder docs/adr is not named after the workspace, so it was left where it is.');
+  applyWorkspaceRename(plan);
+  expect(existsSync(join(root, 'log/docs/adr/ADR-0001-a.md'))).toBe(true);
+  expect((await ctxAt(join(root, 'log'))).config.adr_dir).toBe('docs/adr');
+});
+
+test('a destination folder that already exists refuses the plan, and nothing is written', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...movableLog('adrien-docs/old'),
+    'log/adrien-docs/new/ADR-0009-other.md': adrText({ id: 'ADR-0009', title: 'Other' }),
+  });
+  const target = await ctxAt(join(root, 'log'));
+  const before = snapshot(root);
+  await expect(planWorkspaceRename({ target, others: [], to: 'new' })).rejects.toMatchObject({
+    code: 'INVALID_INPUT',
+    message: expect.stringContaining('adrien-docs/new'),
+  });
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('a destination folder that appears after the plan refuses the apply, and nothing is written', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  writeFiles(root, { 'log/adrien-docs/new/ADR-0009-other.md': adrText({ id: 'ADR-0009', title: 'Other' }) });
+  const before = snapshot(root);
+  expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('a config write that fails after the folder moved puts the folder and the ADR texts back', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  const before = snapshot(root);
+  const injected = new Error('config locked');
+  failOnce('rename', join(root, 'log', CONFIG_FILE), injected);
+  expect(applyError(plan)).toBe(injected);
+  expect(snapshot(root)).toEqual(before);
+  expect(existsSync(join(root, 'log/adrien-docs/new'))).toBe(false);
+  expect(tempFilesIn(root)).toEqual([]);
+});
+
+test('a product log reached by the rename keeps its ADR folder, even when it has the old name', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    'shared/adrien.config.yaml': configYaml({
+      product: 'Shared Co',
+      workspace: 'shared',
+      adr_dir: 'adrien-docs/shared',
+    }),
+    'shared/adrien-docs/shared/ADR-0009-shared.md': adrText({
+      id: 'ADR-0009',
+      title: 'Shared rule',
+      status: 'accepted',
+      components: ['web'],
+      review_rule: 'Shared rule applies.',
+    }),
+    'product/adrien.config.yaml': configYaml({
+      product: 'Acme',
+      workspace: 'acme',
+      common: '../shared',
+      adr_dir: 'adrien-docs/shared',
+    }),
+    'product/adrien-docs/shared/ADR-0002-use-it.md': adrText({
+      id: 'ADR-0002',
+      title: 'Use it',
+      status: 'accepted',
+      review_rule: 'Use it.',
+      related: ['shared/ADR-0009'],
+    }),
+  });
+  const shared = await ctxAt(join(root, 'shared'));
+  const product = await ctxAt(join(root, 'product'));
+  const plan = await planWorkspaceRename({ target: shared, others: [product], to: 'house' });
+  expect(plan.move).toMatchObject({ from: 'adrien-docs/shared', to: 'adrien-docs/house' });
+  applyWorkspaceRename(plan);
+  expect(existsSync(join(root, 'shared/adrien-docs/house/ADR-0009-shared.md'))).toBe(true);
+  expect(existsSync(join(root, 'product/adrien-docs/shared/ADR-0002-use-it.md'))).toBe(true);
+  expect((await ctxAt(join(root, 'product'))).config.adr_dir).toBe('adrien-docs/shared');
+  expect((await metaOf(product, 'ADR-0002'))?.related).toEqual(['house/ADR-0009']);
+});
+
+test('a catch-up never moves a folder and adds no note about one', async () => {
+  const root = tmpDir();
+  writeFiles(root, {
+    ...sharedFiles('house'),
+    ...productFiles({
+      'product/docs/adr/ADR-0002-use-it.md': adrText({ id: 'ADR-0002', title: 'Use it', related: ['shared/ADR-0009'] }),
+    }),
+  });
+  const product = await ctxAt(join(root, 'product'));
+  const plan = await planReferenceCatchUp({ logs: [product], from: 'shared', to: 'house' });
+  expect(plan.move).toBeNull();
+  expect(plan.notes).toEqual([]);
+});
+
+test('after the folder moves, check finds every ADR of the log, with no link problems', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const target = await ctxAt(join(root, 'log'));
+  applyWorkspaceRename(await planWorkspaceRename({ target, others: [], to: 'new' }));
+  const after = await ctxAt(join(root, 'log'));
+  const working = readWorkingLog(after.logRoot, after.config);
+  expect(working.problems).toEqual([]);
+  expect(working.adrs).toHaveLength(2);
+  expect(await linkProblems(join(root, 'log'), { ADRIEN_HOME: tmpDir() })).toEqual([]);
+});
+
+test('an ADR folder that disappeared after the plan refuses the apply, and nothing is written', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  rmSync(join(root, 'log/adrien-docs/old'), { recursive: true });
+  const before = snapshot(root);
+  expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('an ADR created while the apply waits for the locks is not moved: the apply refuses, and nothing is changed', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  const before = snapshot(root);
+  // The first lock file is written once the apply has read the ids: a decision created then is not locked.
+  let spent = false;
+  faults.hook = (op, path) => {
+    if (op !== 'write' || spent || !path.includes(join('.adrien', 'locks'))) return;
+    spent = true;
+    writeFiles(root, { 'log/adrien-docs/old/ADR-0003-c.md': adrText({ id: 'ADR-0003', title: 'C' }) });
+  };
+  expect(applyError(plan)).toMatchObject({ code: 'ADR_CONFLICT' });
+  expect(existsSync(join(root, 'log/adrien-docs/old'))).toBe(true);
+  expect(existsSync(join(root, 'log/adrien-docs/new'))).toBe(false);
+  expect((await ctxAt(join(root, 'log'))).config.adr_dir).toBe('adrien-docs/old');
+  const after = snapshot(root);
+  expect(Object.keys(after).filter((rel) => after[rel] !== before[rel])).toEqual(['log/adrien-docs/old/ADR-0003-c.md']);
 });

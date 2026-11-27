@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readFileSync, renameSync } from 'node:fs';
+import { join, posix } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import YAML from 'yaml';
 import { type CommonResolution, readCommon } from './common.ts';
@@ -9,7 +9,7 @@ import { AdrienError } from './errors.ts';
 import { serializeAdr } from './frontmatter.ts';
 import { gitToplevel, remoteUrl } from './git.ts';
 import { withAdrLocks } from './lock.ts';
-import { assertInsideLog, readWorkingLog, revisionOfText, writeTextAtomic } from './log.ts';
+import { assertInsideLog, readWorkingLog, revisionOfText, toPosix, writeTextAtomic } from './log.ts';
 import { assertWritable, lockOptions } from './ops.ts';
 import { parseRef } from './ref.ts';
 import { isGitUrl, normalizeRepoUrl } from './repo-url.ts';
@@ -37,6 +37,8 @@ export interface WorkspaceRenamePlan {
   to: string;
   /** The target log's configuration: its planned text, and the revision it was planned on. Null for a catch-up. */
   config: { logRoot: string; path: string; revision: string; text: string } | null;
+  /** The target log's ADR folder, moved from `from` to `to` (posix paths relative to its root). Null when it stays. */
+  move: { logRoot: string; from: string; to: string } | null;
   edits: RenameEdit[];
   /** The configuration of every other log the plan depends on, as read: a change since refuses the apply. */
   configs: Array<{ logRoot: string; revision: string }>;
@@ -122,10 +124,14 @@ function readConfigOnce(ctx: Context): { text: string; revision: string } {
   return { text, revision: revisionOfText(text) };
 }
 
-/** The config text with its `workspace` set, keeping comments and key order. Validated, so a bad result never reaches disk. */
-function setWorkspaceName(text: string, name: string, label: string): string {
+/**
+ * The config text with its `workspace` set, and `adr_dir` set too when the ADR folder moves (`adrDir` is not null).
+ * Keeps comments and key order. Validated, so a bad result never reaches disk.
+ */
+function setWorkspaceName(text: string, name: string, adrDir: string | null, label: string): string {
   const doc = YAML.parseDocument(text);
   doc.set('workspace', name);
+  if (adrDir !== null) doc.set('adr_dir', adrDir);
   const next = doc.toString();
   parseLogConfigText(next, label);
   return next;
@@ -206,6 +212,27 @@ export async function planWorkspaceRename(opts: {
     throw new AdrienError('INVALID_INPUT', `"${to}" is already the name of a log this rename reaches.`);
   }
 
+  // The ADR folder moves only when its last segment is the old name: `<parent>/<old>` becomes `<parent>/<new>`.
+  const adrDir = posix.normalize(toPosix(target.config.adr_dir)).replace(/(.)\/+$/, '$1');
+  let move: WorkspaceRenamePlan['move'] = null;
+  if (posix.basename(adrDir) === from) {
+    const parent = posix.dirname(adrDir);
+    const moved = parent === '.' ? to : `${parent}/${to}`;
+    const fromPath = join(target.logRoot, ...adrDir.split('/'));
+    const toPath = join(target.logRoot, ...moved.split('/'));
+    assertInsideLog(target.logRoot, fromPath, adrDir);
+    assertInsideLog(target.logRoot, toPath, moved);
+    if (existsSync(toPath)) {
+      throw new AdrienError(
+        'INVALID_INPUT',
+        `${moved} already exists, so the ADR folder cannot move there: choose another name, or move that folder first.`,
+      );
+    }
+    move = { logRoot: target.logRoot, from: adrDir, to: moved };
+  } else {
+    notes.push(`The ADR folder ${target.config.adr_dir} is not named after the workspace, so it was left where it is.`);
+  }
+
   const edits: RenameEdit[] = [];
   const configs: WorkspaceRenamePlan['configs'] = [];
   for (const ctx of [target, ...linked]) {
@@ -233,8 +260,9 @@ export async function planWorkspaceRename(opts: {
       logRoot: target.logRoot,
       path: CONFIG_FILE,
       revision: targetConfig.revision,
-      text: setWorkspaceName(targetConfig.text, to, join(target.logRoot, CONFIG_FILE)),
+      text: setWorkspaceName(targetConfig.text, to, move === null ? null : move.to, join(target.logRoot, CONFIG_FILE)),
     },
+    move,
     edits,
     configs,
     notes,
@@ -290,25 +318,24 @@ export async function planReferenceCatchUp(opts: {
     assertWritable(ctx);
     edits.push(...editsIn(ctx, from, to, notes));
   }
-  return { from, to, config: null, edits, configs, notes };
+  return { from, to, config: null, move: null, edits, configs, notes };
 }
 
-/** Runs `fn` while holding the locks of each log's edited ADRs, one log after another, in the order given. */
-function withLogs<T>(groups: ReadonlyArray<[string, RenameEdit[]]>, env: NodeJS.ProcessEnv, fn: () => T): T {
+/** The absolute path of a posix folder path inside a log. */
+const folderPath = (logRoot: string, relPath: string): string => join(logRoot, ...relPath.split('/'));
+
+/** Runs `fn` while holding the locks of each log's given ADR ids, one log after another, in the order given. */
+function withLogs<T>(groups: ReadonlyArray<[string, string[]]>, env: NodeJS.ProcessEnv, fn: () => T): T {
   const [head, ...rest] = groups;
   if (!head) return fn();
-  return withAdrLocks(
-    head[0],
-    head[1].map((edit) => edit.id),
-    () => withLogs(rest, env, fn),
-    lockOptions(env),
-  );
+  return withAdrLocks(head[0], head[1], () => withLogs(rest, env, fn), lockOptions(env));
 }
 
 /**
  * Applies a plan. Every log's ADRs are locked and checked against the revisions planned, and the config against its own,
  * before the first write, so a change made since the plan refuses the whole rename with nothing written. ADRs are written
- * first and the config last.
+ * first, then the ADR folder moves, and the config last. A move changes the path of every ADR of the target log, so every
+ * ADR of that log is locked, not only the edited ones.
  */
 export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.ProcessEnv = process.env): void {
   for (const edit of plan.edits) {
@@ -322,81 +349,114 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
   const byLog = new Map<string, RenameEdit[]>();
   for (const edit of plan.edits) byLog.set(edit.logRoot, [...(byLog.get(edit.logRoot) ?? []), edit]);
   const groups = [...byLog].sort(([a], [b]) => a.localeCompare(b));
-  const { config } = plan;
+  const { config, move } = plan;
 
-  withLogs(groups, env, () => {
-    if (config && revisionOfText(readFileSync(join(config.logRoot, config.path), 'utf8')) !== config.revision) {
-      throw conflict(config.path);
-    }
-    for (const { logRoot, revision } of plan.configs) {
-      if (revisionOfText(readFileSync(join(logRoot, CONFIG_FILE), 'utf8')) !== revision) throw conflict(CONFIG_FILE);
-    }
-    const writes = groups.flatMap(([logRoot, edits]) => {
-      const { adrs } = readWorkingLog(logRoot, loadLogConfig(logRoot));
-      const ownIds = new Set(adrs.map((adr) => adr.meta.id));
-      return edits.map((edit) => {
-        const adr = adrs.find((candidate) => candidate.path === edit.path);
-        if (!adr || adr.revision !== edit.revision) throw conflict(edit.path);
-        const related = adr.meta.related.map((entry) => {
-          const next = renameEntry(entry, ownIds, plan.from, plan.to);
-          if (next !== entry && ownIds.has(next)) throw conflict(edit.path);
-          return next;
-        });
-        const exception_to = adr.meta.exception_to.map((entry) => renameEntry(entry, NO_IDS, plan.from, plan.to));
-        return { logRoot, adr: { ...adr, meta: { ...adr.meta, related, exception_to } } };
-      });
-    });
-    // Each file's text before the first write, so a failed write can be put back.
-    const steps: Step[] = writes.map(({ logRoot, adr }) => {
-      const file = join(logRoot, ...adr.path.split('/'));
-      assertInsideLog(logRoot, file, adr.path);
-      return { file, original: readFileSync(file, 'utf8'), write: () => writeTextAtomic(file, serializeAdr(adr)) };
-    });
-    if (config) {
-      const file = join(config.logRoot, config.path);
-      steps.push({ file, original: readFileSync(file, 'utf8'), write: () => writeTextAtomic(file, config.text) });
-    }
-    const written: Step[] = [];
-    try {
-      for (const step of steps) {
-        step.write();
-        written.push(step);
+  // The ids to lock: the edited ADRs of each log, and for a move every ADR of the target log, read before the locks are taken.
+  const lockIds = new Map<string, string[]>(groups.map(([logRoot, edits]) => [logRoot, edits.map((edit) => edit.id)]));
+  if (move) {
+    const everyId = readWorkingLog(move.logRoot, loadLogConfig(move.logRoot)).adrs.map((adr) => adr.meta.id);
+    lockIds.set(move.logRoot, [...new Set([...(lockIds.get(move.logRoot) ?? []), ...everyId])]);
+  }
+
+  withLogs(
+    [...lockIds].sort(([a], [b]) => a.localeCompare(b)),
+    env,
+    () => {
+      if (config && revisionOfText(readFileSync(join(config.logRoot, config.path), 'utf8')) !== config.revision) {
+        throw conflict(config.path);
       }
-    } catch (error) {
-      rollBack(written, steps.slice(written.length), error);
-    }
-  });
+      for (const { logRoot, revision } of plan.configs) {
+        if (revisionOfText(readFileSync(join(logRoot, CONFIG_FILE), 'utf8')) !== revision) throw conflict(CONFIG_FILE);
+      }
+      const folders = move && { from: folderPath(move.logRoot, move.from), to: folderPath(move.logRoot, move.to) };
+      if (move && folders) {
+        assertInsideLog(move.logRoot, folders.from, move.from);
+        assertInsideLog(move.logRoot, folders.to, move.to);
+        if (!existsSync(folders.from)) throw conflict(move.from);
+        if (existsSync(folders.to)) throw conflict(move.to);
+        // An ADR created since the ids were read is not locked, and the move would take it from under its writer.
+        const locked = new Set(lockIds.get(move.logRoot));
+        if (readWorkingLog(move.logRoot, loadLogConfig(move.logRoot)).adrs.some((adr) => !locked.has(adr.meta.id))) {
+          throw conflict(move.from);
+        }
+      }
+      const writes = groups.flatMap(([logRoot, edits]) => {
+        const { adrs } = readWorkingLog(logRoot, loadLogConfig(logRoot));
+        const ownIds = new Set(adrs.map((adr) => adr.meta.id));
+        return edits.map((edit) => {
+          const adr = adrs.find((candidate) => candidate.path === edit.path);
+          if (!adr || adr.revision !== edit.revision) throw conflict(edit.path);
+          const related = adr.meta.related.map((entry) => {
+            const next = renameEntry(entry, ownIds, plan.from, plan.to);
+            if (next !== entry && ownIds.has(next)) throw conflict(edit.path);
+            return next;
+          });
+          const exception_to = adr.meta.exception_to.map((entry) => renameEntry(entry, NO_IDS, plan.from, plan.to));
+          return { logRoot, adr: { ...adr, meta: { ...adr.meta, related, exception_to } } };
+        });
+      });
+      // Each file's text before the first write, so a failed write can be put back.
+      const steps: Step[] = writes.map(({ logRoot, adr }) => {
+        const file = join(logRoot, ...adr.path.split('/'));
+        assertInsideLog(logRoot, file, adr.path);
+        return textStep(file, readFileSync(file, 'utf8'), serializeAdr(adr));
+      });
+      if (folders) {
+        const { from, to } = folders;
+        steps.push({ label: from, write: () => renameSync(from, to), undo: () => renameSync(to, from) });
+      }
+      if (config) {
+        const file = join(config.logRoot, config.path);
+        steps.push(textStep(file, readFileSync(file, 'utf8'), config.text));
+      }
+      const written: Step[] = [];
+      try {
+        for (const step of steps) {
+          step.write();
+          written.push(step);
+        }
+      } catch (error) {
+        rollBack(written, steps.slice(written.length), error);
+      }
+    },
+  );
 }
 
-/** A file the apply writes, with the text it had before the write. */
+/** One write of an apply, and what undoes it. `label` names the file or folder in a message. */
 interface Step {
-  file: string;
-  original: string;
+  label: string;
   write: () => void;
+  undo: () => void;
 }
+
+/** A step that writes `text` over `file`, and puts back `original` when undone. */
+const textStep = (file: string, original: string, text: string): Step => ({
+  label: file,
+  write: () => writeTextAtomic(file, text),
+  undo: () => writeTextAtomic(file, original),
+});
 
 /** The message of an error the file calls threw, which are always `Error`s. */
 const messageOf = (error: unknown): string => (error as Error).message;
 
 /**
- * Puts back the files already written, in reverse order, then rethrows the original error. The file whose write failed
- * was never replaced, because a write is atomic. A file that cannot be put back is reported with the others, and the
- * error names each one.
+ * Undoes the writes already made, in reverse order, then rethrows the original error. The write that failed was never
+ * made, because a write is atomic. A write that cannot be undone is reported with the others, and the error names each one.
  */
 function rollBack(written: readonly Step[], pending: readonly Step[], cause: unknown): never {
   const lines: string[] = [];
   let restoredAll = true;
   for (const step of [...written].reverse()) {
     try {
-      writeTextAtomic(step.file, step.original);
-      lines.push(`${step.file}: restored`);
+      step.undo();
+      lines.push(`${step.label}: restored`);
     } catch (e) {
       restoredAll = false;
-      lines.push(`${step.file}: left renamed (restore failed: ${messageOf(e)})`);
+      lines.push(`${step.label}: left renamed (restore failed: ${messageOf(e)})`);
     }
   }
   if (restoredAll) throw cause;
-  for (const step of pending) lines.push(`${step.file}: unchanged`);
+  for (const step of pending) lines.push(`${step.label}: unchanged`);
   throw new AdrienError(
     'ADR_CONFLICT',
     `The rename failed (${messageOf(cause)}) and could not be fully undone, so the log is in a mixed state: put the files marked "left renamed" back by hand, or rename them again.\n${lines.join('\n')}`,
