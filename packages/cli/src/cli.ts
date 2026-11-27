@@ -17,6 +17,8 @@ export interface Cli {
   out(text: string): void;
   err(text: string): void;
   setCode(code: number): void;
+  /** Asks the person a question and resolves with the answer. Set only in a terminal, so a command asks nothing elsewhere. */
+  ask?: (question: string) => Promise<string>;
   update?: Partial<UpdateDeps>;
 }
 

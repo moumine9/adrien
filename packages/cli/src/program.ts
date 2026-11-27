@@ -28,6 +28,8 @@ export { VERSION };
 export interface CliIO {
   cwd: string;
   env?: NodeJS.ProcessEnv;
+  /** Asks the person a question (the entry point sets it only in a terminal; tests inject one). */
+  ask?: (question: string) => Promise<string>;
   /** Replaces the registry lookup and the installer (tests only). */
   update?: Partial<UpdateDeps>;
 }
@@ -108,6 +110,7 @@ export async function runCli(argv: string[], io: CliIO): Promise<CliResult> {
     setCode: (c) => {
       code = c;
     },
+    ask: io.ask,
     update: io.update,
   };
   try {
