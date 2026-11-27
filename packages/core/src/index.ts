@@ -10,6 +10,7 @@ export * from './export.ts';
 export * from './for-files.ts';
 export * from './frontmatter.ts';
 export * from './git.ts';
+export * from './history-url.ts';
 export * from './ids.ts';
 export * from './index-db.ts';
 export * from './lint.ts';
