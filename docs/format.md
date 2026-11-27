@@ -134,6 +134,22 @@ The approval flow is the one your platform already has:
 `adrien check --mr` warns when an ADR changed in the merge request still says `proposed`: merged as it is, it would be a
 hint, not a decision.
 
+## A decision with a migration
+
+A decision is often taken before the existing code follows it. Accept it now, and write its `review_rule` as what holds
+from today for new and changed code. Say in the body's Consequences which code still has to be migrated, and by when.
+
+Set `review_on` to the end of the migration. From that day `adrien check` reports `review-due`: confirm that the
+migration is done, or supersede the decision. Under `adrien check --strict` that warning fails the check, so pick a date
+the team will act on.
+
+Agents apply a `review_rule` to the code they write or change, and do not rewrite other code only to make it comply:
+the `adr_for_files` tool and the block that `adrien init --agents` writes tell them so.
+
+A decision the team has not agreed on yet stays `proposed`: it binds nothing, so do not accept it early to announce it.
+A product that departs from a common decision for a while records an exception instead (`exception_to`, see above),
+which also needs `review_on`.
+
 ## `adrien.config.yaml` (in the log repo)
 
 ```yaml
