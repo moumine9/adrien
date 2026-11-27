@@ -17,7 +17,7 @@ import { CONFIG_FILE, loadLogConfig } from '../src/config.ts';
 import { type Context, resolveContext } from '../src/context.ts';
 import { withFolderLock } from '../src/lock.ts';
 import { readWorkingLog } from '../src/log.ts';
-import { createAdr } from '../src/ops.ts';
+import { acceptAdr, createAdr, updateAdr } from '../src/ops.ts';
 import { applyWorkspaceRename, planReferenceCatchUp, planWorkspaceRename } from '../src/rename.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
@@ -1444,4 +1444,16 @@ test('a proposal still works after a rename that left the folder where it was', 
   const view = await loadLogView(stale.logRoot, stale.config);
   applyWorkspaceRename(await planWorkspaceRename({ target: stale, others: [], to: 'new' }));
   expect(createAdr(stale, view, { title: 'Still fine' })).toMatchObject({ written: true });
+});
+
+test('a change to an existing ADR from a context read before the folder moved fails, and the old folder is not recreated', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const stale = await ctxAt(join(root, 'log'));
+  const view = await loadLogView(stale.logRoot, stale.config);
+  applyWorkspaceRename(await planWorkspaceRename({ target: stale, others: [], to: 'new' }));
+  expect(errorOf(() => updateAdr(stale, view, 'ADR-0001', { title: 'Renamed' }))).toMatchObject({ code: 'ADR_NOT_FOUND' });
+  expect(errorOf(() => acceptAdr(stale, view, 'ADR-0001'))).toMatchObject({ code: 'ADR_NOT_FOUND' });
+  expect(existsSync(join(root, 'log/adrien-docs/old'))).toBe(false);
+  expect(readFileSync(join(root, 'log/adrien-docs/new/ADR-0001-a.md'), 'utf8')).toContain('title: A');
 });
