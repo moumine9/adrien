@@ -1,13 +1,14 @@
 ---
 id: ADR-0033
 title: A log names its workspace in a workspace field of its configuration
-status: accepted
+status: superseded
 date: 2026-11-23
 review_on: 2027-05-23
 tags: [format]
 components: [core, cli]
 code: [core:src/config.ts, cli:src/commands/init.ts]
 review_rule: A log's workspace name is the workspace field of its adrien.config.yaml, set by adrien init, and is never part of an ADR's file name or id; --log name=path overrides it for one instance.
+superseded_by: ADR-0037
 related: [ADR-0032, ADR-0030]
 origin: agent
 ---
