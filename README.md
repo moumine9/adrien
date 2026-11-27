@@ -45,8 +45,9 @@ adrien new "Store invoices in Postgres" --tags backend,database
 adrien check
 ```
 
-`init` prints the two things to set up on your git host: `CODEOWNERS` for the ADR folder, and required code-owner
-approval on the default branch.
+`init` asks for the parent folder of the ADRs (`adrien-docs` by default) and keeps them in a folder named after the
+workspace, here `adrien-docs/acme`. It prints the two things to set up on your git host: `CODEOWNERS` for that folder,
+and required code-owner approval on the default branch.
 
 **2. Link each code repo** to the log, and tell agents about it:
 
