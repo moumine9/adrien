@@ -266,6 +266,9 @@ change; the revision, below, protects a change that was planned on an older read
 
 - `supersede` locks both ADRs, and `renumber` locks every ADR in the log, since it can rewrite the ones that refer to the
   one it moves. Locks are always taken in the same order, so two commands cannot wait on each other.
+- A new ADR (`adrien new`, `adr_propose`) and a `rename-workspace` that moves the ADR folder both take the log's folder
+  lock, `.adrien/folder.lock`, the rename before any ADR lock. A proposal made while the folder moves waits for it, and
+  one that read the log before the move is refused with `ADR_CONFLICT`: run it again.
 - A lock whose process is gone (on this machine), or that has been held for 30 seconds, is taken over, so a crashed command
   never leaves an ADR stuck. Locks live in the working copy: a log is changed in one checkout at a time, and the merge
   request is where two checkouts meet.

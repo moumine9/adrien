@@ -8,7 +8,7 @@ import type { Context } from './context.ts';
 import { AdrienError } from './errors.ts';
 import { serializeAdr } from './frontmatter.ts';
 import { gitToplevel, remoteUrl } from './git.ts';
-import { withAdrLocks } from './lock.ts';
+import { withAdrLocks, withFolderLock } from './lock.ts';
 import { assertInsideLog, readWorkingLog, revisionOfText, toPosix, writeTextAtomic } from './log.ts';
 import { assertWritable, lockOptions } from './ops.ts';
 import { parseRef } from './ref.ts';
@@ -349,15 +349,36 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
   const byLog = new Map<string, RenameEdit[]>();
   for (const edit of plan.edits) byLog.set(edit.logRoot, [...(byLog.get(edit.logRoot) ?? []), edit]);
   const groups = [...byLog].sort(([a], [b]) => a.localeCompare(b));
-  const { config, move } = plan;
+  const { move } = plan;
 
-  // The ids to lock: the edited ADRs of each log, and for a move every ADR of the target log, read before the locks are taken.
+  // The ids to lock: the edited ADRs of each log, and for a move every ADR of the target log.
   const lockIds = new Map<string, string[]>(groups.map(([logRoot, edits]) => [logRoot, edits.map((edit) => edit.id)]));
-  if (move) {
-    const everyId = readWorkingLog(move.logRoot, loadLogConfig(move.logRoot)).adrs.map((adr) => adr.meta.id);
-    lockIds.set(move.logRoot, [...new Set([...(lockIds.get(move.logRoot) ?? []), ...everyId])]);
+  if (!move) {
+    applyLocked(plan, groups, lockIds, env);
+    return;
   }
+  // A move first takes the folder lock, which a new ADR also takes, so no proposal writes into the folder while it moves.
+  // Nothing takes the folder lock while holding an ADR lock, so taking it before the ADR locks cannot deadlock. The ids
+  // are read under it: an ADR that Adrien creates is then either already among them or waits until the move is done.
+  withFolderLock(
+    move.logRoot,
+    () => {
+      const everyId = readWorkingLog(move.logRoot, loadLogConfig(move.logRoot)).adrs.map((adr) => adr.meta.id);
+      lockIds.set(move.logRoot, [...new Set([...(lockIds.get(move.logRoot) ?? []), ...everyId])]);
+      applyLocked(plan, groups, lockIds, env);
+    },
+    lockOptions(env),
+  );
+}
 
+/** The rest of an apply, under the ADR locks of `lockIds`: checks, then the writes, undone if one fails. */
+function applyLocked(
+  plan: WorkspaceRenamePlan,
+  groups: ReadonlyArray<[string, RenameEdit[]]>,
+  lockIds: ReadonlyMap<string, string[]>,
+  env: NodeJS.ProcessEnv,
+): void {
+  const { config, move } = plan;
   withLogs(
     [...lockIds].sort(([a], [b]) => a.localeCompare(b)),
     env,
@@ -374,7 +395,8 @@ export function applyWorkspaceRename(plan: WorkspaceRenamePlan, env: NodeJS.Proc
         assertInsideLog(move.logRoot, folders.to, move.to);
         if (!existsSync(folders.from)) throw conflict(move.from);
         if (existsSync(folders.to)) throw conflict(move.to);
-        // An ADR created since the ids were read is not locked, and the move would take it from under its writer.
+        // A file added by hand since the ids were read (Adrien itself waits for the folder lock) is not locked, and the
+        // move would take it from under whoever is writing it.
         const locked = new Set(lockIds.get(move.logRoot));
         if (readWorkingLog(move.logRoot, loadLogConfig(move.logRoot)).adrs.some((adr) => !locked.has(adr.meta.id))) {
           throw conflict(move.from);

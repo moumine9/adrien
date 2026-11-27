@@ -15,7 +15,9 @@ import { afterEach, vi } from 'vitest';
 import { runCheck } from '../src/check.ts';
 import { CONFIG_FILE, loadLogConfig } from '../src/config.ts';
 import { type Context, resolveContext } from '../src/context.ts';
+import { withFolderLock } from '../src/lock.ts';
 import { readWorkingLog } from '../src/log.ts';
+import { createAdr } from '../src/ops.ts';
 import { applyWorkspaceRename, planReferenceCatchUp, planWorkspaceRename } from '../src/rename.ts';
 import { loadLogView } from '../src/view.ts';
 import { adrText, configYaml, tmpDir, writeFiles } from './helpers/fixtures.ts';
@@ -1386,4 +1388,60 @@ test('an ADR created while the apply waits for the locks is not moved: the apply
   expect((await ctxAt(join(root, 'log'))).config.adr_dir).toBe('adrien-docs/old');
   const after = snapshot(root);
   expect(Object.keys(after).filter((rel) => after[rel] !== before[rel])).toEqual(['log/adrien-docs/old/ADR-0003-c.md']);
+});
+
+/** The error a call throws, so a test can check its code. */
+function errorOf(fn: () => unknown): unknown {
+  try {
+    fn();
+  } catch (e) {
+    return e;
+  }
+  throw new Error('expected the call to throw');
+}
+
+test('a proposal from a context read before the folder moved is refused, and the old folder is not recreated', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const stale = await ctxAt(join(root, 'log'));
+  const view = await loadLogView(stale.logRoot, stale.config);
+  applyWorkspaceRename(await planWorkspaceRename({ target: stale, others: [], to: 'new' }));
+  expect(errorOf(() => createAdr(stale, view, { title: 'Late proposal' }))).toMatchObject({
+    code: 'ADR_CONFLICT',
+    message: expect.stringContaining('run the command again'),
+  });
+  expect(existsSync(join(root, 'log/adrien-docs/old'))).toBe(false);
+  expect(readdirSync(join(root, 'log/adrien-docs/new')).sort()).toEqual(['ADR-0001-a.md', 'ADR-0002-b.md']);
+});
+
+test('a proposal waits for a folder move in progress, and gives up after the lock timeout', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const ctx = await ctxAt(join(root, 'log'), { ...process.env, ADRIEN_LOCK_TIMEOUT_MS: '50' });
+  const view = await loadLogView(ctx.logRoot, ctx.config);
+  const error = withFolderLock(ctx.logRoot, () => errorOf(() => createAdr(ctx, view, { title: 'Waiting' })));
+  expect(error).toMatchObject({ code: 'ADR_LOCKED' });
+  expect(readdirSync(join(root, 'log/adrien-docs/old')).sort()).toEqual(['ADR-0001-a.md', 'ADR-0002-b.md']);
+});
+
+test('a rename that moves the folder waits for a proposal in progress', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('adrien-docs/old'));
+  const target = await ctxAt(join(root, 'log'));
+  const plan = await planWorkspaceRename({ target, others: [], to: 'new' });
+  const error = withFolderLock(target.logRoot, () =>
+    errorOf(() => applyWorkspaceRename(plan, { ...process.env, ADRIEN_LOCK_TIMEOUT_MS: '50' })),
+  );
+  expect(error).toMatchObject({ code: 'ADR_LOCKED' });
+  expect(existsSync(join(root, 'log/adrien-docs/old/ADR-0001-a.md'))).toBe(true);
+  expect(existsSync(join(root, 'log/adrien-docs/new'))).toBe(false);
+});
+
+test('a proposal still works after a rename that left the folder where it was', async () => {
+  const root = tmpDir();
+  writeFiles(root, movableLog('docs/adr'));
+  const stale = await ctxAt(join(root, 'log'));
+  const view = await loadLogView(stale.logRoot, stale.config);
+  applyWorkspaceRename(await planWorkspaceRename({ target: stale, others: [], to: 'new' }));
+  expect(createAdr(stale, view, { title: 'Still fine' })).toMatchObject({ written: true });
 });
