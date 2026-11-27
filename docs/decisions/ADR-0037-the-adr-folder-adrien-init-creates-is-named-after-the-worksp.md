@@ -1,13 +1,14 @@
 ---
 id: ADR-0037
 title: The ADR folder adrien init creates is named after the workspace, and a workspace rename moves it
-status: proposed
+status: accepted
 date: 2026-11-27
 review_on: 2027-05-27
 tags: [format]
 components: [core, cli]
 code: [core:src/config.ts, core:src/rename.ts, cli:src/commands/init.ts, cli:src/commands/rename-workspace.ts]
 review_rule: A log's workspace name is the workspace field of its adrien.config.yaml, set by adrien init, and --log name=path overrides it for one instance only and never names a folder; adrien init asks for the parent folder of the ADRs (adrien-docs by default, --adr-parent without asking) and writes adr_dir as <parent>/<workspace> unless --adr-dir is given or docs/adr already holds ADRs, rename-workspace moves an adr_dir whose last segment is the old name and rewrites the field, and the name is never part of an ADR's file name or id.
+supersedes: [ADR-0033]
 related: [ADR-0033, ADR-0032, ADR-0034]
 origin: agent
 ---
