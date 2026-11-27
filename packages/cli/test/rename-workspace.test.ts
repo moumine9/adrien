@@ -1,16 +1,16 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { loadLogConfig } from '@adrien/core';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { runCli } from '../src/program.ts';
 
 /** A common log `shared` (workspace `shared`) and a product `acme` whose accepted ADR-0002 refers to ADR-0009 of it. */
-function logs() {
+function logs(sharedAdrDir = 'docs/adr') {
   const root = tmpDir();
   const home = tmpDir();
   writeFiles(root, {
-    'shared/adrien.config.yaml': configYaml({ product: 'Shared Co', workspace: 'shared' }),
-    'shared/docs/adr/ADR-0009-shared.md': adrText({
+    'shared/adrien.config.yaml': configYaml({ product: 'Shared Co', workspace: 'shared', adr_dir: sharedAdrDir }),
+    [`shared/${sharedAdrDir}/ADR-0009-shared.md`]: adrText({
       id: 'ADR-0009',
       title: 'Shared rule',
       status: 'accepted',
@@ -194,4 +194,62 @@ test('--from says so when no reference names the old name', async () => {
   const again = await run(product, 'rename-workspace', 'house', '--from', 'shared');
   expect(again.code).toBe(0);
   expect(again.stdout).toContain('No references to shared found.');
+});
+
+test('a rename moves the ADR folder named after the old workspace, and reminds the person about CODEOWNERS', async () => {
+  const { shared, product, run } = logs('adrien-docs/shared');
+  const result = await run(shared, '--log', `${shared};${product}`, 'rename-workspace', 'house');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain('Moved the ADR folder: adrien-docs/shared -> adrien-docs/house');
+  expect(result.stdout).toContain('Update any CODEOWNERS entry for adrien-docs/shared/ to adrien-docs/house/.');
+  expect(result.stdout).toContain(
+    'Stage both folders before you commit, since `git commit -a` leaves the new one out: git add -A adrien-docs/shared adrien-docs/house',
+  );
+  expect(existsSync(join(shared, 'adrien-docs/house/ADR-0009-shared.md'))).toBe(true);
+  expect(existsSync(join(shared, 'adrien-docs/shared'))).toBe(false);
+  expect(loadLogConfig(shared).adr_dir).toBe('adrien-docs/house');
+  expect(readFileSync(join(product, 'docs/adr/ADR-0002-use-it.md'), 'utf8')).toContain('house/ADR-0009');
+});
+
+test('--json reports the folder move as from and to', async () => {
+  const { shared, run } = logs('adrien-docs/shared');
+  const result = await run(shared, '--log', shared, '--json', 'rename-workspace', 'house');
+  expect(result.code).toBe(0);
+  expect(JSON.parse(result.stdout).move).toEqual({ from: 'adrien-docs/shared', to: 'adrien-docs/house' });
+});
+
+test('--dry-run says the ADR folder would move, and writes nothing', async () => {
+  const { root, shared, run } = logs('adrien-docs/shared');
+  const before = snapshot(root);
+  const result = await run(shared, '--log', shared, 'rename-workspace', 'house', '--dry-run');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain('Would move the ADR folder: adrien-docs/shared -> adrien-docs/house');
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('a destination folder that already exists is refused with exit 2, and nothing is written', async () => {
+  const { root, shared, run } = logs('adrien-docs/shared');
+  writeFiles(root, { 'shared/adrien-docs/house/ADR-0010-other.md': adrText({ id: 'ADR-0010', title: 'Other' }) });
+  const before = snapshot(root);
+  const result = await run(shared, '--log', shared, 'rename-workspace', 'house');
+  expect(result.code).toBe(2);
+  expect(result.stderr).toContain('adrien-docs/house');
+  expect(snapshot(root)).toEqual(before);
+});
+
+test('an ADR folder not named after the workspace is not moved, and the note says so', async () => {
+  const { shared, product, run } = logs();
+  const result = await run(shared, '--log', `${shared};${product}`, '--json', 'rename-workspace', 'house');
+  expect(result.code).toBe(0);
+  const out = JSON.parse(result.stdout);
+  expect(out.move).toBeNull();
+  expect(out.notes).toContain('The ADR folder docs/adr is not named after the workspace, so it was left where it is.');
+  expect(existsSync(join(shared, 'docs/adr/ADR-0009-shared.md'))).toBe(true);
+});
+
+test('--from never moves a folder and reports no move', async () => {
+  const { product, run } = renamedElsewhere();
+  const result = await run(product, '--json', 'rename-workspace', 'house', '--from', 'shared');
+  expect(result.code).toBe(0);
+  expect(JSON.parse(result.stdout).move).toBeNull();
 });

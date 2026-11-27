@@ -17,5 +17,6 @@ test('concurrent processes create both ADRs with distinct ids', async () => {
   const { adrs } = readWorkingLog(root, loadLogConfig(root));
   expect(adrs.map((adr) => adr.meta.title).sort()).toEqual(['Caching', 'Rendering']);
   expect(adrs.map((adr) => adr.meta.id).sort()).toEqual(['ADR-0001', 'ADR-0002']);
-  expect(readdirSync(join(root, '.adrien'))).toEqual(['.gitignore']);
+  // Every id reservation and the folder lock are released. The folder lock's guard folder stays, by design (lock.ts).
+  expect(readdirSync(join(root, '.adrien')).sort()).toEqual(['.gitignore', 'folder.lock.guard']);
 });

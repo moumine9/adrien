@@ -1,13 +1,13 @@
 import { unlinkSync } from 'node:fs';
 import { join, posix } from 'node:path';
 import { parseAnchor } from './anchors.ts';
-import { workspaceNameOf } from './config.ts';
+import { loadLogConfig, workspaceNameOf } from './config.ts';
 import type { Context } from './context.ts';
 import { type DuplicateHit, findDuplicates } from './duplicates.ts';
 import { AdrienError } from './errors.ts';
 import { bodyTemplate } from './frontmatter.ts';
 import { formatId, nextIdNumber } from './ids.ts';
-import { type LockOptions, withAdrLocks } from './lock.ts';
+import { type LockOptions, withAdrLocks, withFolderLock } from './lock.ts';
 import { adrFilePath, readWorkingLog, reserveId, revisionOf, writeAdr } from './log.ts';
 import type { Adr, AdrMeta, Origin, TemplateName } from './model.ts';
 import { parseRef } from './ref.ts';
@@ -160,47 +160,72 @@ export function createAdr(
   for (;;) {
     const reservation = reserveId(ctx.logRoot, next);
     try {
-      // Another writer may have published and released this number since our first scan.
-      const working = readWorkingLog(ctx.logRoot, ctx.config).adrs;
-      const id = formatId(reservation.number, ctx.config.id_format);
-      if (working.some((adr) => adr.meta.id === id)) {
-        next = nextIdNumber(
-          working.map((adr) => adr.meta.id),
-          ctx.config.id_format,
-        );
+      // Under the folder lock, a rename cannot move the ADR folder between the check below and the write.
+      const outcome = withFolderLock(
+        ctx.logRoot,
+        (): CreateResult | { retry: number } => {
+          const adrDir = loadLogConfig(ctx.logRoot).adr_dir;
+          if (adrDir !== ctx.config.adr_dir) {
+            throw new AdrienError(
+              'ADR_CONFLICT',
+              `The ADR folder moved from ${ctx.config.adr_dir} to ${adrDir} since this log was read (a workspace rename): run the command again.`,
+            );
+          }
+          // Another writer may have published and released this number since our first scan.
+          const working = readWorkingLog(ctx.logRoot, ctx.config).adrs;
+          const id = formatId(reservation.number, ctx.config.id_format);
+          if (working.some((adr) => adr.meta.id === id)) {
+            return {
+              retry: nextIdNumber(
+                working.map((adr) => adr.meta.id),
+                ctx.config.id_format,
+              ),
+            };
+          }
+          return writeNew(ctx, input, id, opts);
+        },
+        lockOptions(ctx.env),
+      );
+      if ('retry' in outcome) {
+        next = outcome.retry;
         continue;
       }
-      const adr: Adr = {
-        path: adrFilePath(ctx.config, id, input.title, input.subdir),
-        body: input.body ?? bodyTemplate(input.template ?? ctx.config.template),
-        meta: {
-          id,
-          title: input.title,
-          status: 'proposed',
-          date: todayOf(opts),
-          tags: input.tags ?? [],
-          components: input.components ?? [],
-          code: input.code ?? [],
-          review_rule: input.review_rule,
-          review_on: input.review_on,
-          sources: input.sources ?? [],
-          supersedes: [],
-          related: input.related ?? [],
-          exception_to: input.exception_to ?? [],
-          deciders: [],
-          origin: input.origin ?? 'manual',
-          contested: false,
-          extra: {},
-        },
-      };
-      if (adr.meta.review_rule === undefined) delete adr.meta.review_rule;
-      if (adr.meta.review_on === undefined) delete adr.meta.review_on;
-      writeAdr(ctx.logRoot, adr, { exclusive: true });
-      return { written: true, adr };
+      return outcome;
     } finally {
       reservation.release();
     }
   }
+}
+
+/** Writes a new proposed ADR with this id. The caller holds the id's reservation and the folder lock. */
+function writeNew(ctx: Context, input: NewAdrInput, id: string, opts?: OpOptions): CreateResult {
+  const adr: Adr = {
+    path: adrFilePath(ctx.config, id, input.title, input.subdir),
+    body: input.body ?? bodyTemplate(input.template ?? ctx.config.template),
+    meta: {
+      id,
+      title: input.title,
+      status: 'proposed',
+      date: todayOf(opts),
+      tags: input.tags ?? [],
+      components: input.components ?? [],
+      code: input.code ?? [],
+      review_rule: input.review_rule,
+      review_on: input.review_on,
+      sources: input.sources ?? [],
+      supersedes: [],
+      related: input.related ?? [],
+      exception_to: input.exception_to ?? [],
+      deciders: [],
+      origin: input.origin ?? 'manual',
+      contested: false,
+      extra: {},
+    },
+  };
+  if (adr.meta.review_rule === undefined) delete adr.meta.review_rule;
+  if (adr.meta.review_on === undefined) delete adr.meta.review_on;
+  writeAdr(ctx.logRoot, adr, { exclusive: true });
+  return { written: true, adr };
 }
 
 const PATCH_KEYS = new Set(['title', 'tags', 'components', 'code', 'review_rule', 'sources', 'related', 'body']);

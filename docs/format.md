@@ -190,8 +190,13 @@ log itself, and in every other log of the run whose `common` field points to thi
 the clone cannot be made; a common log that only has the same name is another repo, and one that cannot be read is
 unknown: both are reported, not rewritten). Accepted
 ADRs are rewritten too: on an accepted ADR, `exception_to` may change only by its prefix, so a rename is allowed and a
-retarget, an added or a removed entry is not. Supersession links, file names, ids and the rest of each file are left as
-they are. `--dry-run` prints the changes and writes nothing. Everything is checked before the first write: a rename that would make a `related` entry read as a local id of its log is
+retarget, an added or a removed entry is not. The ADR folder moves when its last segment is the old name: `<parent>/<old>`
+becomes `<parent>/<new>`, with every file in it, and `adr_dir` is rewritten to match. A folder with another last segment,
+such as `docs/adr`, stays where it is, and the command says so. File names, ids, supersession links and the rest of each
+file are left as they are, and links between ADRs of the folder keep working. Links from outside the folder, such as a
+README, are not rewritten. After a move the command reminds you to update any `CODEOWNERS` entry for the old folder, and to stage both folders with `git add -A` before you commit: `git commit -a` leaves the new folder out. Every
+ADR of the moved log has a new path, so each one shows as a pending change until the rename is merged. `--from` never moves
+a folder. `--dry-run` prints the changes and writes nothing. Everything is checked before the first write: a rename that would make a `related` entry read as a local id of its log is
 refused, so choose another name. A product that has the same name as the log being renamed keeps its `<old>/ADR-n`
 entries, which name its own decisions, and the command says so. A change
 made to one of those files since the plan refuses the rename. A write that fails part way puts every file back as it was; if a file cannot be put back, the error lists each file
@@ -262,6 +267,9 @@ change; the revision, below, protects a change that was planned on an older read
 
 - `supersede` locks both ADRs, and `renumber` locks every ADR in the log, since it can rewrite the ones that refer to the
   one it moves. Locks are always taken in the same order, so two commands cannot wait on each other.
+- A new ADR (`adrien new`, `adr_propose`) and a `rename-workspace` that moves the ADR folder both take the log's folder
+  lock, `.adrien/folder.lock`, the rename before any ADR lock. A proposal made while the folder moves waits for it, and
+  one that read the log before the move is refused with `ADR_CONFLICT`: run it again.
 - A lock whose process is gone (on this machine), or that has been held for 30 seconds, is taken over, so a crashed command
   never leaves an ADR stuck. Locks live in the working copy: a log is changed in one checkout at a time, and the merge
   request is where two checkouts meet.

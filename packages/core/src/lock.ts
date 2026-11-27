@@ -225,3 +225,25 @@ export function withAdrLocks<T>(logRoot: string, ids: string[], fn: () => T, opt
     for (const { file, mine } of held.reverse()) release(file, mine);
   }
 }
+
+/**
+ * Runs `fn` while holding the log's folder lock, which a new ADR and a move of the ADR folder both take: a proposal never
+ * writes into a folder that a rename is moving away. It is `.adrien/folder.lock`, outside `.adrien/locks`, so it can never
+ * share a file with an ADR's lock, and it is taken over like one. Take it before any ADR lock, never while holding one:
+ * no operation creates an ADR while it holds an ADR lock (`adrien new` and `adr_propose` hold none).
+ */
+export function withFolderLock<T>(logRoot: string, fn: () => T, opts: LockOptions = {}): T {
+  const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const staleMs = opts.staleMs ?? staleAfter(timeoutMs);
+  const dir = join(logRoot, '.adrien');
+  assertInsideLog(logRoot, dir, '.adrien');
+  mkdirSync(dir, { recursive: true });
+  tryWriteFile(join(dir, '.gitignore'), '*\n', 'wx');
+  const file = join(dir, 'folder.lock');
+  const mine = acquire(file, 'The ADR folder', timeoutMs, staleMs);
+  try {
+    return fn();
+  } finally {
+    release(file, mine);
+  }
+}
