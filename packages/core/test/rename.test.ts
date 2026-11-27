@@ -1452,7 +1452,9 @@ test('a change to an existing ADR from a context read before the folder moved fa
   const stale = await ctxAt(join(root, 'log'));
   const view = await loadLogView(stale.logRoot, stale.config);
   applyWorkspaceRename(await planWorkspaceRename({ target: stale, others: [], to: 'new' }));
-  expect(errorOf(() => updateAdr(stale, view, 'ADR-0001', { title: 'Renamed' }))).toMatchObject({ code: 'ADR_NOT_FOUND' });
+  expect(errorOf(() => updateAdr(stale, view, 'ADR-0001', { title: 'Renamed' }))).toMatchObject({
+    code: 'ADR_NOT_FOUND',
+  });
   expect(errorOf(() => acceptAdr(stale, view, 'ADR-0001'))).toMatchObject({ code: 'ADR_NOT_FOUND' });
   expect(existsSync(join(root, 'log/adrien-docs/old'))).toBe(false);
   expect(readFileSync(join(root, 'log/adrien-docs/new/ADR-0001-a.md'), 'utf8')).toContain('title: A');
