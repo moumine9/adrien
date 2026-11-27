@@ -166,7 +166,7 @@ components:
     root: apps/web # the component's folder inside that repo
 ```
 
-- `adr_dir` is the folder of the ADRs, relative to this log. `adrien init` asks for its parent folder (default `adrien-docs`; `--adr-parent <dir>` gives it without the question, and `--adr-dir` gives the whole folder). It writes `<parent>/<workspace>`, so the folder says which log it holds. When `docs/adr` already holds ADRs, `init` keeps `adr_dir: docs/adr`. A log with no `adr_dir` is still read from `docs/adr`.
+- `adr_dir` is the folder of the ADRs, relative to this log. `adrien init` asks for its parent folder (default `adrien-docs`; `--adr-parent <dir>` gives it without the question, and `--adr-dir` gives the whole folder). It writes `<parent>/<workspace>`, so the folder says which log it holds. When `docs/adr` already holds ADR files, even ones that cannot be read, `init` keeps `adr_dir: docs/adr`. A log with no `adr_dir` is still read from `docs/adr`.
 - `workspace` is the name of this log: lowercase letters, digits, `.`, `_` and `-`. When it is absent, the product name, lower-cased and slugged, is used; `adrien init --workspace <name>` sets it. A server that serves only one log, whose product has no ASCII name and which has no `workspace`, calls it `default`.
 - `common` says where the common log is: a path, relative to the root of this log, or a git URL, as for `--log`. The
   accepted decisions of the common log bind this product, matched to its files by the same rule as its own decisions.

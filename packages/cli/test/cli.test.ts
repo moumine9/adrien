@@ -163,6 +163,17 @@ test('init keeps an existing docs/adr that holds an ADR', async () => {
   expect(existsSync(join(root, 'adrien-docs'))).toBe(false);
 });
 
+test('init keeps an existing docs/adr whose only ADR cannot be read, so check still reports it', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'docs/adr/ADR-0001-a.md': '---\nid: ADR-0001\ntitle: [unclosed\n---\n\nBody.\n' });
+  const result = await run(root, 'init', '--product', 'acme');
+  expect(result.code).toBe(0);
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: docs/adr\n');
+  expect(existsSync(join(root, 'adrien-docs'))).toBe(false);
+  const check = await run(root, 'check');
+  expect(check.stdout + check.stderr).toContain('ADR-0001-a.md');
+});
+
 test('a second init asks nothing before it refuses', async () => {
   const root = tmpDir();
   expect((await run(root, 'init', '--product', 'acme')).code).toBe(0);

@@ -79,8 +79,9 @@ async function chooseAdrDir(
   base: Omit<LogConfig, 'adr_dir'> & { workspace: string },
 ): Promise<{ adrDir: string; keptLegacy: boolean }> {
   if (opts.adrDir !== undefined) return { adrDir: opts.adrDir, keptLegacy: false };
+  // An ADR file that cannot be read counts too: a new folder would hide it from `check`, which reports it.
   const legacy = readWorkingLog(cli.cwd, { ...base, adr_dir: LEGACY_ADR_DIR });
-  if (legacy.adrs.length > 0) return { adrDir: LEGACY_ADR_DIR, keptLegacy: true };
+  if (legacy.adrs.length > 0 || legacy.problems.length > 0) return { adrDir: LEGACY_ADR_DIR, keptLegacy: true };
   if (opts.adrParent !== undefined) return { adrDir: adrDirUnder(opts.adrParent, base), keptLegacy: false };
   if (cli.ask) {
     const answer = (await cli.ask(`Parent folder for the ADRs (${DEFAULT_ADR_PARENT}): `)).trim();
