@@ -27,7 +27,7 @@ export const SEARCH_DEBOUNCE_MS = 300;
 
 function summary(meta: MetaResponse): ReactNode {
   const { total, pending } = meta.counts;
-  const decisions = `${total} ${total === 1 ? 'decision' : 'decisions'} in ${meta.adrDir}`;
+  const decisions = `${total} ${total === 1 ? 'decision' : 'decisions'} in workspace ${meta.workspace} (${meta.adrDir})`;
   if (!pending) return `${decisions}.`;
   return `${decisions}, ${pending} pending ${pending === 1 ? 'change' : 'changes'} in this checkout.`;
 }

@@ -11,6 +11,7 @@ import { useWorkspacePath } from '@/lib/workspace.ts';
 import { BrandMark } from './brand-mark.tsx';
 import { ChangeToast } from './change-toast.tsx';
 import { DemoBanner } from './demo-banner.tsx';
+import { LoadingBar } from './loading-bar.tsx';
 import { LoadingBlocks } from './states.tsx';
 import { UnverifiedBanner } from './unverified-banner.tsx';
 import { WorkspaceSwitcher } from './workspace-switcher.tsx';
@@ -96,7 +97,7 @@ export function Layout() {
       >
         Skip to content
       </button>
-      <header className="border-b-4 border-border bg-secondary-background">
+      <header className="relative border-b-4 border-border bg-secondary-background">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-4 px-4 py-4 sm:px-6">
           <Link
             to={wp('/')}
@@ -139,6 +140,7 @@ export function Layout() {
             <ThemeToggle />
           </div>
         </div>
+        <LoadingBar />
       </header>
       {import.meta.env.MODE === 'demo' && <DemoBanner />}
       {meta.data && <UnverifiedBanner meta={meta.data} />}
@@ -150,7 +152,7 @@ export function Layout() {
       <footer className="border-t-2 border-border">
         <div className="mx-auto max-w-6xl px-4 py-4 text-sm text-muted-foreground sm:px-6">
           {meta.data
-            ? `${meta.data.product} ${meta.data.version}, reading ${meta.data.adrDir}. This view is read-only.`
+            ? `${meta.data.product} ${meta.data.version}, workspace ${meta.data.workspace}, reading ${meta.data.adrDir}. This view is read-only.`
             : 'This view is read-only.'}
         </div>
       </footer>
