@@ -18,7 +18,7 @@ import { type Cli, csv, singleLog } from '../cli.ts';
 
 export const AGENTS_SNIPPET = `<!-- adrien:start -->
 ## Architecture decisions (Adrien)
-Before changing code, call the \`adr_for_files\` MCP tool with the files you will touch, and follow the \`review_rule\` of every binding ADR. If your change contradicts an accepted ADR, stop and tell the user instead of working around it. Record a new durable decision with \`adr_propose\`. Never set an ADR's status to \`accepted\` yourself.
+Before changing code, call the \`adr_for_files\` MCP tool with the files you will touch, and follow the \`review_rule\` of every binding ADR, in the code you write or change (do not rewrite other code only to make it comply). If your change contradicts an accepted ADR, stop and tell the user instead of working around it. Record a new durable decision with \`adr_propose\`. Never set an ADR's status to \`accepted\` yourself.
 <!-- adrien:end -->`;
 
 const AGENTS_BLOCK = /<!-- adrien:start -->[\s\S]*?<!-- adrien:end -->/;
