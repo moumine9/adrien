@@ -92,6 +92,15 @@ describe('Decision view', () => {
     expect(await heading('Publish notification events to the event bus')).toBeInTheDocument();
   });
 
+  it('shows the lineage of a decision that sits in a chain of three', async () => {
+    renderApp('/adr/ADR-0007');
+    await heading('Send notifications through a durable queue');
+    const lineage = (await heading('Lineage')).closest('section') as HTMLElement;
+    expect(within(lineage).getByText('This decision')).toBeInTheDocument();
+    expect(within(lineage).getByRole('link', { name: /ADR-0003/ })).toBeInTheDocument();
+    expect(within(lineage).getByRole('link', { name: /ADR-0011/ })).toBeInTheDocument();
+  });
+
   it('separates a pending edit from the binding version', async () => {
     renderApp('/adr/ADR-0004');
     await heading('Retry outbound payment calls with exponential backoff');
