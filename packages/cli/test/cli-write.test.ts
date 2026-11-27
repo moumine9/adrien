@@ -119,6 +119,9 @@ test('init --agents twice leaves one block and keeps the rest of the file', asyn
   expect(text).toContain('# Repo rules\n\nBe kind.\n');
   expect(text).toContain(AGENTS_SNIPPET);
   expect(AGENTS_SNIPPET).toContain("Never set an ADR's status to `accepted` yourself.");
+  expect(AGENTS_SNIPPET).toContain(
+    'follow the `review_rule` of every binding ADR, in the code you write or change (do not rewrite other code only to make it comply)',
+  );
 });
 
 test('init --agents creates AGENTS.md and tips about CLAUDE.md only when it does not read AGENTS.md', async () => {

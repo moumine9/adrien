@@ -106,6 +106,17 @@ test('the server tells agents never to accept', async () => {
   expect(client.getInstructions()).toContain("Never set an ADR's status to `accepted` yourself.");
 });
 
+test('adr_for_files tells agents to apply a rule to the code they change', async () => {
+  const client = await connect({ cwd: monorepo() });
+  const { tools } = await client.listTools();
+  const description = tools.find((t) => t.name === 'adr_for_files')?.description ?? '';
+  const sentence =
+    'Apply each review_rule to the code you write or change; do not rewrite other code only to make it comply, unless the user asks you to.';
+  const clause = ', in the code you write or change (do not rewrite other code only to make it comply)';
+  expect(description.endsWith(` ${sentence}`)).toBe(true);
+  expect(client.getInstructions()).toContain(`follow the \`review_rule\` of every binding ADR${clause}`);
+});
+
 test('adr_for_files returns the binding ADR with its review_rule', async () => {
   const client = await connect({ cwd: monorepo() });
   const { structured, isError } = await call(client, 'adr_for_files', { paths: ['apps/web/src/a.ts'] });
