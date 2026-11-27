@@ -2,6 +2,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { CODE_CONFIG_FILE, CONFIG_FILE } from '@adrien/core';
+import { lint } from 'markdownlint/promise';
 import { adrText, configYaml, tmpDir, writeFiles } from '../../core/test/helpers/fixtures.ts';
 import { commitAll, git, initRepo } from '../../core/test/helpers/git.ts';
 import { AGENTS_SNIPPET } from '../src/commands/init.ts';
@@ -124,11 +125,40 @@ test('init --agents twice leaves one block and keeps the rest of the file', asyn
   );
 });
 
+test('init --agents writes an AGENTS.md that passes markdownlint', async () => {
+  const config = { default: true, MD013: false };
+  const fresh = tmpDir();
+  const home = tmpDir();
+  await runIn(fresh, home, 'init', '--agents');
+  const created = await lint({ strings: { 'AGENTS.md': readFileSync(join(fresh, 'AGENTS.md'), 'utf8') }, config });
+  expect(created['AGENTS.md']).toEqual([]);
+
+  const existing = tmpDir();
+  writeFiles(existing, { 'AGENTS.md': '# Repo rules\n\nBe kind.\n' });
+  await runIn(existing, home, 'init', '--agents');
+  const appended = await lint({
+    strings: { 'AGENTS.md': readFileSync(join(existing, 'AGENTS.md'), 'utf8') },
+    config,
+  });
+  expect(appended['AGENTS.md']).toEqual([]);
+
+  const blank = tmpDir();
+  writeFiles(blank, { 'AGENTS.md': '\n' });
+  await runIn(blank, home, 'init', '--agents');
+  const filled = await lint({ strings: { 'AGENTS.md': readFileSync(join(blank, 'AGENTS.md'), 'utf8') }, config });
+  expect(filled['AGENTS.md']).toEqual([]);
+});
+
+test("this repo's AGENTS.md carries the block init writes", () => {
+  const repoAgents = readFileSync(new URL('../../../AGENTS.md', import.meta.url), 'utf8');
+  expect(repoAgents).toContain(AGENTS_SNIPPET);
+});
+
 test('init --agents creates AGENTS.md and tips about CLAUDE.md only when it does not read AGENTS.md', async () => {
   const fresh = tmpDir();
   const home = tmpDir();
   const created = await runIn(fresh, home, 'init', '--agents');
-  expect(readFileSync(join(fresh, 'AGENTS.md'), 'utf8')).toBe(`${AGENTS_SNIPPET}\n`);
+  expect(readFileSync(join(fresh, 'AGENTS.md'), 'utf8')).toBe(`# Agent instructions\n\n${AGENTS_SNIPPET}\n`);
   expect(created.stdout).not.toContain('Tip:');
 
   const plain = tmpDir();

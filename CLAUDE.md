@@ -1,6 +1,6 @@
-@AGENTS.md
-
 # Claude Code
+
+@AGENTS.md
 
 The rules and the model roles are in `AGENTS.md`. In Claude Code they map to:
 
