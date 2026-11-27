@@ -19,6 +19,14 @@ describe('a named workspace', () => {
     expect(screen.getByRole('link', { name: 'Adrien' })).toHaveAttribute('href', '/w/common');
   });
 
+  it('names its workspace beside the folder it reads', async () => {
+    renderApp('/w/common', { variant: 'workspaces' });
+    expect(await screen.findByText('3 decisions in workspace common (docs/decisions).')).toBeInTheDocument();
+    expect(
+      screen.getByText('Common standards 0.1.0, workspace common, reading docs/decisions. This view is read-only.'),
+    ).toBeInTheDocument();
+  });
+
   it('opens a decision under its workspace', async () => {
     renderApp('/w/common/adr/ADR-0001', { variant: 'workspaces' });
     expect(await screen.findByRole('heading', { level: 1 })).toBeVisible();

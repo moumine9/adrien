@@ -152,7 +152,7 @@ export function Layout() {
       <footer className="border-t-2 border-border">
         <div className="mx-auto max-w-6xl px-4 py-4 text-sm text-muted-foreground sm:px-6">
           {meta.data
-            ? `${meta.data.product} ${meta.data.version}, reading ${meta.data.adrDir}. This view is read-only.`
+            ? `${meta.data.product} ${meta.data.version}, workspace ${meta.data.workspace}, reading ${meta.data.adrDir}. This view is read-only.`
             : 'This view is read-only.'}
         </div>
       </footer>
