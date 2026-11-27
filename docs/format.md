@@ -15,7 +15,7 @@ decisions repo or inside one of the code repos.
 
 ## ADR files
 
-Any `*.md` file under the log's `adr_dir` (default `docs/adr`), at any depth, is an ADR if its name starts with a number
+Any `*.md` file under the log's `adr_dir` (default `docs/adr` when the config has none; `adrien init` writes `adrien-docs/<workspace>`), at any depth, is an ADR if its name starts with a number
 (`0007-use-postgres.md`, `ADR-0007-use-postgres.md`) or its frontmatter has an `id`. Subfolders are only for your own
 organisation. Adrien writes new files as `<id>-<slug>.md`.
 
@@ -128,7 +128,7 @@ The approval flow is the one your platform already has:
 1. A developer or an agent runs `adrien new` (or the `adr_propose` MCP tool). The ADR is written as `proposed`.
 2. They commit it and open a merge request against the log repo.
 3. An architect reviews it. `adrien accept <id>` sets `status: accepted` and the date.
-4. **Merging is the approval.** Add the ADR folder to `CODEOWNERS` (`docs/adr/ @your-architects`) and require code-owner
+4. **Merging is the approval.** Add the ADR folder to `CODEOWNERS` (`adrien-docs/acme/ @your-architects`) and require code-owner
    approval on the default branch, so only architects can merge.
 
 `adrien check --mr` warns when an ADR changed in the merge request still says `proposed`: merged as it is, it would be a
@@ -155,7 +155,7 @@ which also needs `review_on`.
 ```yaml
 product: acme
 workspace: acme
-adr_dir: docs/adr # default
+adr_dir: adrien-docs/acme # set by adrien init: <parent>/<workspace>
 id_format: "ADR-{n:4}" # default; {n} means no padding
 tags: [frontend, backend, database, infra, security]
 components:
@@ -166,6 +166,7 @@ components:
     root: apps/web # the component's folder inside that repo
 ```
 
+- `adr_dir` is the folder of the ADRs, relative to this log. `adrien init` asks for its parent folder (default `adrien-docs`; `--adr-parent <dir>` gives it without the question, and `--adr-dir` gives the whole folder). It writes `<parent>/<workspace>`, so the folder says which log it holds. When `docs/adr` already holds ADRs, `init` keeps `adr_dir: docs/adr`. A log with no `adr_dir` is still read from `docs/adr`.
 - `workspace` is the name of this log: lowercase letters, digits, `.`, `_` and `-`. When it is absent, the product name, lower-cased and slugged, is used; `adrien init --workspace <name>` sets it. A server that serves only one log, whose product has no ASCII name and which has no `workspace`, calls it `default`.
 - `common` says where the common log is: a path, relative to the root of this log, or a git URL, as for `--log`. The
   accepted decisions of the common log bind this product, matched to its files by the same rule as its own decisions.

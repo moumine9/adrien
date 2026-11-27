@@ -10,6 +10,11 @@ function run(cwd: string, ...argv: string[]) {
   return runCli(argv, { cwd, env: { ADRIEN_HOME: join(cwd, '.home') } });
 }
 
+/** Runs with an injected `ask`, as the real entry point does in a terminal. */
+function runAsk(cwd: string, ask: (question: string) => Promise<string>, ...argv: string[]) {
+  return runCli(argv, { cwd, env: { ADRIEN_HOME: join(cwd, '.home') }, ask });
+}
+
 function log(files: Record<string, string> = {}): string {
   const root = tmpDir();
   writeFiles(root, { [CONFIG_FILE]: configYaml(), ...files });
@@ -45,18 +50,161 @@ test('init writes the config and prints the setup hint; a second init exits 2', 
     [
       'Created adrien.config.yaml (product: acme, workspace: acme).',
       'Next:',
-      '  1. Add to CODEOWNERS:   docs/adr/ @your-architects-group',
+      '  1. Add to CODEOWNERS:   adrien-docs/acme/ @your-architects-group',
       '  2. GitLab Premium+: Settings > Repository > Protected branches > require Code Owner approval on the default branch.',
       '  3. In each code repo: adrien init --code-repo --log <path|url> && adrien init --agents',
       '',
     ].join('\n'),
   );
-  expect(existsSync(join(root, 'docs/adr/.gitkeep'))).toBe(true);
+  expect(existsSync(join(root, 'adrien-docs/acme/.gitkeep'))).toBe(true);
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: adrien-docs/acme\n');
   expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('- security');
 
   const second = await run(root, 'init', '--product', 'acme');
   expect(second.code).toBe(2);
   expect(second.stderr).toContain('already exists');
+});
+
+test('init without a terminal uses adrien-docs/<workspace> and asks nothing', async () => {
+  const root = tmpDir();
+  const result = await run(root, 'init', '--product', 'Acme Billing');
+  expect(result.code).toBe(0);
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: adrien-docs/acme-billing\n');
+  expect(existsSync(join(root, 'adrien-docs/acme-billing/.gitkeep'))).toBe(true);
+  expect(existsSync(join(root, 'docs/adr'))).toBe(false);
+});
+
+test('init --adr-parent writes <parent>/<workspace> without asking', async () => {
+  const root = tmpDir();
+  const result = await runAsk(
+    root,
+    () => {
+      throw new Error('ask must not be called when --adr-parent is given');
+    },
+    'init',
+    '--product',
+    'acme',
+    '--adr-parent',
+    'decisions/',
+  );
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain('1. Add to CODEOWNERS:   decisions/acme/ @your-architects-group');
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: decisions/acme\n');
+  expect(existsSync(join(root, 'decisions/acme/.gitkeep'))).toBe(true);
+});
+
+test('init keeps the --adr-dir value as it is', async () => {
+  const root = tmpDir();
+  const result = await run(root, 'init', '--product', 'acme', '--adr-dir', 'x/y');
+  expect(result.code).toBe(0);
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: x/y\n');
+  expect(existsSync(join(root, 'x/y/.gitkeep'))).toBe(true);
+});
+
+test('init refuses --adr-parent with --adr-dir and writes nothing', async () => {
+  const root = tmpDir();
+  const result = await run(root, 'init', '--product', 'acme', '--adr-dir', 'x', '--adr-parent', 'decisions');
+  expect(result.code).toBe(2);
+  expect(result.stderr).toContain('--adr-parent and --adr-dir cannot be given together');
+  expect(existsSync(join(root, CONFIG_FILE))).toBe(false);
+  expect(existsSync(join(root, 'x'))).toBe(false);
+});
+
+test('init refuses an absolute or escaping parent and writes nothing', async () => {
+  for (const parent of ['/abs/decisions', '../outside', 'a/../../outside']) {
+    const root = tmpDir();
+    const result = await run(root, 'init', '--product', 'acme', '--adr-parent', parent);
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain('adrien: ');
+    expect(existsSync(join(root, CONFIG_FILE))).toBe(false);
+  }
+});
+
+test('init asks for the parent in a terminal; a typed answer is used', async () => {
+  const root = tmpDir();
+  const questions: string[] = [];
+  const result = await runAsk(
+    root,
+    async (question) => {
+      questions.push(question);
+      return ' team-docs ';
+    },
+    'init',
+    '--product',
+    'acme',
+  );
+  expect(result.code).toBe(0);
+  expect(questions).toEqual(['Parent folder for the ADRs (adrien-docs): ']);
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: team-docs/acme\n');
+});
+
+test('init asks in a terminal; an empty answer means adrien-docs', async () => {
+  const root = tmpDir();
+  const result = await runAsk(root, async () => '', 'init', '--product', 'acme');
+  expect(result.code).toBe(0);
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: adrien-docs/acme\n');
+});
+
+test('init keeps an existing docs/adr that holds an ADR', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  const result = await runAsk(
+    root,
+    () => {
+      throw new Error('ask must not be called when docs/adr holds ADRs');
+    },
+    'init',
+    '--product',
+    'acme',
+  );
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain('Kept the existing ADRs in docs/adr (adr_dir: docs/adr).');
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: docs/adr\n');
+  expect(existsSync(join(root, 'adrien-docs'))).toBe(false);
+});
+
+test('a second init asks nothing before it refuses', async () => {
+  const root = tmpDir();
+  expect((await run(root, 'init', '--product', 'acme')).code).toBe(0);
+  const second = await runAsk(
+    root,
+    () => {
+      throw new Error('ask must not be called when the config already exists');
+    },
+    'init',
+    '--product',
+    'acme',
+  );
+  expect(second.code).toBe(2);
+  expect(second.stderr).toContain('already exists');
+});
+
+test('init writes --adr-dir as it is, even the log root', async () => {
+  const root = tmpDir();
+  const result = await run(root, 'init', '--product', 'acme', '--adr-dir', '.');
+  expect(result.code).toBe(0);
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: .\n');
+});
+
+test('init says --adr-parent was not used when it keeps an existing docs/adr', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'docs/adr/ADR-0001-a.md': adrText({ id: 'ADR-0001', title: 'A' }) });
+  const result = await run(root, 'init', '--product', 'acme', '--adr-parent', 'team-docs');
+  expect(result.code).toBe(0);
+  expect(result.stdout).toContain(
+    'Kept the existing ADRs in docs/adr (adr_dir: docs/adr), so --adr-parent was not used; pass --adr-dir to choose another folder.',
+  );
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: docs/adr\n');
+  expect(existsSync(join(root, 'team-docs'))).toBe(false);
+});
+
+test('init does not keep a docs/adr that holds only a README', async () => {
+  const root = tmpDir();
+  writeFiles(root, { 'docs/adr/README.md': '# Decisions\n' });
+  const result = await runAsk(root, async () => 'team-docs', 'init', '--product', 'acme');
+  expect(result.code).toBe(0);
+  expect(result.stdout).not.toContain('Kept the existing ADRs');
+  expect(readFileSync(join(root, CONFIG_FILE), 'utf8')).toContain('adr_dir: team-docs/acme\n');
 });
 
 test('init names the workspace after the product unless --workspace overrides it', async () => {
